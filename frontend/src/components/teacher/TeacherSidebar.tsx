@@ -59,7 +59,8 @@ export function TeacherSidebar({ open, setOpen }: TeacherSidebarProps) {
               <div className="mt-8">
                 <Link 
                   to="/teacher/dashboard"
-                  className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground hover:text-foreground"
+                  aria-label="Back to Dashboard"
+                  className="flex min-h-11 items-center gap-2 px-2 py-2 rounded-md hover:bg-accent transition-colors text-sm text-muted-foreground hover:text-foreground"
                 >
                   <ArrowLeft className="h-4 w-4 flex-shrink-0" />
                   {open && <span>Back to Dashboard</span>}
@@ -105,7 +106,8 @@ const Logo = ({ open }: { open: boolean }) => {
   return (
     <Link
       to="/teacher/dashboard"
-      className="font-normal flex space-x-2 items-center text-sm py-1 relative z-20"
+      aria-label="StoryClass dashboard"
+      className="font-normal flex min-h-11 space-x-2 items-center text-sm py-1 relative z-20"
     >
       <div className="h-5 w-6 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
       <motion.span

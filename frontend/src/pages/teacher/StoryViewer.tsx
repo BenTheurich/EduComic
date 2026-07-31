@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ChevronLeft, Download, Loader2, ZoomIn, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,10 +15,10 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
-import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { exportStoryPdf } from "@/lib/exportStoryPdf";
+import { clampReaderScale } from "@/lib/utils";
 import type { Chapter, ChapterWithPanels, Panel } from "@/types/story";
 
 const StoryViewer = () => {
@@ -35,21 +35,13 @@ const StoryViewer = () => {
     layout: "2"
   });
 
-  // Header visibility state
-  const [showHeader, setShowHeader] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
   // Layout mode: 'webtoon' (vertical) or 'grid' (grid layout)
   const [layoutMode, setLayoutMode] = useState<'webtoon' | 'grid'>(() => {
     const saved = localStorage.getItem('teacherStoryReaderLayout');
     return (saved as 'webtoon' | 'grid') || 'webtoon';
   });
 
-  // Image size control (10% - 200%), default 50%
-  const [imageScale, setImageScale] = useState(() => {
-    const saved = localStorage.getItem('teacherStoryReaderImageScale');
-    return saved ? parseInt(saved) : 50;
-  });
+  const [imageScale, setImageScale] = useState(() => clampReaderScale(localStorage.getItem('teacherStoryReaderImageScale')));
 
   // Load chapter data from API
   useEffect(() => {
@@ -84,12 +76,11 @@ const StoryViewer = () => {
               const index = sortedChapters.findIndex(ch => ch.id === id);
               setCurrentIndex(index);
             }
-          } catch (error) {
-            console.error("Failed to load chapters list:", error);
+          } catch {
+            // The current chapter remains readable without adjacent-story navigation.
           }
         }
-      } catch (error) {
-        console.error("Failed to load chapter:", error);
+      } catch {
         setLoadError("Failed to load this chapter. Please try again.");
         toast.error("Failed to load chapter");
       } finally {
@@ -110,27 +101,6 @@ const StoryViewer = () => {
     localStorage.setItem('teacherStoryReaderLayout', layoutMode);
   }, [layoutMode]);
 
-  // Scroll direction detection
-  const handleScroll = useCallback(() => {
-    const currentScrollY = window.scrollY;
-
-    if (currentScrollY < 10) {
-      setShowHeader(true);
-    } else if (Math.abs(currentScrollY - lastScrollY) > 80) {
-      if (currentScrollY > lastScrollY) {
-        setShowHeader(false);
-      } else {
-        setShowHeader(true);
-      }
-      setLastScrollY(currentScrollY);
-    }
-  }, [lastScrollY]);
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
-
   const handleExport = async () => {
     if (!chapter || panels.length === 0) {
       toast.error("No panels to export");
@@ -149,8 +119,7 @@ const StoryViewer = () => {
       });
 
       toast.success("PDF downloaded successfully!");
-    } catch (error) {
-      console.error("PDF export failed:", error);
+    } catch {
       toast.error("Failed to generate PDF. Please try again.");
     }
   };
@@ -179,17 +148,9 @@ const StoryViewer = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AnimatePresence>
-        {showHeader && (
-          <motion.header
-            initial={{ y: 0 }}
-            animate={{ y: 0 }}
-            exit={{ y: -100 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-white/90 border-b border-gray-200 shadow-sm"
-          >
+      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/90 shadow-sm backdrop-blur-lg">
             <div className="container mx-auto px-4 py-4">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="flex-shrink-0">
                     <ChevronLeft className="w-4 h-4 mr-1" />
@@ -200,7 +161,7 @@ const StoryViewer = () => {
                   </h1>
                 </div>
 
-                <div className="flex items-center gap-4 flex-shrink-0">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline">
@@ -249,17 +210,17 @@ const StoryViewer = () => {
                   </Dialog>
 
                   <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg border border-border/30">
-                    <Button variant={layoutMode === 'webtoon' ? 'default' : 'ghost'} size="sm" onClick={() => setLayoutMode('webtoon')} className="h-8">
+                    <Button aria-label="Vertical layout" aria-pressed={layoutMode === 'webtoon'} variant={layoutMode === 'webtoon' ? 'default' : 'ghost'} size="sm" onClick={() => setLayoutMode('webtoon')}>
                       <List className="w-4 h-4" />
                     </Button>
-                    <Button variant={layoutMode === 'grid' ? 'default' : 'ghost'} size="sm" onClick={() => setLayoutMode('grid')} className="h-8">
+                    <Button aria-label="Grid layout" aria-pressed={layoutMode === 'grid'} variant={layoutMode === 'grid' ? 'default' : 'ghost'} size="sm" onClick={() => setLayoutMode('grid')}>
                       <LayoutGrid className="w-4 h-4" />
                     </Button>
                   </div>
 
-                  <ZoomIn className="w-4 h-4 text-muted-foreground" />
-                  <div className="flex items-center gap-2 w-32">
-                    <Slider value={[imageScale]} onValueChange={(value) => setImageScale(value[0])} min={10} max={200} step={5} className="flex-1" />
+                  <ZoomIn aria-hidden="true" className="w-4 h-4 text-muted-foreground" />
+                  <div className="flex min-w-40 flex-1 items-center gap-2 sm:flex-none">
+                    <Slider aria-label="Image size" aria-valuetext={`${imageScale} percent`} value={[imageScale]} onValueChange={(value) => setImageScale(value[0])} min={10} max={100} step={5} className="flex-1" />
                     <span className="text-sm text-muted-foreground w-10 text-right">{imageScale}%</span>
                   </div>
                 </div>
@@ -278,12 +239,10 @@ const StoryViewer = () => {
                 </div>
               )}
             </div>
-          </motion.header>
-        )}
-      </AnimatePresence>
+      </header>
 
       {layoutMode === 'webtoon' ? (
-        <div className="pt-20 flex flex-col items-center" style={{ width: `${imageScale}%`, margin: '0 auto' }}>
+        <div className="flex flex-col items-center" style={{ width: `${imageScale}%`, margin: '0 auto' }}>
           {panels.length === 0 ? (
             <div className="text-center py-24">
               <div className="text-8xl mb-4">📚</div>
@@ -298,7 +257,7 @@ const StoryViewer = () => {
           )}
         </div>
       ) : (
-        <div className="pt-20 container mx-auto px-4 pb-8">
+        <div className="container mx-auto px-4 pb-8">
           {panels.length === 0 ? (
             <div className="text-center py-24">
               <div className="text-8xl mb-4">📚</div>

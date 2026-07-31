@@ -84,6 +84,9 @@ const DesktopSidebar = ({
   ...props
 }: React.ComponentProps<typeof motion.div>) => {
   const { open, setOpen, animate } = useSidebar();
+  const closeWhenFocusLeaves = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+  };
   return (
     <motion.div
       className={cn(
@@ -99,6 +102,8 @@ const DesktopSidebar = ({
       }}
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
+      onFocusCapture={() => setOpen(true)}
+      onBlurCapture={closeWhenFocusLeaves}
       {...props}
     >
       {children}
@@ -113,21 +118,43 @@ const MobileSidebar = ({
 }: React.ComponentProps<"div">) => {
   const { open, setOpen } = useSidebar();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
+  const openedFromMenu = useRef(false);
 
   useEffect(() => {
-    if (wasOpen.current && !open) menuButtonRef.current?.focus();
+    if (wasOpen.current && !open && openedFromMenu.current) {
+      menuButtonRef.current?.focus();
+      openedFromMenu.current = false;
+    }
     wasOpen.current = open;
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
+    if (openedFromMenu.current) closeButtonRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [open, setOpen]);
+
+  const trapFocus = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return;
+    const focusable = panelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])');
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   return (
     <>
@@ -142,8 +169,11 @@ const MobileSidebar = ({
             ref={menuButtonRef}
             type="button"
             aria-label="Open navigation"
-            onClick={() => setOpen(true)}
-            className="text-foreground"
+            onClick={() => {
+              openedFromMenu.current = true;
+              setOpen(true);
+            }}
+            className="flex h-11 w-11 items-center justify-center text-foreground"
           >
             <Menu />
           </button>
@@ -151,6 +181,11 @@ const MobileSidebar = ({
         <AnimatePresence>
           {open && (
             <motion.div
+              ref={panelRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation"
+              onKeyDown={trapFocus}
               initial={{ x: "-100%", opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: "-100%", opacity: 0 }}
@@ -164,9 +199,10 @@ const MobileSidebar = ({
               )}
             >
               <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="Close navigation"
-                className="absolute right-10 top-10 z-50 text-foreground"
+                className="absolute right-8 top-8 z-50 flex h-11 w-11 items-center justify-center text-foreground"
                 onClick={() => setOpen(false)}
               >
                 <X />
@@ -192,8 +228,9 @@ export const SidebarLink = ({
   return (
     <Link
       to={link.href}
+      aria-label={link.label}
       className={cn(
-        "flex items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors",
+        "flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors",
         className
       )}
       {...props}

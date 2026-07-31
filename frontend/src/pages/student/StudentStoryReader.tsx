@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ZoomIn, LayoutGrid, List } from "lucide-react";
 import api from "@/lib/api";
+import { clampReaderScale } from "@/lib/utils";
 import type { ChapterWithPanels, Panel } from "@/types/story";
 
 const StudentStoryReader = () => {
@@ -15,21 +15,13 @@ const StudentStoryReader = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Header visibility state
-  const [showHeader, setShowHeader] = useState(true);
-  const [lastScrollY, setLastScrollY] = useState(0);
-
   // Layout mode: 'webtoon' (vertical) or 'grid' (grid layout)
   const [layoutMode, setLayoutMode] = useState<'webtoon' | 'grid'>(() => {
     const saved = localStorage.getItem('storyReaderLayout');
     return (saved as 'webtoon' | 'grid') || 'webtoon';
   });
 
-  // Image size control (10% - 200%), default 50% to fit 2 images on screen
-  const [imageScale, setImageScale] = useState(() => {
-    const saved = localStorage.getItem('storyReaderImageScale');
-    return saved ? parseInt(saved) : 50;
-  });
+  const [imageScale, setImageScale] = useState(() => clampReaderScale(localStorage.getItem('storyReaderImageScale')));
 
   // Load chapter data from API
   useEffect(() => {
@@ -46,8 +38,7 @@ const StudentStoryReader = () => {
         }
         setChapter(response.chapter);
         setPanels(response.chapter.panels || []);
-      } catch (error) {
-        console.error("Failed to load chapter:", error);
+      } catch {
         setLoadError("Failed to load this story. Please try again.");
       } finally {
         setIsLoading(false);
@@ -66,31 +57,6 @@ const StudentStoryReader = () => {
   useEffect(() => {
     localStorage.setItem('storyReaderLayout', layoutMode);
   }, [layoutMode]);
-
-  // Scroll direction detection
-  const handleScroll = useCallback(() => {
-    const currentScrollY = window.scrollY;
-
-    if (currentScrollY < 10) {
-      // Always show header at top
-      setShowHeader(true);
-    } else if (Math.abs(currentScrollY - lastScrollY) > 80) {
-      // Threshold of 80px
-      if (currentScrollY > lastScrollY) {
-        // Scrolling down - hide header
-        setShowHeader(false);
-      } else {
-        // Scrolling up - show header
-        setShowHeader(true);
-      }
-      setLastScrollY(currentScrollY);
-    }
-  }, [lastScrollY]);
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [handleScroll]);
 
   // ESC key to exit
   useEffect(() => {
@@ -124,18 +90,9 @@ const StudentStoryReader = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Auto-hiding header */}
-      <AnimatePresence>
-        {showHeader && (
-          <motion.header
-            initial={{ y: 0 }}
-            animate={{ y: 0 }}
-            exit={{ y: -100 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-white/90 border-b border-gray-200 shadow-sm"
-          >
+      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/90 shadow-sm backdrop-blur-lg">
             <div className="container mx-auto px-4 py-4">
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 {/* Left: Back button and title */}
                 <div className="flex items-center gap-3">
                   <Button
@@ -153,35 +110,39 @@ const StudentStoryReader = () => {
                 </div>
 
                 {/* Right: Layout toggle and Image size control */}
-                <div className="flex items-center gap-4 flex-shrink-0">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   {/* Layout Toggle */}
                   <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg border border-border/30">
                     <Button
                       variant={layoutMode === 'webtoon' ? 'default' : 'ghost'}
                       size="sm"
+                      aria-label="Vertical layout"
+                      aria-pressed={layoutMode === 'webtoon'}
                       onClick={() => setLayoutMode('webtoon')}
-                      className="h-8"
                     >
                       <List className="w-4 h-4" />
                     </Button>
                     <Button
                       variant={layoutMode === 'grid' ? 'default' : 'ghost'}
                       size="sm"
+                      aria-label="Grid layout"
+                      aria-pressed={layoutMode === 'grid'}
                       onClick={() => setLayoutMode('grid')}
-                      className="h-8"
                     >
                       <LayoutGrid className="w-4 h-4" />
                     </Button>
                   </div>
 
                   {/* Image Size Slider */}
-                  <ZoomIn className="w-4 h-4 text-muted-foreground" />
-                  <div className="flex items-center gap-2 w-32">
+                  <ZoomIn aria-hidden="true" className="w-4 h-4 text-muted-foreground" />
+                  <div className="flex min-w-40 flex-1 items-center gap-2 sm:flex-none">
                     <Slider
+                      aria-label="Image size"
+                      aria-valuetext={`${imageScale} percent`}
                       value={[imageScale]}
                       onValueChange={(value) => setImageScale(value[0])}
                       min={10}
-                      max={200}
+                      max={100}
                       step={5}
                       className="flex-1"
                     />
@@ -192,14 +153,12 @@ const StudentStoryReader = () => {
                 </div>
               </div>
             </div>
-          </motion.header>
-        )}
-      </AnimatePresence>
+      </header>
 
       {/* Story panels - conditional layout based on mode */}
       {layoutMode === 'webtoon' ? (
         /* Webtoon format: vertical flow, zero gaps */
-        <div className="pt-20 flex flex-col items-center" style={{ width: `${imageScale}%`, margin: '0 auto' }}>
+        <div className="flex flex-col items-center" style={{ width: `${imageScale}%`, margin: '0 auto' }}>
           {panels.length === 0 ? (
             <div className="text-center py-24">
               <div className="text-8xl mb-4">🔍</div>
@@ -228,7 +187,7 @@ const StudentStoryReader = () => {
         </div>
       ) : (
         /* Grid layout: responsive grid with direct images */
-        <div className="pt-20 container mx-auto px-4 pb-8">
+        <div className="container mx-auto px-4 pb-8">
           {panels.length === 0 ? (
             <div className="text-center py-24">
               <div className="text-8xl mb-4">🔍</div>

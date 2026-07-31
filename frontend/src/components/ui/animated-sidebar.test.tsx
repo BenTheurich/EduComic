@@ -31,11 +31,27 @@ describe("animated sidebar", () => {
     fireEvent.click(menuButton);
 
     expect(screen.getAllByRole("link", { name: "Dashboard" })).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Close navigation" })).toBeInTheDocument();
+    const closeButton = screen.getByRole("button", { name: "Close navigation" });
+    expect(closeButton).toHaveFocus();
+    fireEvent.keyDown(closeButton, { key: "Tab", shiftKey: true });
+    expect(screen.getAllByRole("link", { name: "Dashboard" })[1]).toHaveFocus();
 
     fireEvent.keyDown(document, { key: "Escape" });
 
     await waitFor(() => expect(screen.queryByRole("button", { name: "Close navigation" })).not.toBeInTheDocument());
     expect(menuButton).toHaveFocus();
+  });
+
+  it("expands the desktop sidebar when a navigation link receives focus", async () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SidebarFixture />
+      </MemoryRouter>,
+    );
+
+    const desktopLink = screen.getAllByRole("link", { name: "Dashboard" })[0];
+    fireEvent.focus(desktopLink);
+
+    await waitFor(() => expect(desktopLink.closest("div")).toHaveStyle({ width: "300px" }));
   });
 });

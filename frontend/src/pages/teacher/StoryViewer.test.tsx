@@ -42,6 +42,29 @@ describe("StoryViewer", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
+  it("exposes reader controls and clamps a malformed saved scale", async () => {
+    localStorage.setItem("teacherStoryReaderImageScale", "not-a-number");
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "current", classroom_id: "classroom-1", index: 1, chapter_outline: null,
+        original_prompt: "Lesson", thumbnail_url: null, story_title: "Gravity", status: "ready",
+        created_at: "2026-01-01", panels: [],
+      },
+    });
+    getChapters.mockResolvedValue({ success: true, chapters: [] });
+
+    renderViewer();
+
+    const slider = await screen.findByRole("slider", { name: "Image size" });
+    expect(slider).toHaveAttribute("aria-valuenow", "50");
+    expect(slider).toHaveAttribute("aria-valuetext", "50 percent");
+    expect(screen.getByRole("button", { name: "Vertical layout" })).toHaveAttribute("aria-pressed", "true");
+    const grid = screen.getByRole("button", { name: "Grid layout" });
+    fireEvent.click(grid);
+    expect(grid).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("fails closed when a chapter is not ready", async () => {
     getChapter.mockResolvedValueOnce({
       success: true,

@@ -19,6 +19,7 @@ const StudentLogin = () => {
     const navigate = useNavigate();
     const [students, setStudents] = useState<Student[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
         fetchAllStudents();
@@ -26,13 +27,12 @@ const StudentLogin = () => {
 
     const fetchAllStudents = async () => {
         setIsLoading(true);
+        setLoadError(null);
         try {
-            // Fetch all students directly from students table
             const response = await api.students.getAll();
-            console.log("Fetched students:", response.students);
             setStudents(response.students);
-        } catch (error) {
-            console.error("Failed to fetch students:", error);
+        } catch {
+            setLoadError("Failed to load students. Please try again.");
             toast.error("Failed to load students. Please try again.");
         } finally {
             setIsLoading(false);
@@ -73,6 +73,11 @@ const StudentLogin = () => {
                                     <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
                                     <p className="text-muted-foreground">Loading students...</p>
                                 </div>
+                            ) : loadError ? (
+                                <div className="flex flex-col items-center py-12 text-center">
+                                    <p role="alert" className="mb-4 text-muted-foreground">{loadError}</p>
+                                    <Button variant="outline" onClick={fetchAllStudents}>Retry</Button>
+                                </div>
                             ) : students.length === 0 ? (
                                 <div className="text-center py-12">
                                     <p className="text-muted-foreground mb-4">No students found</p>
@@ -82,9 +87,11 @@ const StudentLogin = () => {
                                 </div>
                             ) : (
                                 students.map((student) => (
-                                    <Card
+                                    <button
                                         key={student.id}
-                                        className="cursor-pointer hover:bg-accent transition-all hover:shadow-lg border-2"
+                                        type="button"
+                                        aria-label={`Continue as ${student.name}`}
+                                        className="w-full rounded-lg border-2 bg-card text-left text-card-foreground shadow-sm transition-all hover:bg-accent hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                         onClick={() => handleStudentClick(student.id)}
                                     >
                                         <CardContent className="pt-4 pb-4">
@@ -109,7 +116,7 @@ const StudentLogin = () => {
                                                 <Badge variant="outline">Student</Badge>
                                             </div>
                                         </CardContent>
-                                    </Card>
+                                    </button>
                                 ))
                             )}
                         </div>

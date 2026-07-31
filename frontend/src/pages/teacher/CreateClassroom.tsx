@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import {
@@ -43,8 +44,7 @@ const CreateClassroom = () => {
       });
       toast.success("Classroom created successfully!");
       navigate("/teacher/dashboard");
-    } catch (error) {
-      console.error("Failed to create classroom:", error);
+    } catch {
       toast.error("Failed to create classroom. Please try again.");
     }
   };
@@ -145,20 +145,24 @@ const CreateClassroom = () => {
                   </div>
 
                   <div className="space-y-3">
-                    <Label>Design Style *</Label>
-                    <div className="grid grid-cols-3 gap-3">
+                    <Label id="design-style-label">Design Style *</Label>
+                    <RadioGroup
+                      aria-labelledby="design-style-label"
+                      className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+                      value={formData.style}
+                      onValueChange={(style) => setFormData({ ...formData, style })}
+                    >
                       {styles.map((style) => (
-                        <Card
+                        <Label
                           key={style.id}
-                          className={`cursor-pointer transition-all hover:shadow-md ${formData.style === style.id ? "border-primary border-2" : ""}`}
-                          onClick={() => setFormData({ ...formData, style: style.id })}
+                          htmlFor={`style-${style.id}`}
+                          className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground shadow-sm transition-all hover:shadow-md ${formData.style === style.id ? "border-2 border-primary" : ""}`}
                         >
-                          <CardContent className="pt-6 text-center">
-                            <div className="text-sm font-medium">{style.name}</div>
-                          </CardContent>
-                        </Card>
+                          <RadioGroupItem id={`style-${style.id}`} value={style.id} />
+                          <span className="text-sm font-medium">{style.name}</span>
+                        </Label>
                       ))}
-                    </div>
+                    </RadioGroup>
                   </div>
 
                   <div className="flex gap-3">

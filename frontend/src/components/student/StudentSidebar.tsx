@@ -25,8 +25,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
       try {
         const response = await api.students.getClassrooms(studentId);
         setClassrooms(response.classrooms || []);
-      } catch (error) {
-        console.error("Failed to load classrooms:", error);
+      } catch {
         setClassrooms([]);
       }
     };
@@ -43,7 +42,8 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             {/* Dashboard */}
             <Link
               to={`/student/dashboard/${studentId}`}
-              className="flex items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+              aria-label="Dashboard"
+              className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
             >
               <LayoutDashboard className="text-foreground h-5 w-5 flex-shrink-0" />
               <motion.span
@@ -60,8 +60,12 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             {/* My Classrooms - Expandable */}
             <div>
               <button
+                type="button"
+                aria-label="My Classrooms"
+                aria-expanded={classroomsExpanded}
+                aria-controls="student-classrooms"
                 onClick={() => setClassroomsExpanded(!classroomsExpanded)}
-                className="w-full flex items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+                className="flex min-h-11 w-full items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
               >
                 <Users className="text-foreground h-5 w-5 flex-shrink-0" />
                 <motion.span
@@ -88,6 +92,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
               {/* Classroom List */}
               {open && classroomsExpanded && (
                 <motion.div
+                  id="student-classrooms"
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
@@ -98,7 +103,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                     <Link
                       key={classroom.id}
                       to={`/student/classroom/${classroom.id}/${studentId}`}
-                      className="flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent/50 transition-colors text-sm text-muted-foreground hover:text-foreground"
+                      className="flex min-h-11 items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent/50 transition-colors text-sm text-muted-foreground hover:text-foreground"
                     >
                       <ChevronRight className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate">{classroom.name}</span>
@@ -111,7 +116,8 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             {/* All Stories */}
             <Link
               to={`/student/stories/${studentId}`}
-              className="flex items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+              aria-label="All Stories"
+              className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
             >
               <BookOpen className="text-foreground h-5 w-5 flex-shrink-0" />
               <motion.span
@@ -128,7 +134,8 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             {/* Profile */}
             <Link
               to={`/student/profile/${studentId}`}
-              className="flex items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+              aria-label="Profile"
+              className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
             >
               <User className="text-foreground h-5 w-5 flex-shrink-0" />
               <motion.span
@@ -145,7 +152,8 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             {/* Logout */}
             <Link
               to="/"
-              className="flex items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+              aria-label="Logout"
+              className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
             >
               <LogOut className="text-foreground h-5 w-5 flex-shrink-0" />
               <motion.span
@@ -169,7 +177,8 @@ const Logo = ({ open }: { open: boolean }) => {
   return (
     <Link
       to="/"
-      className="font-normal flex space-x-2 items-center text-sm py-1 relative z-20"
+      aria-label="StoryClass Student home"
+      className="font-normal flex min-h-11 space-x-2 items-center text-sm py-1 relative z-20"
     >
       <div className="h-5 w-6 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
       <motion.span

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Toaster } from "sonner";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { MotionConfig } from "framer-motion";
 
 import { BackgroundComponent } from "@/components/ui/background-components";
 import ClassicLoader from "@/components/ui/loader";
@@ -31,12 +32,13 @@ const loadingPage = (
 );
 
 const App = () => (
-  <TooltipProvider>
-    <BackgroundComponent>
-      <Toaster />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Suspense fallback={loadingPage}>
-          <Routes>
+  <MotionConfig reducedMotion="user">
+    <TooltipProvider>
+      <BackgroundComponent>
+        <Toaster />
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <Suspense fallback={loadingPage}>
+            <Routes>
             <Route path="/" element={<Landing />} />
 
             <Route path="/teacher/dashboard" element={<TeacherLayout><TeacherDashboard /></TeacherLayout>} />
@@ -56,11 +58,12 @@ const App = () => (
             <Route path="/student/story/:chapterId/:studentId" element={<StudentStoryReader />} />
 
             <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
-    </BackgroundComponent>
-  </TooltipProvider>
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </BackgroundComponent>
+    </TooltipProvider>
+  </MotionConfig>
 );
 
 export default App;

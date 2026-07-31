@@ -93,3 +93,9 @@ Task 20 follow-up: remove stale `frontend/RESTRUCTURE_SUMMARY.md` references to 
 Task 5: complete (commit e6ab427; review clean). The sole workflow is read-only, secret-free CI and every mirrored backend/frontend gate passes locally.
 
 Task 13 preflight ruling: delete the unauthenticated optional student-photo upload instead of adding validation/storage compensation to it. Avatar generation already works text-only; with no access model, signed bearer URLs would not make child photos meaningfully private. Remove the orphan-prone two-request upload flow, photo fields/fallbacks, and now-unused Pillow/python-multipart dependencies. Reintroduction is a founder gate after authentication, consent, retention, private object storage, authorized signed access, and abandoned-upload cleanup exist.
+
+Task 13: complete (commit 9185bfc; review clean). Backend 32 tests and frontend 30 tests pass; the upload route/field/UI/fallbacks and direct Pillow/python-multipart dependencies are absent.
+
+Task 14 preflight: OpenAI SDK 2.8.1 supports Pydantic structured parsing through `chat.completions.parse`. Use strict idea/script/review contracts, context-aware known-speaker validation, explicit token ceilings, no narrative avatar URLs, and no permissive padding/default normalization.
+
+Task 15 preflight: preserve panels by generating and durably uploading the complete replacement before one atomic `replace_chapter_generation` RPC; a failure-reporting wrapper sets `failed`. Task 19 owns the security-invoker RPC and bucket migration. The founder still owns applying the migration, service-key configuration, access-model choice for generated images, and a durable worker.
