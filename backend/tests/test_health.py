@@ -3,10 +3,11 @@
 import importlib
 import socket
 import sys
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import httpx
 import pytest
-
 from conftest import created_supabase_clients
 
 
@@ -60,6 +61,11 @@ async def test_bfl_api_key_makes_readiness_and_avatar_generation_compatible(monk
         assert (await client.get("/ready")).json() == {"status": "ready"}
 
     avatar = importlib.import_module("services.avatar")
+    empty_enrollment = MagicMock()
+    empty_enrollment.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = (
+        SimpleNamespace(data=[])
+    )
+    monkeypatch.setattr(avatar, "supabase", empty_enrollment)
     monkeypatch.setattr(avatar, "get_student", lambda _student_id: {"id": "student-1", "interests": "space"})
     monkeypatch.setattr(avatar, "_call_black_forest_api", lambda *_args: _async_value("bfl-image"))
     monkeypatch.setattr(avatar, "_upload_avatar_to_storage", lambda *_args: _async_value("stored-image"))

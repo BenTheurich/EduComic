@@ -32,18 +32,14 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
 
     # Get classroom to retrieve design_style (student can be in multiple classrooms)
     # For avatar generation, we'll use the first classroom or None if not in any
-    classroom = None
-    try:
-        response = (
-            supabase.table("student_classrooms")
-            .select("classrooms(*)")
-            .eq("student_id", student_id)
-            .limit(1)
-            .execute()
-        )
-        classroom = response.data[0].get("classrooms") if response.data else None
-    except Exception as error:
-        print(f"[WARN] Could not fetch classroom for student {student_id}: {error}")
+    response = (
+        supabase.table("student_classrooms")
+        .select("classrooms(*)")
+        .eq("student_id", student_id)
+        .limit(1)
+        .execute()
+    )
+    classroom = response.data[0].get("classrooms") if response.data else None
 
     # Get API key
     api_key = os.getenv("BFL_API_KEY") or os.getenv("BLACK_FOREST_API_KEY")

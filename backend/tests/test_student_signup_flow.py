@@ -41,6 +41,16 @@ class _Supabase:
         return _Query(self.state, name)
 
 
+class _FailingQuery(_Query):
+    def execute(self):
+        raise RuntimeError("classroom lookup failed")
+
+
+class _FailingLookupSupabase:
+    def table(self, name):
+        return _FailingQuery({}, name)
+
+
 @pytest.mark.asyncio
 async def test_student_creation_does_not_generate_an_avatar(monkeypatch):
     database = importlib.import_module("database.database")
@@ -55,6 +65,25 @@ async def test_student_creation_does_not_generate_an_avatar(monkeypatch):
 
     provider.assert_not_awaited()
     assert result["student"]["id"] == "student-1"
+
+
+@pytest.mark.asyncio
+async def test_avatar_lookup_failure_propagates_before_provider_call(monkeypatch):
+    avatar = importlib.import_module("services.avatar")
+    provider = AsyncMock(return_value="provider-image")
+    storage = AsyncMock(return_value="stored-avatar")
+
+    monkeypatch.setattr(avatar, "supabase", _FailingLookupSupabase())
+    monkeypatch.setattr(avatar, "get_student", lambda _student_id: {"id": "student-1", "interests": "robots"})
+    monkeypatch.setattr(avatar, "_call_black_forest_api", provider)
+    monkeypatch.setattr(avatar, "_upload_avatar_to_storage", storage)
+    monkeypatch.setenv("BFL_API_KEY", "test-key")
+
+    with pytest.raises(RuntimeError, match="classroom lookup failed"):
+        await avatar.generate_avatar("student-1")
+
+    provider.assert_not_awaited()
+    storage.assert_not_awaited()
 
 
 @pytest.mark.asyncio

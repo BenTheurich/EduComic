@@ -59,7 +59,7 @@ npx.cmd eslint src/App.tsx src/pages/shared/StudentSignup.tsx src/pages/student/
 npm.cmd run build
 ```
 
-- Backend: 5 tests passed.
+- Backend: 6 tests passed after review fix round 1.
 - Frontend: 4 files / 4 tests passed.
 - Typecheck: passed.
 - Frontend touched-file lint: all Task 7 changes are clean; the command reports the restored pre-existing `@typescript-eslint/no-explicit-any` error in `ClassroomDetail.tsx:65`, previously documented by Task 6 and outside this task's one-line removal.
@@ -76,3 +76,11 @@ npm.cmd run build
 - Full-suite test-order isolation was verified after the existing health test reloads `database`, `services`, and `main`; the new tests import the current modules inside each test.
 - Reviewed the complete diff for preserved student/enrollment state, valid empty-data handling, route reachability, and accidental material-route deletion.
 - Pre-existing `README.md`, `backend/src/educomic.egg-info/*`, and `output/` changes are excluded from staging.
+
+## Review fix round 1
+
+- Removed the classroom lookup exception handler in `generate_avatar`. A failed `student_classrooms` query now propagates before prompt construction or any provider/storage call; only a successful empty lookup retains the manga default.
+- Added `test_avatar_lookup_failure_propagates_before_provider_call` before the production fix. RED: the lookup error was logged and swallowed, provider/storage ran, and the test received a later database configuration error instead of `classroom lookup failed`.
+- GREEN: `tests/test_student_signup_flow.py` passes 3 tests, including the existing enrolled-cartoon style assertion and the new no-provider-on-lookup-failure assertion.
+- Updated the readiness/avatar smoke to supply an explicit successful empty enrollment result. This preserves its API-key compatibility purpose under the stricter lookup contract.
+- Full backend: 6 tests passed. Ruff passed for `src/services/avatar.py`, `tests/test_student_signup_flow.py`, and `tests/test_health.py`.
