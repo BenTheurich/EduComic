@@ -63,7 +63,6 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                 type="button"
                 aria-label="My Classrooms"
                 aria-expanded={classroomsExpanded}
-                aria-controls="student-classrooms"
                 onClick={() => setClassroomsExpanded(!classroomsExpanded)}
                 className="flex min-h-11 w-full items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
               >
@@ -92,7 +91,6 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
               {/* Classroom List */}
               {open && classroomsExpanded && (
                 <motion.div
-                  id="student-classrooms"
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}

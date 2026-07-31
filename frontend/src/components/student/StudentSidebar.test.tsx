@@ -18,7 +18,7 @@ describe("StudentSidebar", () => {
     expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
     const disclosure = screen.getAllByRole("button", { name: "My Classrooms" })[0];
     expect(disclosure).toHaveAttribute("aria-expanded", "false");
-    expect(disclosure).toHaveAttribute("aria-controls", "student-classrooms");
+    expect(disclosure).not.toHaveAttribute("aria-controls");
     fireEvent.click(disclosure);
     expect(disclosure).toHaveAttribute("aria-expanded", "true");
   });
