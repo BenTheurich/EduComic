@@ -50,8 +50,6 @@ interface MaterialFile {
   description: string;
 }
 
-type UploadedMaterial = Awaited<ReturnType<typeof api.classrooms.getMaterials>>["materials"][number];
-
 const ClassroomDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -64,7 +62,7 @@ const ClassroomDetail = () => {
   const [studentViewMode, setStudentViewMode] = useState<"grid" | "list">("grid");
   const [isDragging, setIsDragging] = useState(false);
   const [materials, setMaterials] = useState<MaterialFile[]>([]);
-  const [uploadedMaterials, setUploadedMaterials] = useState<UploadedMaterial[]>([]);
+  const [uploadedMaterials, setUploadedMaterials] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {

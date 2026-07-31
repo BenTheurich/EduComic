@@ -50,3 +50,9 @@ npm.cmd run build
 - No JSX `href` remains for `/story/generate` or `/teacher/settings`.
 - Reviewed the full task diff: the loading guard covers both direct-invite load and failed direct-invite fallback; mobile content is passed through the shared `SidebarBody` path; focus restoration is only applied after the menu had been open.
 - Pre-existing `README.md` and `backend/src/educomic.egg-info/*` changes are excluded.
+
+## Review fix 1
+
+- Removed the unrelated `UploadedMaterial` type and restored the pre-existing `uploadedMaterials` state declaration; the `/story/new` route fix remains unchanged.
+- Focused Task 6 tests: 2 files / 2 tests passed. Typecheck: passed.
+- `npx.cmd eslint src/pages/teacher/ClassroomDetail.tsx` reports the restored, pre-existing `@typescript-eslint/no-explicit-any` error at line 65. It is intentionally left unchanged to keep this review fix scoped to removing the unrelated change.
