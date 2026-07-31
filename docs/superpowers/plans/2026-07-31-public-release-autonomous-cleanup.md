@@ -122,22 +122,22 @@ Expected: both installs succeed without lock drift.
 - Delete: `backend/src/database/test_connection.py`
 - Create: `backend/tests/conftest.py`
 - Create: `backend/tests/test_health.py`
-- Create: `backend/tests/test_story_contracts.py`
-- Create: `backend/tests/test_generation_failure.py`
+- Modify: `backend/src/database/database.py`
+- Modify: `backend/src/main.py`
 - Modify: `backend/pyproject.toml`
 
 - [ ] Write `conftest.py` so tests clear all Supabase/OpenAI/BFL variables before importing application modules and inject fake clients.
-- [ ] Write a health test that proves liveness can load without live service access and readiness reports missing configuration.
-- [ ] Write contract tests for exactly three nonblank story ideas and 8 to 12 sequential panels.
-- [ ] Write one generation-failure test that starts with existing panels, injects a provider failure, and proves the existing panels remain while chapter status becomes `failed`.
-- [ ] Run the new tests and confirm they fail for the expected current defects:
+- [ ] Write a health test that proves liveness can load without live service access and readiness reports missing configuration. Run it first and confirm it fails because the current database client is initialized during import.
+- [ ] Change database client initialization only enough to let the application import without credentials and make real database operations fail with a clear configuration error.
+- [ ] Separate `/health` liveness from `/ready` configuration readiness.
+- [ ] Run the new tests and confirm they pass without any network request:
 
 ```powershell
 Set-Location backend
 uv run --frozen --extra dev pytest -q
 ```
 
-Expected before implementation: contract, failure-preservation, and health-readiness assertions fail; no network request occurs.
+Expected: the isolated health suite passes and no network request occurs.
 
 - [ ] Move any useful manual connection diagnostics to a non-test `scripts/` path only if they can avoid printing credential fragments. Otherwise delete them.
 - [ ] Keep Pytest discovery limited to `backend/tests`.
