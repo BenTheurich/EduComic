@@ -56,3 +56,28 @@ npm.cmd run build
 - Removed the unrelated `UploadedMaterial` type and restored the pre-existing `uploadedMaterials` state declaration; the `/story/new` route fix remains unchanged.
 - Focused Task 6 tests: 2 files / 2 tests passed. Typecheck: passed.
 - `npx.cmd eslint src/pages/teacher/ClassroomDetail.tsx` reports the restored, pre-existing `@typescript-eslint/no-explicit-any` error at line 65. It is intentionally left unchanged to keep this review fix scoped to removing the unrelated change.
+
+## Browser fix round 2
+
+Headed Chromium at 390x844 exposed a shared layout failure: both app roots kept their desktop row direction while the mobile sidebar occupied `w-full`, collapsing the content sibling to zero width.
+
+Added `frontend/src/components/layouts.test.tsx` before the production change. It renders the real teacher and student layouts and independently requires their mobile-column/desktop-row container contract.
+
+RED command:
+
+```powershell
+Set-Location frontend
+npm.cmd test -- --run layouts animated-sidebar
+```
+
+RED result: both layout cases failed because their roots had `flex` but lacked `flex-col md:flex-row`; the existing mobile menu/focus test passed.
+
+The minimal fix adds `flex-col md:flex-row` to `TeacherLayout` and `StudentLayout` only.
+
+GREEN and verification:
+
+- Focused layout/sidebar tests: 2 files / 3 tests passed.
+- Full frontend tests: 9 files / 25 tests passed.
+- Typecheck: passed.
+- Touched-file lint for the two layouts and new test: passed with no findings.
+- Production build: passed with `VITE_API_URL=http://localhost:8000`. The first build without that required variable stopped at the production configuration guard as designed. Vite retained the existing stale Browserslist data and large-chunk warnings.

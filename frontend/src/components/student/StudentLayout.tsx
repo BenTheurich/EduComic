@@ -15,7 +15,7 @@ export function StudentLayout({ children, studentId: propStudentId }: StudentLay
   const studentId = propStudentId || params.studentId || "";
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-background md:flex-row">
       <StudentSidebar studentId={studentId} open={open} setOpen={setOpen} />
       <div className="flex-1 overflow-auto">
         {children}
