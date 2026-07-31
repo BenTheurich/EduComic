@@ -68,7 +68,7 @@ Do not make the current repository public until the all-history scan passes.
 
 ## Non-Code Artifact Review Result
 
-The July 31, 2026 follow-up completed the artifact inspection. Contributor-specific assistant files, obsolete planning specs, historical root fix notes, generated package metadata, and manual prototype testers were removed from the candidate source tree. Four obsolete binary artifacts remain because the patch tool cannot process their encoding; they must be removed before public release.
+The July 31, 2026 follow-up completed the artifact inspection. Contributor-specific assistant files, obsolete planning specs, historical root fix notes, generated package metadata, manual prototype testers, internal PDFs, and the stale flowchart image were removed from the candidate source tree.
 
 The full result and exact autonomous cleanup plan are recorded in:
 

@@ -1,6 +1,6 @@
 # Task 1 Report: Source-Tree Sanitation
 
-Status: DONE_WITH_CONCERNS
+Status: DONE
 
 ## Completed
 
@@ -11,6 +11,10 @@ Status: DONE_WITH_CONCERNS
 - Removed the dead README link to `test-api.html` and replaced advice to share an env file with advice to share variable names through a secure password manager.
 - Added `/output/` to `.gitignore` so headed Playwright artifacts remain local.
 - Updated Phase 0 status for the candidate-tree removals while keeping history rewrite and credential rotation as owner gates.
+- Removed the four reviewed binary artifacts after verifying each exact path was inside the isolated worktree.
+- Removed four stale README links to the deleted setup documents.
+- Deleted the exact ignored review package `review-8fb0d4f..ef28ff6.diff` without inspecting its contents because it captured deleted env diff lines.
+- This internal task report is retained only for SDD coordination and will be removed from the final public candidate.
 
 ## Verification
 
@@ -20,16 +24,11 @@ Status: DONE_WITH_CONCERNS
 - `git diff --check` passes.
 - `gitleaks dir . --redact --no-banner --no-color` reports one redacted finding in the ignored local `backend/.venv` dependency tree (`jwt/algorithms.py`), not in tracked candidate source. A clean checkout of the staged index passed the same redacted directory scan with no leaks. No secret content was printed.
 
-## Concern: binary artifacts
+## Fix round verification
 
-The required patch tool cannot decode these four binary files, so their deletions could not be applied:
-
-- `docs/Claude.pdf`
-- `docs/Workload.pdf`
-- `docs/assignments_summary.pdf`
-- `docs/PHOTO-2025-11-29-15-03-26.jpg`
-
-Each failed with an invalid UTF-8 read error. They remain tracked and must be removed before public release.
+- `docs/Claude.pdf`, `docs/Workload.pdf`, `docs/assignments_summary.pdf`, and `docs/PHOTO-2025-11-29-15-03-26.jpg` are absent from the working tree and tracked candidate.
+- README has no remaining link to `SETUP.md` or `README_DEVELOPMENT.md`.
+- The ignored sensitive review package is absent.
 
 ## Founder gates
 
@@ -39,4 +38,4 @@ Each failed with an invalid UTF-8 read error. They remain tracked and must be re
 
 ## Implementer status contract
 
-`DONE_WITH_CONCERNS — tracked text artifacts sanitized and verified; four exact binary artifacts remain because apply_patch cannot process them.`
+`DONE — tracked Task 1 artifacts removed from the candidate tree and offline checks passed; founder-only history, credential rotation, and data-boundary gates remain.`

@@ -54,8 +54,6 @@ npm run dev
 
 ## 📚 Documentation
 
-- **[SETUP.md](SETUP.md)** - Complete setup guide with troubleshooting
-- **[README_DEVELOPMENT.md](README_DEVELOPMENT.md)** - Development workflow and API testing
 - **[SUPABASE_SETUP.md](SUPABASE_SETUP.md)** - Database setup instructions
 
 ## 🏗️ Project Structure
@@ -170,6 +168,4 @@ VITE_API_URL=http://localhost:8000
 
 ## 🆘 Need Help?
 
-- Check [SETUP.md](SETUP.md) for detailed setup instructions
-- See [README_DEVELOPMENT.md](README_DEVELOPMENT.md) for development guides
 - Open an issue for bugs or questions
