@@ -6,14 +6,24 @@ export interface Panel {
   created_at: string;
 }
 
+export type ChapterStatus =
+  | 'draft'
+  | 'awaiting_choice'
+  | 'options_generated'
+  | 'idea_chosen'
+  | 'generating'
+  | 'ready'
+  | 'failed';
+
 export interface Chapter {
   id: string;
   classroom_id: string;
   index: number;
-  chapter_outline: string;
+  chapter_outline: string | null;
   original_prompt: string;
   thumbnail_url: string | null;
-  status: string;
+  story_title?: string;
+  status: ChapterStatus;
   created_at: string;
 }
 
@@ -21,13 +31,7 @@ export interface ChapterWithPanels extends Chapter {
   panels: Panel[];
 }
 
-export interface ChapterPreview {
-  id: string;
-  index: number;
-  chapter_outline: string;
-  original_prompt: string;
-  created_at: string;
-  thumbnail_url: string | null;
+export interface ChapterPreview extends Chapter {
   classroom_name: string;
   classroom_subject: string;
 }

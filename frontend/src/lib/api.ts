@@ -1,7 +1,8 @@
 /**
  * API client configuration and utilities
  */
-import type { Chapter } from "@/types/classroom";
+import type { Chapter, ChapterPreview, ChapterStatus, ChapterWithPanels } from "@/types/story";
+import type { Student } from "@/types/student";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -220,11 +221,7 @@ export const api = {
     startChapter: (classroomId: string, lessonPrompt: string) =>
       apiFetch<{
         success: boolean;
-        chapter: {
-          id: string;
-          classroom_id: string;
-          index: number;
-          original_prompt: string;
+        chapter: Chapter & {
           story_ideas: Array<{
             id: string;
             title: string;
@@ -232,8 +229,6 @@ export const api = {
             theme: string;
           }>;
           chosen_idea_id: string | null;
-          status: string;
-          created_at: string;
         };
       }>(`/classrooms/${classroomId}/chapters/start?lesson_prompt=${encodeURIComponent(lessonPrompt)}`, {
         method: 'POST',
@@ -242,7 +237,7 @@ export const api = {
     chooseIdea: (chapterId: string, ideaId: string, thumbnailUrl?: string) =>
       apiFetch<{
         success: boolean;
-        chapter: any;
+        chapter: Chapter;
       }>(`/chapters/${chapterId}/choose-idea?idea_id=${ideaId}${thumbnailUrl ? `&thumbnail_url=${encodeURIComponent(thumbnailUrl)}` : ''}`, {
         method: 'POST',
       }),
@@ -252,7 +247,7 @@ export const api = {
         success: boolean;
         message: string;
         chapter_id: string;
-        status: string;
+        status: ChapterStatus;
       }>('/chapters/commit', {
         method: 'POST',
         body: JSON.stringify({
@@ -267,7 +262,7 @@ export const api = {
     create: (studentId: string) =>
       apiFetch<{
         success: boolean;
-        student: any;
+        student: Student;
       }>(`/avatar/create/${studentId}`, {
         method: 'POST',
       }),
@@ -365,18 +360,7 @@ export const api = {
     getChapters: (studentId: string) =>
       apiFetch<{
         success: boolean;
-        chapters: Array<{
-          id: string;
-          classroom_id: string;
-          index: number;
-          chapter_outline: string;
-          original_prompt: string;
-          thumbnail_url: string | null;
-          classroom_name: string;
-          classroom_subject: string;
-          story_title?: string;
-          created_at: string;
-        }>;
+        chapters: ChapterPreview[];
       }>(`/students/${studentId}/chapters`),
 
     leaveClassroom: (studentId: string, classroomId: string) =>
@@ -410,15 +394,7 @@ export const api = {
     getById: (chapterId: string) =>
       apiFetch<{
         success: boolean;
-        chapter: Chapter & {
-          panels: Array<{
-            id: string;
-            chapter_id: string;
-            index: number;
-            image: string;
-            created_at: string;
-          }>;
-        };
+        chapter: ChapterWithPanels;
       }>(`/chapters/${chapterId}`),
 
     delete: (chapterId: string) =>

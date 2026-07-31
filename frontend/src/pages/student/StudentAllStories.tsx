@@ -7,12 +7,11 @@ import { motion } from "framer-motion";
 import { BookOpen, CheckCircle, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
-
-type Chapters = Awaited<ReturnType<typeof api.students.getChapters>>["chapters"];
+import type { ChapterPreview } from "@/types/story";
 
 const StudentAllStories = () => {
     const { studentId } = useParams();
-    const [chapters, setChapters] = useState<Chapters>([]);
+    const [chapters, setChapters] = useState<ChapterPreview[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -24,7 +23,7 @@ const StudentAllStories = () => {
             setLoadError(null);
             try {
                 const response = await api.students.getChapters(studentId);
-                setChapters(response.chapters || []);
+                setChapters((response.chapters || []).filter(chapter => chapter.status === "ready"));
             } catch (error) {
                 console.error("Failed to load chapters:", error);
                 toast.error("Failed to load stories");
@@ -140,7 +139,7 @@ const StudentAllStories = () => {
                                                 <div className="flex gap-2 flex-wrap mb-4">
                                                     <Badge className="bg-green-500/80 text-white backdrop-blur-sm">
                                                         <CheckCircle className="w-3 h-3 mr-1" />
-                                                        Completed
+                                                        {chapter.status.replaceAll("_", " ")}
                                                     </Badge>
                                                 </div>
                                             </div>

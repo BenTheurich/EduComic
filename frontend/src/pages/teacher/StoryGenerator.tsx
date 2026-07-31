@@ -9,20 +9,13 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { generateStoryThumbnails } from "@/services/thumbnailGenerator";
 import ClassicLoader from "@/components/ui/loader";
+import type { Panel } from "@/types/story";
 
 interface StoryOption {
   id: string;
   title: string;
   theme: string;
   summary: string;
-}
-
-interface Panel {
-  id: string;
-  chapter_id: string;
-  index: number;
-  image: string;
-  created_at: string;
 }
 
 const StoryGenerator = () => {
@@ -42,7 +35,8 @@ const StoryGenerator = () => {
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollAttempts = useRef(0);
-  const maxPollAttempts = 300; // 5 minutes at 1 second intervals
+  const consecutivePollingErrors = useRef(0);
+  const maxPollAttempts = 300; // 10 minutes at 2-second intervals
 
   // Fetch classroom data on mount
   useEffect(() => {
@@ -77,6 +71,8 @@ const StoryGenerator = () => {
 
     try {
       const response = await api.chapters.getById(chapterId);
+      consecutivePollingErrors.current = 0;
+      pollAttempts.current += 1;
       if (response.success && response.chapter) {
         const chapterPanels = response.chapter.panels || [];
         setPanels(chapterPanels);
@@ -91,10 +87,18 @@ const StoryGenerator = () => {
           setTimeout(() => {
             navigate(`/teacher/classroom/${classroomId}`);
           }, 1000);
+          return;
+        }
+
+        if (response.chapter.status === 'failed') {
+          setIsPolling(false);
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+          }
+          setGenerationError("Story generation failed. Try another story or retry your lesson.");
+          return;
         }
       }
-
-      pollAttempts.current += 1;
 
       // Timeout after max attempts
       if (pollAttempts.current >= maxPollAttempts) {
@@ -106,15 +110,17 @@ const StoryGenerator = () => {
       }
     } catch (error) {
       console.error("Polling error:", error);
-      pollAttempts.current += 1;
+      consecutivePollingErrors.current += 1;
 
       // Stop after too many errors
-      if (pollAttempts.current >= 10) {
+      if (consecutivePollingErrors.current >= 10) {
         setIsPolling(false);
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
         }
-        toast.error("Lost connection to server. Generation may still be in progress.");
+        const message = "Lost connection to server. Generation may still be in progress.";
+        setGenerationError(message);
+        toast.error(message);
       }
     }
   };
@@ -122,6 +128,8 @@ const StoryGenerator = () => {
   const startPolling = () => {
     setIsPolling(true);
     pollAttempts.current = 0;
+    consecutivePollingErrors.current = 0;
+    setGenerationError(null);
     setPanels([]);
 
     // Initial poll
@@ -184,6 +192,7 @@ const StoryGenerator = () => {
     }
 
     setSelectedStory(storyId);
+    setGenerationError(null);
     setStep(3);
 
     try {
@@ -333,44 +342,58 @@ const StoryGenerator = () => {
           {step === 3 && (
             <Card>
               <CardContent className="pt-12 pb-12 space-y-8">
-                <div className="text-center space-y-4">
-                  <Loader2 className="w-16 h-16 mx-auto animate-spin text-primary" />
-                  <h2 className="text-2xl font-bold text-foreground">
-                    Generating your personalized graphic novel...
-                  </h2>
-                  <p className="text-muted-foreground">
-                    {panels.length} panel{panels.length !== 1 ? 's' : ''} completed
-                  </p>
-                </div>
-
-                {panels.length > 0 && (
-                  <div className="space-y-2">
-                    <Progress value={(panels.length / 12) * 100} className="h-3" />
-                    <p className="text-sm text-muted-foreground text-center">
-                      This may take a few minutes...
-                    </p>
+                {generationError ? (
+                  <div className="text-center space-y-4">
+                    <p role="alert" className="text-destructive">{generationError}</p>
+                    <Button onClick={() => {
+                      setGenerationError(null);
+                      setSelectedStory(null);
+                      setPanels([]);
+                      setStep(2);
+                    }}>
+                      Try another story
+                    </Button>
                   </div>
-                )}
+                ) : (
+                  <>
+                    <div className="text-center space-y-4">
+                      <Loader2 className="w-16 h-16 mx-auto animate-spin text-primary" />
+                      <h2 className="text-2xl font-bold text-foreground">
+                        Generating your personalized graphic novel...
+                      </h2>
+                      <p className="text-muted-foreground">
+                        {panels.length} panel{panels.length !== 1 ? 's' : ''} completed
+                      </p>
+                    </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {panels.map((panel) => (
-                    <div
-                      key={panel.id}
-                      className="aspect-square rounded-lg overflow-hidden bg-primary/20 shadow-md"
-                    >
-                      <img
-                        src={panel.image}
-                        alt={`Panel ${panel.index}`}
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="space-y-2">
+                      <Progress aria-label="Story generation progress" className="h-3 animate-pulse" />
+                      <p className="text-sm text-muted-foreground text-center">
+                        This may take a few minutes...
+                      </p>
                     </div>
-                  ))}
-                  {isPolling && (
-                    <div className="aspect-square rounded-lg bg-muted animate-pulse flex items-center justify-center">
-                      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {panels.map((panel) => (
+                        <div
+                          key={panel.id}
+                          className="aspect-square rounded-lg overflow-hidden bg-primary/20 shadow-md"
+                        >
+                          <img
+                            src={panel.image}
+                            alt={`Panel ${panel.index}`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ))}
+                      {isPolling && (
+                        <div className="aspect-square rounded-lg bg-muted animate-pulse flex items-center justify-center">
+                          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}

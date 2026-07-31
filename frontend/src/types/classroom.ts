@@ -16,15 +16,3 @@ export interface ClassroomWithStudents extends Classroom {
   student_count: number;
   story_count: number;
 }
-
-export interface Chapter {
-  id: string;
-  classroom_id: string;
-  index: number;
-  chapter_outline: string;
-  original_prompt: string;
-  thumbnail_url: string | null;
-  story_title: string;
-  status: string;
-  created_at: string;
-}

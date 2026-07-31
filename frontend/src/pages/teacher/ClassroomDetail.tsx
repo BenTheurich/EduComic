@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type { Chapter } from "@/types/classroom";
+import type { Chapter } from "@/types/story";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,7 +62,7 @@ const ClassroomDetail = () => {
   const [studentViewMode, setStudentViewMode] = useState<"grid" | "list">("grid");
   const [isDragging, setIsDragging] = useState(false);
   const [materials, setMaterials] = useState<MaterialFile[]>([]);
-  const [uploadedMaterials, setUploadedMaterials] = useState<any[]>([]);
+  const [uploadedMaterials, setUploadedMaterials] = useState<Awaited<ReturnType<typeof api.classrooms.getMaterials>>["materials"]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
@@ -681,23 +681,30 @@ const ClassroomDetail = () => {
                                     Created on {new Date(chapter.created_at).toLocaleDateString()}
                                   </p>
                                   <div className="mt-2">
-                                    <Badge className="bg-green-500/80 text-white backdrop-blur-sm border-green-300/30">
-                                      <CheckCircle className="w-3 h-3 mr-1" />
-                                      Completed
+                                    <Badge
+                                      variant={chapter.status === "ready" ? "default" : chapter.status === "failed" ? "destructive" : "outline"}
+                                      className="capitalize"
+                                    >
+                                      {chapter.status === "ready" && <CheckCircle className="w-3 h-3 mr-1" />}
+                                      {chapter.status.replaceAll("_", " ")}
                                     </Badge>
                                   </div>
                                 </div>
                                 <div className="flex gap-2 flex-wrap">
-                                  <Button asChild variant="default" className="backdrop-blur-sm">
-                                    <a href={`/teacher/story/${chapter.id}`}>View Chapter</a>
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    className="backdrop-blur-sm bg-background/60"
-                                    onClick={() => handleExportPDF(chapter.id, chapter.story_title || `Chapter ${chapter.index}`)}
-                                  >
-                                    Export PDF
-                                  </Button>
+                                  {chapter.status === "ready" && (
+                                    <>
+                                      <Button asChild variant="default" className="backdrop-blur-sm">
+                                        <a href={`/teacher/story/${chapter.id}`}>View Chapter</a>
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        className="backdrop-blur-sm bg-background/60"
+                                        onClick={() => handleExportPDF(chapter.id, chapter.story_title || `Chapter ${chapter.index}`)}
+                                      >
+                                        Export PDF
+                                      </Button>
+                                    </>
+                                  )}
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <Button

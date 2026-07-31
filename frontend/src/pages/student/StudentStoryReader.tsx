@@ -5,14 +5,15 @@ import { Slider } from "@/components/ui/slider";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ZoomIn, LayoutGrid, List } from "lucide-react";
 import api from "@/lib/api";
-import { Panel } from "@/types/story";
+import type { ChapterWithPanels, Panel } from "@/types/story";
 
 const StudentStoryReader = () => {
   const { chapterId, studentId } = useParams();
   const navigate = useNavigate();
-  const [chapter, setChapter] = useState<any>(null);
+  const [chapter, setChapter] = useState<ChapterWithPanels | null>(null);
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Header visibility state
   const [showHeader, setShowHeader] = useState(true);
@@ -36,12 +37,18 @@ const StudentStoryReader = () => {
       if (!chapterId) return;
 
       setIsLoading(true);
+      setLoadError(null);
       try {
         const response = await api.chapters.getById(chapterId);
+        if (response.chapter.status !== "ready") {
+          setLoadError(`This story is ${response.chapter.status.replaceAll("_", " ")} and cannot be read yet.`);
+          return;
+        }
         setChapter(response.chapter);
         setPanels(response.chapter.panels || []);
       } catch (error) {
         console.error("Failed to load chapter:", error);
+        setLoadError("Failed to load this story. Please try again.");
       } finally {
         setIsLoading(false);
       }
@@ -104,10 +111,13 @@ const StudentStoryReader = () => {
     );
   }
 
-  if (!chapter) {
+  if (loadError || !chapter) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
-        <p className="text-muted-foreground">Chapter not found</p>
+        <div className="text-center space-y-4">
+          <p role="alert" className="text-muted-foreground">{loadError || "Chapter not found"}</p>
+          <Button onClick={() => navigate(-1)}>Back to stories</Button>
+        </div>
       </div>
     );
   }

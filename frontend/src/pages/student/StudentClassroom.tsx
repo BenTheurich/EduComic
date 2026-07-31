@@ -8,13 +8,17 @@ import { ChevronLeft, BookOpen, CheckCircle, Loader2 } from "lucide-react";
 import { ClassPictureBanner } from "@/components/shared/ClassPictureBanner";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import type { Chapter } from "@/types/story";
+
+type Classroom = Awaited<ReturnType<typeof api.classrooms.getById>>["classroom"];
+type Student = Classroom["students"][number];
 
 const StudentClassroom = () => {
   const { classroomId, studentId } = useParams();
   const navigate = useNavigate();
-  const [classroom, setClassroom] = useState<any>(null);
-  const [students, setStudents] = useState<any[]>([]);
-  const [chapters, setChapters] = useState<any[]>([]);
+  const [classroom, setClassroom] = useState<Classroom | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -33,9 +37,9 @@ const StudentClassroom = () => {
         const chaptersResponse = await api.classrooms.getChapters(classroomId);
         console.log("Chapters data:", chaptersResponse);
         // Sort by created_at descending (newest first)
-        const sortedChapters = (chaptersResponse.chapters || []).sort((a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+        const sortedChapters = (chaptersResponse.chapters || [])
+          .filter(chapter => chapter.status === "ready")
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setChapters(sortedChapters);
 
       } catch (error) {
@@ -184,7 +188,7 @@ const StudentClassroom = () => {
                           <div className="flex gap-2 flex-wrap mb-4">
                             <Badge className="bg-green-500/80 text-white backdrop-blur-sm">
                               <CheckCircle className="w-3 h-3 mr-1" />
-                              Completed
+                              {chapter.status.replaceAll("_", " ")}
                             </Badge>
                             <Badge variant="outline">
                               {classroom.design_style}
