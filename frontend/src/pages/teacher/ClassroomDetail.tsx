@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import type { Chapter } from "@/types/classroom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,13 +33,6 @@ interface Student {
   avatar_url: string | null;
   photo_url: string | null;
   status: "pending" | "generated";
-}
-
-interface Chapter {
-  id: string;
-  index: number;
-  chapter_outline: string;
-  created_at: string;
 }
 
 interface Classroom {

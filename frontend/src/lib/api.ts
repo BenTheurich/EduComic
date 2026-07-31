@@ -1,6 +1,7 @@
 /**
  * API client configuration and utilities
  */
+import type { Chapter } from "@/types/classroom";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -133,15 +134,7 @@ export const api = {
     getChapters: (classroomId: string) =>
       apiFetch<{
         success: boolean;
-        chapters: Array<{
-          id: string;
-          index: number;
-          chapter_outline: string;
-          original_prompt: string;
-          thumbnail_url: string | null;
-          story_title?: string;
-          created_at: string;
-        }>;
+        chapters: Chapter[];
       }>(`/classrooms/${classroomId}/chapters`),
 
     getMaterials: (classroomId: string) =>
@@ -417,15 +410,7 @@ export const api = {
     getById: (chapterId: string) =>
       apiFetch<{
         success: boolean;
-        chapter: {
-          id: string;
-          classroom_id: string;
-          index: number;
-          chapter_outline: string;
-          original_prompt: string;
-          thumbnail_url: string | null;
-          story_title?: string;
-          created_at: string;
+        chapter: Chapter & {
           panels: Array<{
             id: string;
             chapter_id: string;

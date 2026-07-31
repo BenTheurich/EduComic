@@ -23,4 +23,10 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  {
+    files: ["src/**/*.test.{ts,tsx}", "src/test/**/*.ts"],
+    languageOptions: {
+      globals: globals.vitest,
+    },
+  },
 );
