@@ -238,8 +238,10 @@ Expected: direct invite and mobile navigation tests pass; no route points to `/s
 - Modify: `backend/src/main.py`
 - Modify: `backend/src/services/avatar.py`
 - Create: `frontend/src/pages/teacher/StoryGenerator.test.tsx`
+- Create: `backend/tests/test_student_signup_flow.py`
 
 - [ ] Write a generation test that asserts an API failure produces an error state, not selectable mock options. Run it first and confirm the current mock fallback fails the assertion.
+- [ ] Write a backend signup-flow test that proves student creation performs no provider call and avatar generation observes the student’s enrolled classroom style. Run it first and confirm the current inline avatar call and unenrolled default-style behavior.
 - [ ] Delete the fake avatar route and its “Edit Avatar” entry point. Existing signup avatar generation remains the only avatar flow.
 - [ ] Remove “Delete Account” until an authorized backend deletion contract exists.
 - [ ] Remove “Edit Classroom” until it performs a real mutation.
