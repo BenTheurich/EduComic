@@ -87,22 +87,15 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     assert committed == [(str(chapter_id), "idea_1")]
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "path,json",
-    [
-        ("/story/create/00000000-0000-4000-8000-000000000001", None),
-        ("/story/generate-options?classroom_id=x&lesson_prompt=x", None),
-        ("/chapters/ideas", {"classroom_id": "x", "teacher_outline": "x"}),
-    ],
-)
-async def test_stale_story_routes_are_not_public(path, json):
-    """Catches deleted parallel and no-op story routes being registered again."""
+def test_stale_story_paths_are_not_registered_for_any_method():
+    """Catches deleted story paths returning under any HTTP method."""
     app = importlib.import_module("main").app
 
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        response = await client.post(path, json=json)
+    registered_paths = {route.path for route in app.routes}
+    stale_paths = {
+        "/story/create/{classroom_id}",
+        "/story/generate-options",
+        "/chapters/ideas",
+    }
 
-    assert response.status_code in {404, 405}
+    assert registered_paths.isdisjoint(stale_paths)
