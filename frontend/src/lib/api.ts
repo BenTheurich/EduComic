@@ -205,19 +205,6 @@ export const api = {
 
   // Story generation
   story: {
-    generateOptions: (classroomId: string, lessonPrompt: string) =>
-      apiFetch<{
-        success: boolean;
-        options: Array<{
-          id: string;
-          title: string;
-          summary: string;
-          theme: string;
-        }>;
-      }>(`/story/generate-options?classroom_id=${classroomId}&lesson_prompt=${encodeURIComponent(lessonPrompt)}`, {
-        method: 'POST',
-      }),
-
     startChapter: (classroomId: string, lessonPrompt: string) =>
       apiFetch<{
         success: boolean;

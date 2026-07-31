@@ -1,31 +1,11 @@
-"""
-story_idea.py
+"""Generate story ideas for the active chapter-start route."""
 
-Step 1 of the pipeline:
-- Fetch classroom + students from Supabase
-- Call OpenAI to generate 3 story ideas
-- Create a new chapter row with chapter_outline JSON state
-- Return { chapter_id, ideas[...] } for the frontend
-"""
-
-import os
 import json
+import os
 from typing import Any, Dict, List
 
-import requests  # not strictly needed here, but fine to leave if shared env
 from dotenv import load_dotenv
 from openai import OpenAI
-
-from database.database import (
-    get_classroom,
-    get_students_by_classroom,
-    get_chapters_by_classroom,
-    create_chapter,
-)
-
-# ─────────────────────────────────────────────────────────────
-# Environment + client setup
-# ─────────────────────────────────────────────────────────────
 
 load_dotenv()
 
@@ -37,65 +17,6 @@ openai_client = OpenAI(api_key=OPENAI_API_KEY)
 if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_API_KEY_HERE":
     print("[WARN] OPENAI_API_KEY not set; OpenAI calls will fail until you configure it.")
 
-
-# ─────────────────────────────────────────────────────────────
-# Public entrypoint
-# ─────────────────────────────────────────────────────────────
-
-def start_chapter(classroom_id: str, teacher_outline: str) -> Dict[str, Any]:
-    """
-    1) Fetch classroom + students
-    2) Call OpenAI → 3 story ideas
-    3) Create a new chapter row with separate fields for prompt and ideas
-    4) Return { chapter_id, ideas[...] } for frontend
-
-    Creates a chapter with:
-    - original_prompt: Teacher's original prompt/outline
-    - story_ideas: Array of 3 AI-generated ideas
-    - status: "awaiting_choice"
-    """
-
-    classroom = get_classroom(classroom_id)
-    if classroom is None:
-        raise ValueError(f"Classroom {classroom_id} not found")
-
-    students = get_students_by_classroom(classroom_id)
-
-    # Generate story ideas via OpenAI
-    ideas = generate_story_ideas(
-        classroom=classroom,
-        students=students,
-        teacher_outline=teacher_outline,
-    )
-
-    # Compute next chapter index for this classroom (1-based)
-    existing_chapters = get_chapters_by_classroom(classroom_id)
-    if existing_chapters:
-        max_index = max(ch["index"] for ch in existing_chapters)
-        new_index = max_index + 1
-    else:
-        new_index = 1
-
-    # Create chapter with separate fields
-    chapter = create_chapter(
-        classroom_id=classroom_id,
-        index=new_index,
-        original_prompt=teacher_outline,
-        story_ideas=ideas,
-        status="awaiting_choice",
-    )
-
-    return {
-        "chapter_id": chapter["id"],
-        "chapter_index": chapter["index"],
-        "classroom_id": classroom_id,
-        "ideas": ideas,
-    }
-
-
-# ─────────────────────────────────────────────────────────────
-# OpenAI helpers
-# ─────────────────────────────────────────────────────────────
 
 def _classroom_context_dict(
     classroom: Dict[str, Any],
@@ -140,7 +61,6 @@ def generate_story_ideas(
         {"id": "idea_3", ...}
       ]
     """
-
     payload = _classroom_context_dict(classroom, students, teacher_outline)
 
     system_prompt = (
@@ -198,20 +118,3 @@ def generate_story_ideas(
         ideas.append({"id": f"idea_{i}", "title": f"Idea {i}", "summary": ""})
 
     return ideas
-
-
-# ─────────────────────────────────────────────────────────────
-# Optional CLI for testing
-# ─────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Start a chapter and generate 3 story ideas")
-    parser.add_argument("classroom_id", help="Classroom UUID")
-    parser.add_argument("teacher_outline", help="Short outline / topic for this chapter")
-
-    args = parser.parse_args()
-
-    result = start_chapter(args.classroom_id, args.teacher_outline)
-    print(json.dumps(result, indent=2, ensure_ascii=False))

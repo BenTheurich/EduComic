@@ -35,27 +35,3 @@ export interface ChapterPreview extends Chapter {
   classroom_name: string;
   classroom_subject: string;
 }
-
-// Legacy Story types (kept for backwards compatibility with teacher components)
-export interface Story {
-  id: string;
-  classroom_id: string;
-  lesson_prompt: string;
-  title: string;
-  status: 'generating' | 'completed' | 'failed' | 'regenerating';
-  progress: number;
-  created_at: string;
-  design_style?: 'manga' | 'comic' | 'cartoon';
-}
-
-export interface StoryWithPanels extends Story {
-  panels: Panel[];
-}
-
-export interface StoryPreview {
-  id: string;
-  title: string;
-  created_at: string;
-  thumbnail_url: string;
-  classroom_name: string;
-}

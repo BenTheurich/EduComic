@@ -13,13 +13,11 @@ from fastapi import (
     File,
     Form,
     HTTPException,
-    Query,
     Request,
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
 from api_models import (
     ClassroomCreateRequest,
@@ -30,7 +28,6 @@ from api_models import (
 )
 from services.avatar import generate_avatar
 from services.comic_creation import commit_story_choice
-from services.story_idea import start_chapter
 
 # Load environment variables
 load_dotenv()
@@ -535,112 +532,9 @@ async def create_avatar_endpoint(student_id: UUID):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/story/generate-options")
-async def generate_story_options_endpoint(
-    classroom_id: str = Query(...), lesson_prompt: str = Query(...)
-):
-    """
-    Generate 3 story options based on teacher's prompt.
-
-    Args:
-        classroom_id: UUID of the classroom
-        lesson_prompt: Teacher's description of the lesson
-
-    Returns:
-        List of 3 story options with id, title, summary, theme
-    """
-    from database.database import get_classroom, get_students_by_classroom
-    from services.story_idea import generate_story_ideas
-
-    try:
-        # Get classroom and students
-        classroom = get_classroom(classroom_id)
-        if not classroom:
-            raise HTTPException(status_code=404, detail="Classroom not found")
-
-        students = get_students_by_classroom(classroom_id)
-
-        # Generate story ideas
-        story_ideas = generate_story_ideas(classroom, students, lesson_prompt)
-
-        # Format story ideas with IDs
-        formatted_options = []
-        for idx, idea in enumerate(story_ideas, 1):
-            formatted_options.append(
-                {
-                    "id": f"idea_{idx}",
-                    "title": idea.get("title", ""),
-                    "summary": idea.get("summary", ""),
-                    "theme": classroom.get("story_theme", ""),
-                }
-            )
-
-        return {"success": True, "options": formatted_options}
-    except HTTPException:
-        raise
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Story options could not be generated")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@app.post("/story/create/{classroom_id}")
-async def create_story_endpoint(classroom_id: UUID):
-    """
-    Create a story for a classroom.
-
-    Args:
-        classroom_id: UUID of the classroom
-
-    Returns:
-        Created story record
-    """
-    try:
-        # TODO: Implement story creation logic
-        return {
-            "success": True,
-            "message": f"Story creation for classroom {classroom_id} not yet implemented",
-        }
-    except ValueError:
-        raise HTTPException(status_code=404, detail="Classroom not found")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
 # ============================================
 # COMIC CREATION ENDPOINTS
 # ============================================
-
-
-class GenerateIdeasRequest(BaseModel):
-    classroom_id: str
-    teacher_outline: str
-
-
-@app.post("/chapters/ideas")
-async def generate_ideas_endpoint(request: GenerateIdeasRequest):
-    """
-    Generate 3 story ideas for a new chapter.
-
-    This endpoint:
-    1. Fetches classroom and student data
-    2. Calls OpenAI to generate 3 story ideas based on teacher's outline
-    3. Creates a chapter record with ideas stored in JSON
-    4. Returns the chapter ID and ideas for teacher to choose from
-
-    Args:
-        request: Contains classroom_id and teacher_outline
-
-    Returns:
-        Chapter ID and 3 story ideas
-    """
-    try:
-        result = start_chapter(request.classroom_id, request.teacher_outline)
-        return {"success": True, "data": result}
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Story ideas could not be generated")
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/chapters/commit")

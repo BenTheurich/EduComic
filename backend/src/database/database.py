@@ -4,9 +4,10 @@ Provides get and create functions for all tables.
 """
 
 import os
-from typing import Optional, List, Dict, Any
-from supabase import create_client, Client
+from typing import Any, Dict, List, Optional
+
 from dotenv import load_dotenv
+from supabase import Client, create_client
 
 # Load environment variables
 load_dotenv()
@@ -170,40 +171,6 @@ def update_student(
 # ============================================
 
 
-def create_chapter(
-    classroom_id: str,
-    index: int,
-    original_prompt: str,
-    story_ideas: Optional[List[Dict[str, Any]]] = None,
-    status: str = "draft",
-) -> Dict[str, Any]:
-    """
-    Create a new chapter in a classroom story.
-
-    Args:
-        classroom_id: UUID of the classroom
-        index: Chapter number (starting from 1)
-        original_prompt: Teacher's original prompt/outline for the chapter
-        story_ideas: Optional list of AI-generated story ideas
-        status: Chapter status (draft, awaiting_choice, generating, ready)
-
-    Returns:
-        Created chapter record
-    """
-    data = {
-        "classroom_id": classroom_id,
-        "index": index,
-        "original_prompt": original_prompt,
-        "status": status,
-    }
-
-    if story_ideas is not None:
-        data["story_ideas"] = story_ideas
-
-    response = supabase.table("chapters").insert(data).execute()
-    return response.data[0] if response.data else None
-
-
 def get_chapter(chapter_id: str) -> Optional[Dict[str, Any]]:
     """
     Get a chapter by ID.
@@ -308,20 +275,6 @@ def create_panel(chapter_id: str, index: int, image: str) -> Dict[str, Any]:
     data = {"chapter_id": chapter_id, "index": index, "image": image}
 
     response = supabase.table("panels").insert(data).execute()
-    return response.data[0] if response.data else None
-
-
-def get_panel(panel_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Get a panel by ID.
-
-    Args:
-        panel_id: UUID of the panel
-
-    Returns:
-        Panel record or None if not found
-    """
-    response = supabase.table("panels").select("*").eq("id", panel_id).execute()
     return response.data[0] if response.data else None
 
 
@@ -434,124 +387,8 @@ def is_student_in_classroom(student_id: str, classroom_id: str) -> bool:
 
 
 # ============================================
-# STUDENT-CLASSROOM RELATIONSHIP FUNCTIONS
-# ============================================
-
-
-def add_student_to_classroom(student_id: str, classroom_id: str) -> Dict[str, Any]:
-    """
-    Add a student to a classroom (many-to-many).
-
-    Args:
-        student_id: UUID of the student
-        classroom_id: UUID of the classroom
-
-    Returns:
-        Created relationship record
-    """
-    data = {"student_id": student_id, "classroom_id": classroom_id}
-
-    response = supabase.table("student_classrooms").insert(data).execute()
-    return response.data[0] if response.data else None
-
-
-def remove_student_from_classroom(student_id: str, classroom_id: str) -> bool:
-    """
-    Remove a student from a classroom.
-
-    Args:
-        student_id: UUID of the student
-        classroom_id: UUID of the classroom
-
-    Returns:
-        True if successful
-    """
-    response = (
-        supabase.table("student_classrooms")
-        .delete()
-        .eq("student_id", student_id)
-        .eq("classroom_id", classroom_id)
-        .execute()
-    )
-    return len(response.data) > 0
-
-
-def get_classrooms_by_student(student_id: str) -> List[Dict[str, Any]]:
-    """
-    Get all classrooms a student is enrolled in.
-
-    Args:
-        student_id: UUID of the student
-
-    Returns:
-        List of classroom records
-    """
-    response = (
-        supabase.table("student_classrooms")
-        .select("classrooms(*)")
-        .eq("student_id", student_id)
-        .execute()
-    )
-
-    # Extract classroom data from nested structure
-    classrooms = [
-        item["classrooms"] for item in response.data if item.get("classrooms")
-    ]
-    return classrooms
-
-
-def is_student_in_classroom(student_id: str, classroom_id: str) -> bool:
-    """
-    Check if a student is enrolled in a classroom.
-
-    Args:
-        student_id: UUID of the student
-        classroom_id: UUID of the classroom
-
-    Returns:
-        True if student is in classroom
-    """
-    response = (
-        supabase.table("student_classrooms")
-        .select("id")
-        .eq("student_id", student_id)
-        .eq("classroom_id", classroom_id)
-        .execute()
-    )
-    return len(response.data) > 0
-
-
-# ============================================
 # UTILITY FUNCTIONS
 # ============================================
-
-
-def delete_classroom(classroom_id: str) -> bool:
-    """
-    Delete a classroom (cascades to students, chapters, and panels).
-
-    Args:
-        classroom_id: UUID of the classroom
-
-    Returns:
-        True if successful
-    """
-    response = supabase.table("classrooms").delete().eq("id", classroom_id).execute()
-    return len(response.data) > 0
-
-
-def delete_student(student_id: str) -> bool:
-    """
-    Delete a student.
-
-    Args:
-        student_id: UUID of the student
-
-    Returns:
-        True if successful
-    """
-    response = supabase.table("students").delete().eq("id", student_id).execute()
-    return len(response.data) > 0
 
 
 def delete_chapter(chapter_id: str) -> bool:
@@ -565,20 +402,6 @@ def delete_chapter(chapter_id: str) -> bool:
         True if successful
     """
     response = supabase.table("chapters").delete().eq("id", chapter_id).execute()
-    return len(response.data) > 0
-
-
-def delete_panel(panel_id: str) -> bool:
-    """
-    Delete a panel.
-
-    Args:
-        panel_id: UUID of the panel
-
-    Returns:
-        True if successful
-    """
-    response = supabase.table("panels").delete().eq("id", panel_id).execute()
     return len(response.data) > 0
 
 
@@ -618,32 +441,6 @@ def get_chapter_with_panels(chapter_id: str) -> Optional[Dict[str, Any]]:
         chapter["panels"] = get_panels_by_chapter(chapter_id)
         _add_story_title(chapter)
     return chapter
-
-
-def get_classroom_full_story(classroom_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Get a classroom with all chapters and their panels.
-
-    Args:
-        classroom_id: UUID of the classroom
-
-    Returns:
-        Classroom record with nested chapters (each with panels) and students
-    """
-    classroom = get_classroom(classroom_id)
-    if not classroom:
-        return None
-
-    # Get students
-    classroom["students"] = get_students_by_classroom(classroom_id)
-
-    # Get chapters with panels
-    chapters = get_chapters_by_classroom(classroom_id)
-    for chapter in chapters:
-        chapter["panels"] = get_panels_by_chapter(chapter["id"])
-
-    classroom["chapters"] = chapters
-    return classroom
 
 
 # ============================================
