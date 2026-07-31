@@ -1,4 +1,0 @@
-database
-main
-panel_review
-services

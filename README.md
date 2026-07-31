@@ -108,9 +108,6 @@ curl http://localhost:8000/health
 curl -X POST "http://localhost:8000/story/generate-options?classroom_id=YOUR_ID&lesson_prompt=Newton's%20Laws"
 ```
 
-### Test with Browser
-Open `test-api.html` in your browser for an interactive API tester.
-
 ## 👥 Team Collaboration
 
 ### Pulling Changes

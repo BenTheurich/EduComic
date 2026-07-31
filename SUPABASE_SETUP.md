@@ -129,7 +129,7 @@ panels (id, story_id, panel_number, image_url, dialogue, scene_description)
 ## Next Steps
 
 Once your database is set up:
-1. ✅ Share your `.env` file with your team (via secure channel, NOT git!)
+1. ✅ Share required variable names through a secure password manager; each teammate creates their own local env file.
 2. ✅ Start implementing the backend API endpoints
 3. ✅ Test CRUD operations with your database
 

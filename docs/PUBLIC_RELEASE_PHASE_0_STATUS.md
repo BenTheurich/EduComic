@@ -6,7 +6,7 @@ Phase 0 goal: make the repository safe to share without leaking secrets, private
 
 ## Completed Or Staged Locally
 
-- Env-file deletion is staged in the local index, not completed in remote history. The files and their leaked values remain in `HEAD`, `origin/main`, and repository history until the sanitized publication strategy is completed.
+- Removed `backend/.env` and `frontend/.env` from the candidate source tree without reading or printing their contents. Exposed values remain in prior commits, `origin/main`, and repository history until the sanitized publication strategy is completed.
 - Replaced `backend/.env.example` and `frontend/.env.example` with placeholder-only templates.
 - Replaced a current `SUPABASE_SETUP.md` credential snippet with placeholder-only values.
 - Installed Gitleaks locally through `winget`.
@@ -68,7 +68,7 @@ Do not make the current repository public until the all-history scan passes.
 
 ## Non-Code Artifact Review Result
 
-The July 31, 2026 follow-up completed the artifact inspection and determined that obsolete internal PDFs, the stale flowchart image, contributor-specific assistant files, historical root fix notes, generated package metadata, and manual prototype testers must be removed before public release. Removal remains pending approval.
+The July 31, 2026 follow-up completed the artifact inspection. Contributor-specific assistant files, obsolete planning specs, historical root fix notes, generated package metadata, and manual prototype testers were removed from the candidate source tree. Four obsolete binary artifacts remain because the patch tool cannot process their encoding; they must be removed before public release.
 
 The full result and exact autonomous cleanup plan are recorded in:
 
