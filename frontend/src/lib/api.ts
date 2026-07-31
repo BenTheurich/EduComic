@@ -4,12 +4,16 @@
 import type { Chapter, ChapterPreview, ChapterStatus, ChapterWithPanels } from "@/types/story";
 import type { Student } from "@/types/student";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || (
+  import.meta.env.DEV || import.meta.env.MODE === 'test'
+    ? 'http://localhost:8000'
+    : (() => { throw new Error('VITE_API_URL must be set for production builds.'); })()
+);
 
 /**
  * Base fetch wrapper with error handling
  */
-async function apiFetch<T>(
+export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
@@ -376,16 +380,10 @@ export const api = {
       formData.append('file', file);
       formData.append('filename', file.name);
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/students/upload-photo`, {
+      return apiFetch<{ success: boolean; photo_url: string }>('/students/upload-photo', {
         method: 'POST',
         body: formData,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload photo');
-      }
-
-      return await response.json() as { success: boolean; photo_url: string };
     },
   },
 

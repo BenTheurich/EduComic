@@ -3,7 +3,7 @@
  * Calls backend API to generate temporary thumbnails for story options (not stored)
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+import { apiFetch } from "@/lib/api";
 
 interface ThumbnailOptions {
   title: string;
@@ -17,7 +17,7 @@ interface ThumbnailOptions {
  */
 export async function generateStoryThumbnail(options: ThumbnailOptions): Promise<string | null> {
   try {
-    const response = await fetch(`${API_BASE_URL}/story/generate-thumbnail`, {
+    const data = await apiFetch<{ thumbnail_url?: string }>('/story/generate-thumbnail', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -28,12 +28,6 @@ export async function generateStoryThumbnail(options: ThumbnailOptions): Promise
       }),
     });
 
-    if (!response.ok) {
-      console.error('Thumbnail generation failed:', response.status);
-      return null;
-    }
-
-    const data = await response.json();
     return data.thumbnail_url || null;
   } catch (error) {
     console.error('Failed to generate thumbnail:', error);
