@@ -38,3 +38,8 @@ Deleted the unused classroom materials feature end to end. No compatibility rout
 - Staged Gitleaks: no leaks found; Git emitted only the environment's existing inaccessible global-ignore warning.
 
 Self-review found no unresolved Task 16A defect or unrelated change.
+
+## Review fix round 1
+
+- Added a positive assertion that the real desktop/mobile Students classroom links render before asserting the removed Materials links are absent. This prevents a broken or empty sidebar from satisfying the negative regression.
+- Focused frontend test, typecheck, and touched-file ESLint passed.

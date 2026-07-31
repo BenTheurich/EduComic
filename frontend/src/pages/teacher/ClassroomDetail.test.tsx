@@ -63,6 +63,7 @@ describe("removed classroom materials feature", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getAllByRole("link", { name: "Students" })).toHaveLength(2);
     expect(screen.queryAllByRole("link", { name: "Materials" })).toHaveLength(0);
   });
 });
