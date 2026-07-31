@@ -669,6 +669,14 @@ git status --short
 
 - [ ] Build a temporary source-only export from the exact candidate tree and run Gitleaks against that export.
 - [ ] Confirm the export excludes local env files, `tmp/`, build output, caches, internal PDFs, contributor-local settings, and generated metadata.
+- [ ] Start the release-candidate frontend and an offline stub API, then use the Playwright CLI in a headed browser to verify:
+  - landing page at desktop and mobile widths;
+  - teacher dashboard and classroom navigation;
+  - direct student invite loading, success, and invalid-code states;
+  - student and teacher mobile navigation;
+  - story option, generation progress, failed generation, reader, and PDF-export states;
+  - keyboard access for login, classroom style choice, menus, and reader controls.
+- [ ] Capture final screenshots under `output/playwright/` and inspect browser console and failed network requests. Fix any application error before release-candidate signoff.
 - [ ] Update the review with resolved items, remaining founder gates, commands, dates, and exact results.
 - [ ] Stop before public push, deployment, key rotation, migration application, paid API testing, or real-user data.
 
