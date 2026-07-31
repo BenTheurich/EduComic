@@ -24,8 +24,7 @@ const StudentAllStories = () => {
             try {
                 const response = await api.students.getChapters(studentId);
                 setChapters((response.chapters || []).filter(chapter => chapter.status === "ready"));
-            } catch (error) {
-                console.error("Failed to load chapters:", error);
+            } catch {
                 toast.error("Failed to load stories");
                 setLoadError("Failed to load stories. Please try again.");
             } finally {

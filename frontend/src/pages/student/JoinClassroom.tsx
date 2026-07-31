@@ -26,15 +26,11 @@ const JoinClassroom = () => {
         const fetchClassroom = async () => {
             if (urlClassroomCode) {
                 setIsLoading(true);
-                console.log("Fetching classroom with ID:", urlClassroomCode);
                 try {
                     const response = await api.classrooms.getById(urlClassroomCode);
-                    console.log("Classroom fetched successfully:", response.classroom);
                     setClassroom(response.classroom);
                     setShowClassroom(true);
-                } catch (error) {
-                    console.error("Failed to fetch classroom:", error);
-                    console.error("Error details:", error instanceof Error ? error.message : error);
+                } catch {
                     setError("Invalid classroom link. Please check with your teacher.");
                 } finally {
                     setIsLoading(false);
@@ -56,8 +52,7 @@ const JoinClassroom = () => {
                 // Extract the last part of the path (the classroom ID)
                 const pathParts = url.pathname.split('/').filter(part => part.length > 0);
                 return pathParts[pathParts.length - 1];
-            } catch (error) {
-                console.error("Failed to parse URL:", error);
+            } catch {
                 return trimmedInput;
             }
         }
@@ -83,18 +78,13 @@ const JoinClassroom = () => {
 
         // Extract classroom ID from full URL or use as-is
         const extractedId = extractClassroomId(classroomCode);
-        console.log("Original input:", classroomCode);
-        console.log("Extracted classroom ID:", extractedId);
 
         setIsLoading(true);
         try {
             const response = await api.classrooms.getById(extractedId);
-            console.log("Classroom fetched successfully:", response.classroom);
             setClassroom(response.classroom);
             setShowClassroom(true);
-        } catch (error) {
-            console.error("Failed to fetch classroom:", error);
-            console.error("Error details:", error instanceof Error ? error.message : error);
+        } catch {
             setError("Invalid classroom code or link. Please check with your teacher.");
         } finally {
             setIsLoading(false);
@@ -126,8 +116,7 @@ const JoinClassroom = () => {
             await api.students.joinClassroom(studentId, classroom.id);
             toast.success(`Joined ${classroom.name}!`);
             navigate(`/student/dashboard/${studentId}`);
-        } catch (error) {
-            console.error("Failed to join classroom:", error);
+        } catch {
             toast.error("Failed to join classroom. Please try again.");
         } finally {
             setIsLoading(false);

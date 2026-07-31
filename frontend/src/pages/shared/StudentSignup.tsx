@@ -62,8 +62,7 @@ const StudentSignup = () => {
         toast.info("🎨 Generating your avatar...");
         await api.avatar.create(studentId);
         toast.success("Avatar generated!");
-      } catch (avatarError) {
-        console.error("Avatar generation failed:", avatarError);
+      } catch {
         toast.error("Your account is ready, but avatar generation failed. You can retry from your profile.");
       }
 
@@ -75,14 +74,9 @@ const StudentSignup = () => {
       // Navigate to student dashboard
       navigate(`/student/dashboard/${studentId}`);
     } catch (error) {
-      console.error("❌ Failed to create student:", error);
-      
       // Show detailed error message
       const errorMessage = error instanceof Error ? error.message : "Failed to create account";
       toast.error(errorMessage);
-      
-      // Log full error for debugging
-      console.error("Full error details:", error);
     } finally {
       setIsSubmitting(false);
     }

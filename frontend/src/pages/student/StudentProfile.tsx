@@ -26,8 +26,7 @@ const StudentProfile = () => {
             setError(null);
             const response = await api.students.getById(studentId);
             setStudent(response.student);
-        } catch (err) {
-            console.error("Failed to load student data:", err);
+        } catch {
             setError("Failed to load student profile");
         } finally {
             setLoading(false);
@@ -46,8 +45,7 @@ const StudentProfile = () => {
         try {
             const response = await api.avatar.create(studentId);
             setStudent(response.student);
-        } catch (err) {
-            console.error("Failed to generate avatar:", err);
+        } catch {
             setAvatarError("Avatar generation failed. Please try again.");
         } finally {
             setGeneratingAvatar(false);

@@ -99,3 +99,7 @@ Task 13: complete (commit 9185bfc; review clean). Backend 32 tests and frontend 
 Task 14 preflight: OpenAI SDK 2.8.1 supports Pydantic structured parsing through `chat.completions.parse`. Use strict idea/script/review contracts, context-aware known-speaker validation, explicit token ceilings, no narrative avatar URLs, and no permissive padding/default normalization.
 
 Task 15 preflight: preserve panels by generating and durably uploading the complete replacement before one atomic `replace_chapter_generation` RPC; a failure-reporting wrapper sets `failed`. Task 19 owns the security-invoker RPC and bucket migration. The founder still owns applying the migration, service-key configuration, access-model choice for generated images, and a durable worker.
+
+Task 18A: complete (commits 6eed33f..bf4ba58; re-review clean). Frontend 37 tests, typecheck, lint, production build, and diff check pass; the duplicate responsive-sidebar control ID was removed.
+
+Task 18B: complete. Production `frontend/src` contains zero `console.log`, `console.debug`, `console.warn`, or `console.error` calls. Student classroom, student sidebar classroom-list, and story-generator metadata failures now stay visible and provide retry actions. Focused 9 tests and full frontend 40 tests, typecheck, lint, production build, diff check, and staged Gitleaks pass.

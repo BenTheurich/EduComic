@@ -33,8 +33,6 @@ const StudentDashboard = () => {
         // Fetch student data with their classrooms from API
         const response = await api.students.getById(studentId);
 
-        console.log("Student data fetched:", response);
-
         setStudent(response.student);
         setClassrooms(response.classrooms || []);
 
@@ -45,13 +43,11 @@ const StudentDashboard = () => {
 
           // Chapters are already sorted by created_at desc from the API.
           setNewestStory(allChapters.find(chapter => chapter.status === "ready") || null);
-        } catch (chapterError) {
-          console.error("Failed to fetch chapters:", chapterError);
+        } catch {
           setStoriesError("Your latest story could not be loaded.");
         }
 
-      } catch (error) {
-        console.error("Failed to fetch student data:", error);
+      } catch {
         toast.error("Failed to load student data");
         setLoadError("Failed to load your dashboard. Please try again.");
       } finally {

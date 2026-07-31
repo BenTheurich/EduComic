@@ -99,6 +99,23 @@ describe("StoryGenerator", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Generate Story Options" })).toBeEnabled());
   });
 
+  it("keeps a failed classroom metadata load visible and retries it", async () => {
+    getClassroom
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        success: true,
+        classroom: { name: "Science", subject: "Physics", grade_level: "8" },
+      });
+
+    renderGenerator();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load classroom details");
+    fireEvent.click(screen.getByRole("button", { name: "Retry classroom details" }));
+
+    expect(await screen.findByText(/Physics.*8/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("renders and selects story options without a thumbnail request", async () => {
     startChapter.mockResolvedValue({
       success: true,

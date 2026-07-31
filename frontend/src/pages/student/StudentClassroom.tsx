@@ -20,30 +20,31 @@ const StudentClassroom = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const fetchClassroomData = async () => {
       if (!classroomId) return;
 
       setIsLoading(true);
+      setLoadError(null);
       try {
         // Fetch classroom with students
         const classroomResponse = await api.classrooms.getById(classroomId);
-        console.log("Classroom data:", classroomResponse);
         setClassroom(classroomResponse.classroom);
         setStudents(classroomResponse.classroom.students || []);
 
         // Fetch chapters (stories)
         const chaptersResponse = await api.classrooms.getChapters(classroomId);
-        console.log("Chapters data:", chaptersResponse);
         // Sort by created_at descending (newest first)
         const sortedChapters = (chaptersResponse.chapters || [])
           .filter(chapter => chapter.status === "ready")
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setChapters(sortedChapters);
 
-      } catch (error) {
-        console.error("Failed to fetch classroom data:", error);
+      } catch {
+        setLoadError("Failed to load classroom. Please try again.");
         toast.error("Failed to load classroom");
       } finally {
         setIsLoading(false);
@@ -51,7 +52,7 @@ const StudentClassroom = () => {
     };
 
     fetchClassroomData();
-  }, [classroomId]);
+  }, [classroomId, reloadKey]);
 
   const subjectColors: Record<string, string> = {
     Physics: "bg-blue-500",
@@ -68,6 +69,22 @@ const StudentClassroom = () => {
         <div className="text-center space-y-4">
           <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto" />
           <p className="text-muted-foreground">Loading classroom...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center space-y-4">
+          <p role="alert" className="text-destructive">{loadError}</p>
+          <div className="flex justify-center gap-3">
+            <Button onClick={() => setReloadKey((key) => key + 1)}>Retry</Button>
+            <Button variant="outline" onClick={() => navigate(`/student/dashboard/${studentId}`)}>
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
       </div>
     );

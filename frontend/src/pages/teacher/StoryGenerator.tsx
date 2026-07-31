@@ -27,6 +27,8 @@ const StoryGenerator = () => {
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [classroom, setClassroom] = useState<{ name: string; subject: string; grade_level: string } | null>(null);
+  const [classroomLoadError, setClassroomLoadError] = useState<string | null>(null);
+  const [classroomReloadKey, setClassroomReloadKey] = useState(0);
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -37,6 +39,7 @@ const StoryGenerator = () => {
   // Fetch classroom data on mount
   useEffect(() => {
     if (classroomId) {
+      setClassroomLoadError(null);
       api.classrooms.getById(classroomId)
         .then(response => {
           if (response.success && response.classroom) {
@@ -45,13 +48,15 @@ const StoryGenerator = () => {
               subject: response.classroom.subject,
               grade_level: response.classroom.grade_level
             });
+          } else {
+            setClassroomLoadError("Failed to load classroom details. Please try again.");
           }
         })
-        .catch(error => {
-          console.error('Failed to fetch classroom:', error);
+        .catch(() => {
+          setClassroomLoadError("Failed to load classroom details. Please try again.");
         });
     }
-  }, [classroomId]);
+  }, [classroomId, classroomReloadKey]);
 
   // Cleanup polling on unmount
   useEffect(() => {
@@ -104,8 +109,7 @@ const StoryGenerator = () => {
         }
         toast.error("Generation is taking longer than expected. You can check back later.");
       }
-    } catch (error) {
-      console.error("Polling error:", error);
+    } catch {
       consecutivePollingErrors.current += 1;
 
       // Stop after too many errors
@@ -156,7 +160,6 @@ const StoryGenerator = () => {
       toast.success("Story options generated!");
 
     } catch (error) {
-      console.error("Failed to generate story options:", error);
       const message = error instanceof Error ? error.message : "Failed to generate story options";
       setGenerationError(message);
       toast.error(message);
@@ -183,8 +186,7 @@ const StoryGenerator = () => {
 
       // Start polling for panels
       startPolling();
-    } catch (error) {
-      console.error("Failed to start comic generation:", error);
+    } catch {
       toast.error("Failed to start comic generation");
       setStep(2); // Go back to selection
     }
@@ -213,6 +215,18 @@ const StoryGenerator = () => {
               </p>
             )}
           </div>
+
+          {classroomLoadError && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+              <p role="alert" className="text-sm text-destructive">{classroomLoadError}</p>
+              <Button
+                variant="outline"
+                onClick={() => setClassroomReloadKey((key) => key + 1)}
+              >
+                Retry classroom details
+              </Button>
+            </div>
+          )}
 
           {step === 1 && (
             <Card>

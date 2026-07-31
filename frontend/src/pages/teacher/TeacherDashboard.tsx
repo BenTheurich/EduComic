@@ -38,8 +38,7 @@ const TeacherDashboard = () => {
         setLoadError(null);
         const response = await api.classrooms.getAll();
         setClassrooms(response.classrooms);
-      } catch (error) {
-        console.error("Failed to fetch classrooms:", error);
+      } catch {
         toast.error("Failed to load classrooms");
         setLoadError("Failed to load classrooms. Please try again.");
       } finally {

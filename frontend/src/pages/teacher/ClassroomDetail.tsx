@@ -74,8 +74,7 @@ const ClassroomDetail = () => {
         const chaptersResponse = await api.classrooms.getChapters(id);
         setChapters(chaptersResponse.chapters);
 
-      } catch (error) {
-        console.error("Failed to fetch classroom data:", error);
+      } catch {
         toast.error("Failed to load classroom data");
       } finally {
         setIsLoading(false);
@@ -122,8 +121,7 @@ const ClassroomDetail = () => {
 
       await exportStoryPdf({ panels, title: chapterTitle });
       toast.success("PDF downloaded successfully!");
-    } catch (error) {
-      console.error("PDF export failed:", error);
+    } catch {
       toast.error("Failed to generate PDF. Please try again.");
     }
   };
@@ -139,8 +137,7 @@ const ClassroomDetail = () => {
       setChapters(chapters.filter(ch => ch.id !== chapterId));
       
       toast.success(`"${chapterTitle}" deleted successfully!`);
-    } catch (error) {
-      console.error("Failed to delete chapter:", error);
+    } catch {
       toast.error("Failed to delete chapter. Please try again.");
     }
   };

@@ -17,21 +17,25 @@ type StudentClassroom = Awaited<ReturnType<typeof api.students.getClassrooms>>["
 export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps) {
   const [classrooms, setClassrooms] = useState<StudentClassroom[]>([]);
   const [classroomsExpanded, setClassroomsExpanded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const loadClassrooms = async () => {
       if (!studentId) return;
 
+      setLoadError(null);
       try {
         const response = await api.students.getClassrooms(studentId);
         setClassrooms(response.classrooms || []);
       } catch {
         setClassrooms([]);
+        setLoadError("Failed to load classrooms.");
       }
     };
 
     loadClassrooms();
-  }, [studentId]);
+  }, [studentId, reloadKey]);
 
   return (
     <Sidebar open={open} setOpen={setOpen}>
@@ -97,7 +101,19 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                   transition={{ duration: 0.2 }}
                   className="ml-7 mt-1 space-y-1 overflow-hidden"
                 >
-                  {classrooms.map((classroom) => (
+                  {loadError ? (
+                    <div className="space-y-2 px-2 py-1">
+                      <p role="alert" className="text-xs text-destructive">{loadError}</p>
+                      <button
+                        type="button"
+                        aria-label="Retry classrooms"
+                        onClick={() => setReloadKey((key) => key + 1)}
+                        className="min-h-11 text-xs font-medium text-primary hover:underline"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : classrooms.map((classroom) => (
                     <Link
                       key={classroom.id}
                       to={`/student/classroom/${classroom.id}/${studentId}`}
