@@ -2,20 +2,33 @@
 FastAPI main application entry point.
 """
 
+import logging
+import os
+from uuid import UUID, uuid4
+
+from dotenv import load_dotenv
 from fastapi import (
-    FastAPI,
-    HTTPException,
-    File,
-    UploadFile,
-    Form,
-    Query,
     BackgroundTasks,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from dotenv import load_dotenv
-import os
+
+from api_models import (
+    ClassroomCreateRequest,
+    CommitStoryRequest,
+    LessonPromptRequest,
+    StoryChoiceRequest,
+    StudentCreateRequest,
+    ThumbnailRequest,
+)
 from services.avatar import generate_avatar
 from services.comic_creation import commit_story_choice
 from services.story_idea import start_chapter
@@ -30,14 +43,59 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Configure CORS
+logger = logging.getLogger("educomic.api")
+
+
+def _allowed_origins() -> list[str]:
+    configured = os.getenv(
+        "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    )
+    origins = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    if not origins or "*" in origins:
+        raise RuntimeError(
+            "ALLOWED_ORIGINS must contain explicit origins when credentials are enabled"
+        )
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure this for production
+    allow_origins=_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _internal_error(request: Request, status_code: int = 500) -> JSONResponse:
+    reference = uuid4().hex
+    logger.error(
+        "Request failed reference=%s method=%s path=%s status=%s",
+        reference,
+        request.method,
+        request.url.path,
+        status_code,
+    )
+    return JSONResponse(
+        status_code=status_code,
+        content={"detail": "Internal server error", "error_reference": reference},
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if exc.status_code >= 500:
+        return _internal_error(request, exc.status_code)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, _exc: Exception):
+    return _internal_error(request)
 
 
 @app.get("/")
@@ -68,13 +126,7 @@ async def readiness_check():
 
 
 @app.post("/classrooms")
-async def create_classroom_endpoint(
-    name: str = Query(...),
-    subject: str = Query(...),
-    grade_level: str = Query(...),
-    story_theme: str = Query(...),
-    design_style: str = Query(...),
-):
+async def create_classroom_endpoint(request: ClassroomCreateRequest):
     """
     Create a new classroom.
 
@@ -92,18 +144,16 @@ async def create_classroom_endpoint(
 
     try:
         classroom = create_classroom(
-            name=name,
-            subject=subject,
-            grade_level=grade_level,
-            story_theme=story_theme,
-            design_style=design_style,
+            name=request.name,
+            subject=request.subject,
+            grade_level=request.grade_level,
+            story_theme=request.story_theme,
+            design_style=request.design_style,
             duration="6 months",
         )
         return {"success": True, "classroom": classroom}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create classroom: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/classrooms")
@@ -116,8 +166,8 @@ async def get_classrooms():
     """
     from database.database import (
         get_all_classrooms,
-        get_students_by_classroom,
         get_chapters_by_classroom,
+        get_students_by_classroom,
     )
 
     try:
@@ -131,14 +181,12 @@ async def get_classrooms():
             classroom["story_count"] = len(chapters)
 
         return {"success": True, "classrooms": classrooms}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch classrooms: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/classrooms/{classroom_id}")
-async def get_classroom(classroom_id: str):
+async def get_classroom(classroom_id: UUID):
     """
     Get a specific classroom with students.
 
@@ -151,20 +199,18 @@ async def get_classroom(classroom_id: str):
     from database.database import get_classroom_with_students
 
     try:
-        classroom = get_classroom_with_students(classroom_id)
+        classroom = get_classroom_with_students(str(classroom_id))
         if not classroom:
             raise HTTPException(status_code=404, detail="Classroom not found")
         return {"success": True, "classroom": classroom}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch classroom: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/classrooms/{classroom_id}/students")
-async def get_classroom_students(classroom_id: str):
+async def get_classroom_students(classroom_id: UUID):
     """
     Get all students in a classroom.
 
@@ -177,16 +223,14 @@ async def get_classroom_students(classroom_id: str):
     from database.database import get_students_by_classroom
 
     try:
-        students = get_students_by_classroom(classroom_id)
+        students = get_students_by_classroom(str(classroom_id))
         return {"success": True, "students": students}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch students: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/classrooms/{classroom_id}/chapters")
-async def get_classroom_chapters(classroom_id: str):
+async def get_classroom_chapters(classroom_id: UUID):
     """
     Get all chapters (stories) for a classroom.
 
@@ -199,16 +243,14 @@ async def get_classroom_chapters(classroom_id: str):
     from database.database import get_chapters_by_classroom
 
     try:
-        chapters = get_chapters_by_classroom(classroom_id)
+        chapters = get_chapters_by_classroom(str(classroom_id))
         return {"success": True, "chapters": chapters}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch chapters: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/students/create")
-async def create_student(name: str, interests: str, photo_url: str = None):
+async def create_student(request: StudentCreateRequest):
     """
     Create a new student account (without classroom).
     Photo must be uploaded first, then this endpoint creates the student.
@@ -225,9 +267,9 @@ async def create_student(name: str, interests: str, photo_url: str = None):
 
     try:
         student_data = {
-            "name": name,
-            "interests": interests,
-            "photo_url": photo_url,  # Real photo saved first
+            "name": request.name,
+            "interests": request.interests,
+            "photo_url": str(request.photo_url) if request.photo_url else None,
         }
 
         response = supabase.table("students").insert(student_data).execute()
@@ -238,14 +280,12 @@ async def create_student(name: str, interests: str, photo_url: str = None):
         return {"success": True, "student": response.data[0]}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create student: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/students/{student_id}/join-classroom/{classroom_id}")
-async def join_classroom(student_id: str, classroom_id: str):
+async def join_classroom(student_id: UUID, classroom_id: UUID):
     """
     Add a student to a classroom (many-to-many).
     Student can be in multiple classrooms.
@@ -258,14 +298,16 @@ async def join_classroom(student_id: str, classroom_id: str):
         Student and classroom info
     """
     from database.database import (
+        add_student_to_classroom,
         get_classroom,
         get_student,
-        add_student_to_classroom,
         is_student_in_classroom,
     )
 
     try:
         # Verify classroom exists
+        student_id = str(student_id)
+        classroom_id = str(classroom_id)
         classroom = get_classroom(classroom_id)
         if not classroom:
             raise HTTPException(status_code=404, detail="Classroom not found")
@@ -295,14 +337,15 @@ async def join_classroom(student_id: str, classroom_id: str):
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to join classroom: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/students/upload-photo")
-async def upload_student_photo(file: UploadFile = File(...), filename: str = Form(...)):
+async def upload_student_photo(
+    file: UploadFile = File(...),
+    filename: str = Form(..., min_length=1, max_length=255),
+):
     """
     Upload a student photo to Supabase storage.
 
@@ -313,8 +356,9 @@ async def upload_student_photo(file: UploadFile = File(...), filename: str = For
     Returns:
         Public URL of the uploaded photo
     """
-    from database.database import supabase
     import uuid
+
+    from database.database import supabase
 
     try:
         # Validate file type
@@ -346,10 +390,6 @@ async def upload_student_photo(file: UploadFile = File(...), filename: str = For
         file_ext = filename.split(".")[-1] if "." in filename else "jpg"
         unique_filename = f"{uuid.uuid4()}.{file_ext}"
 
-        print(
-            f"Uploading photo: {unique_filename}, size: {len(file_content)} bytes, type: {file.content_type}"
-        )
-
         # Upload to Supabase storage
         try:
             response = supabase.storage.from_("StudentPhotos").upload(
@@ -362,26 +402,19 @@ async def upload_student_photo(file: UploadFile = File(...), filename: str = For
             if hasattr(response, "error") and response.error:
                 raise Exception(f"Supabase upload error: {response.error}")
 
-        except Exception as upload_error:
-            print(f"Upload error: {upload_error}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Supabase upload failed: {str(upload_error)}. Check storage bucket permissions.",
-            )
+        except Exception:
+            raise HTTPException(status_code=500, detail="Internal server error")
 
         # Get public URL
         public_url = supabase.storage.from_("StudentPhotos").get_public_url(
             unique_filename
         )
 
-        print(f"Photo uploaded successfully: {public_url}")
-
         return {"success": True, "photo_url": public_url}
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to upload photo: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/students")
@@ -402,14 +435,12 @@ async def get_all_students():
             .execute()
         )
         return {"success": True, "students": response.data}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch students: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/students/{student_id}")
-async def get_student(student_id: str):
+async def get_student(student_id: UUID):
     """
     Get a student by ID with all their classrooms.
 
@@ -419,9 +450,10 @@ async def get_student(student_id: str):
     Returns:
         Student record with list of classrooms
     """
-    from database.database import get_student, get_classrooms_by_student
+    from database.database import get_classrooms_by_student, get_student
 
     try:
+        student_id = str(student_id)
         student = get_student(student_id)
         if not student:
             raise HTTPException(status_code=404, detail="Student not found")
@@ -432,14 +464,12 @@ async def get_student(student_id: str):
         return {"success": True, "student": student, "classrooms": classrooms}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch student: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/students/{student_id}/classrooms")
-async def get_student_classrooms(student_id: str):
+async def get_student_classrooms(student_id: UUID):
     """
     Get all classrooms a student is enrolled in.
 
@@ -452,16 +482,14 @@ async def get_student_classrooms(student_id: str):
     from database.database import get_classrooms_by_student
 
     try:
-        classrooms = get_classrooms_by_student(student_id)
+        classrooms = get_classrooms_by_student(str(student_id))
         return {"success": True, "classrooms": classrooms}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch classrooms: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.delete("/students/{student_id}/leave-classroom/{classroom_id}")
-async def leave_classroom(student_id: str, classroom_id: str):
+async def leave_classroom(student_id: UUID, classroom_id: UUID):
     """
     Remove a student from a classroom.
 
@@ -475,21 +503,19 @@ async def leave_classroom(student_id: str, classroom_id: str):
     from database.database import remove_student_from_classroom
 
     try:
-        success = remove_student_from_classroom(student_id, classroom_id)
+        success = remove_student_from_classroom(str(student_id), str(classroom_id))
         if not success:
             raise HTTPException(status_code=404, detail="Enrollment not found")
 
         return {"success": True, "message": "Student left classroom successfully"}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to leave classroom: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/avatar/create/{student_id}")
-async def create_avatar_endpoint(student_id: str):
+async def create_avatar_endpoint(student_id: UUID):
     """
     Generate an avatar for a student.
 
@@ -500,14 +526,12 @@ async def create_avatar_endpoint(student_id: str):
         Updated student record with avatar_url
     """
     try:
-        student = await generate_avatar(student_id)
+        student = await generate_avatar(str(student_id))
         return {"success": True, "student": student}
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Avatar generation failed: {str(e)}"
-        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Student not found")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/story/generate-options")
@@ -553,16 +577,14 @@ async def generate_story_options_endpoint(
         return {"success": True, "options": formatted_options}
     except HTTPException:
         raise
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Story generation failed: {str(e)}"
-        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Story options could not be generated")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/story/generate-thumbnail")
-async def generate_thumbnail_endpoint(request: dict):
+async def generate_thumbnail_endpoint(request: ThumbnailRequest):
     """
     Generate a thumbnail image for a story option using Flux.
     This is a temporary image (not stored).
@@ -579,30 +601,16 @@ async def generate_thumbnail_endpoint(request: dict):
     from services.thumbnail import generate_story_thumbnail
 
     try:
-        title = request.get("title", "")
-        summary = request.get("summary", "")
-
-        if not title or not summary:
-            raise HTTPException(
-                status_code=400, detail="Title and summary are required"
-            )
-
-        thumbnail_url = await generate_story_thumbnail(title, summary)
+        thumbnail_url = await generate_story_thumbnail(request.title, request.summary)
         return {"success": True, "thumbnail_url": thumbnail_url}
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Thumbnail generation failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Thumbnail generation failed: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/story/create/{classroom_id}")
-async def create_story_endpoint(classroom_id: str):
+async def create_story_endpoint(classroom_id: UUID):
     """
     Create a story for a classroom.
 
@@ -618,10 +626,10 @@ async def create_story_endpoint(classroom_id: str):
             "success": True,
             "message": f"Story creation for classroom {classroom_id} not yet implemented",
         }
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Story creation failed: {str(e)}")
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Classroom not found")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ============================================
@@ -632,11 +640,6 @@ async def create_story_endpoint(classroom_id: str):
 class GenerateIdeasRequest(BaseModel):
     classroom_id: str
     teacher_outline: str
-
-
-class CommitStoryRequest(BaseModel):
-    chapter_id: str
-    chosen_idea_id: str
 
 
 @app.post("/chapters/ideas")
@@ -659,12 +662,10 @@ async def generate_ideas_endpoint(request: GenerateIdeasRequest):
     try:
         result = start_chapter(request.classroom_id, request.teacher_outline)
         return {"success": True, "data": result}
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to generate ideas: {str(e)}"
-        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Story ideas could not be generated")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/chapters/commit")
@@ -695,38 +696,37 @@ async def commit_chapter_endpoint(
 
     try:
         # Verify chapter exists
-        chapter = get_chapter(request.chapter_id)
+        chapter_id = str(request.chapter_id)
+        chapter = get_chapter(chapter_id)
         if not chapter:
             raise HTTPException(status_code=404, detail="Chapter not found")
 
         # Update status to indicate generation has started
         supabase.table("chapters").update({"status": "generating"}).eq(
-            "id", request.chapter_id
+            "id", chapter_id
         ).execute()
 
         # Start the actual comic generation in the background
         background_tasks.add_task(
-            commit_story_choice, request.chapter_id, request.chosen_idea_id
+            commit_story_choice, chapter_id, request.chosen_idea_id
         )
 
         return {
             "success": True,
             "message": "Comic generation started",
-            "chapter_id": request.chapter_id,
+            "chapter_id": chapter_id,
             "status": "generating",
         }
     except HTTPException:
         raise
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to start chapter generation: {str(e)}"
-        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Story choice is invalid")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/classrooms/{classroom_id}/materials")
-async def get_classroom_materials(classroom_id: str):
+async def get_classroom_materials(classroom_id: UUID):
     """
     Get all materials for a classroom.
 
@@ -739,21 +739,19 @@ async def get_classroom_materials(classroom_id: str):
     from database.database import get_materials_by_classroom
 
     try:
-        materials = get_materials_by_classroom(classroom_id)
+        materials = get_materials_by_classroom(str(classroom_id))
         return {"success": True, "materials": materials}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch materials: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/classrooms/{classroom_id}/materials/upload")
 async def upload_material(
-    classroom_id: str,
+    classroom_id: UUID,
     file: UploadFile = File(...),
-    title: str = Form(...),
-    description: str = Form(None),
-    week_number: int = Form(None),
+    title: str = Form(..., min_length=1, max_length=200),
+    description: str = Form(None, max_length=2000),
+    week_number: int = Form(None, ge=1, le=52),
 ):
     """
     Upload a material file for a classroom.
@@ -768,10 +766,12 @@ async def upload_material(
     Returns:
         Created material record
     """
-    from database.database import supabase, create_material, get_classroom
     import uuid
 
+    from database.database import create_material, get_classroom, supabase
+
     try:
+        classroom_id = str(classroom_id)
         # Verify classroom exists
         classroom = get_classroom(classroom_id)
         if not classroom:
@@ -799,8 +799,6 @@ async def upload_material(
         file_ext = file.filename.split(".")[-1] if "." in file.filename else "pdf"
         unique_filename = f"{classroom_id}/{uuid.uuid4()}.{file_ext}"
 
-        print(f"Uploading material: {unique_filename}, size: {len(file_content)} bytes")
-
         # Upload to Supabase storage in Materials bucket
         try:
             storage_response = supabase.storage.from_("Materials").upload(
@@ -816,17 +814,11 @@ async def upload_material(
             if hasattr(storage_response, "error") and storage_response.error:
                 raise Exception(f"Supabase upload error: {storage_response.error}")
 
-        except Exception as upload_error:
-            print(f"Upload error: {upload_error}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Supabase upload failed: {str(upload_error)}. Check storage bucket permissions.",
-            )
+        except Exception:
+            raise HTTPException(status_code=500, detail="Internal server error")
 
         # Get public URL
         public_url = supabase.storage.from_("Materials").get_public_url(unique_filename)
-
-        print(f"Material uploaded successfully: {public_url}")
 
         # Create material record in database
         material = create_material(
@@ -842,15 +834,12 @@ async def upload_material(
 
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to upload material: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.delete("/materials/{material_id}")
-async def delete_material_endpoint(material_id: str):
+async def delete_material_endpoint(material_id: UUID):
     """
     Delete a material.
 
@@ -864,6 +853,7 @@ async def delete_material_endpoint(material_id: str):
 
     try:
         # Get material to find file URL
+        material_id = str(material_id)
         material = get_material(material_id)
         if not material:
             raise HTTPException(status_code=404, detail="Material not found")
@@ -875,10 +865,9 @@ async def delete_material_endpoint(material_id: str):
             if "/Materials/" in file_url:
                 file_path = file_url.split("/Materials/")[-1]
                 supabase.storage.from_("Materials").remove([file_path])
-                print(f"Deleted file from storage: {file_path}")
-        except Exception as storage_error:
-            print(f"Failed to delete file from storage: {storage_error}")
+        except Exception:
             # Continue with database deletion even if storage deletion fails
+            pass
 
         # Delete from database
         success = delete_material(material_id)
@@ -889,14 +878,14 @@ async def delete_material_endpoint(material_id: str):
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to delete material: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/classrooms/{classroom_id}/chapters/start")
-async def start_chapter_endpoint(classroom_id: str, lesson_prompt: str = Query(...)):
+async def start_chapter_endpoint(
+    classroom_id: UUID, request: LessonPromptRequest
+):
     """
     Start a new chapter by generating story options.
 
@@ -916,6 +905,8 @@ async def start_chapter_endpoint(classroom_id: str, lesson_prompt: str = Query(.
     from services.story_idea import generate_story_ideas
 
     try:
+        classroom_id = str(classroom_id)
+        lesson_prompt = request.lesson_prompt
         # Get classroom and students
         classroom = get_classroom(classroom_id)
         if not classroom:
@@ -961,18 +952,12 @@ async def start_chapter_endpoint(classroom_id: str, lesson_prompt: str = Query(.
 
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Failed to start chapter: {e}")
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"Failed to start chapter: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.post("/chapters/{chapter_id}/choose-idea")
-async def choose_story_idea(chapter_id: str, idea_id: str, thumbnail_url: str = None):
+async def choose_story_idea(chapter_id: UUID, request: StoryChoiceRequest):
     """
     Teacher chooses a story idea for the chapter.
     Downloads the thumbnail from Flux and uploads it to Supabase storage.
@@ -985,11 +970,16 @@ async def choose_story_idea(chapter_id: str, idea_id: str, thumbnail_url: str = 
     Returns:
         Updated chapter
     """
-    from database.database import supabase, get_chapter
-    import httpx
     import uuid
 
+    import httpx
+
+    from database.database import get_chapter, supabase
+
     try:
+        chapter_id = str(chapter_id)
+        idea_id = request.idea_id
+        thumbnail_url = str(request.thumbnail_url) if request.thumbnail_url else None
         # Verify chapter exists
         chapter = get_chapter(chapter_id)
         if not chapter:
@@ -1000,8 +990,6 @@ async def choose_story_idea(chapter_id: str, idea_id: str, thumbnail_url: str = 
         # If thumbnail URL provided, download and upload to Supabase
         if thumbnail_url:
             try:
-                print(f"Downloading thumbnail from: {thumbnail_url}")
-
                 # Download the image from Flux
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     response = await client.get(thumbnail_url)
@@ -1011,10 +999,8 @@ async def choose_story_idea(chapter_id: str, idea_id: str, thumbnail_url: str = 
                         # Generate unique filename
                         filename = f"{chapter_id}/{uuid.uuid4()}.jpeg"
 
-                        print(f"Uploading thumbnail to Supabase: {filename}")
-
                         # Upload to Supabase Thumbnails bucket
-                        upload_response = supabase.storage.from_("Thumbnails").upload(
+                        supabase.storage.from_("Thumbnails").upload(
                             filename, image_data, {"content-type": "image/jpeg"}
                         )
 
@@ -1022,18 +1008,9 @@ async def choose_story_idea(chapter_id: str, idea_id: str, thumbnail_url: str = 
                         stored_thumbnail_url = supabase.storage.from_(
                             "Thumbnails"
                         ).get_public_url(filename)
-                        print(
-                            f"✅ Thumbnail uploaded successfully: {stored_thumbnail_url}"
-                        )
-                    else:
-                        print(f"⚠️ Failed to download thumbnail: {response.status_code}")
-
-            except Exception as e:
-                print(f"⚠️ Failed to save thumbnail: {e}")
-                import traceback
-
-                traceback.print_exc()
+            except Exception:
                 # Continue even if thumbnail upload fails
+                pass
 
         # Update chapter with chosen idea and thumbnail
         update_data = {"chosen_idea_id": idea_id, "status": "idea_chosen"}
@@ -1055,16 +1032,12 @@ async def choose_story_idea(chapter_id: str, idea_id: str, thumbnail_url: str = 
 
     except HTTPException:
         raise
-    except Exception as e:
-        print(f"Failed to choose idea: {e}")
-        import traceback
-
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to choose idea: {str(e)}")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/chapters/{chapter_id}")
-async def get_chapter_with_panels_endpoint(chapter_id: str):
+async def get_chapter_with_panels_endpoint(chapter_id: UUID):
     """
     Get a chapter with all its panels.
 
@@ -1077,21 +1050,19 @@ async def get_chapter_with_panels_endpoint(chapter_id: str):
     from database.database import get_chapter_with_panels
 
     try:
-        chapter = get_chapter_with_panels(chapter_id)
+        chapter = get_chapter_with_panels(str(chapter_id))
         if not chapter:
             raise HTTPException(status_code=404, detail="Chapter not found")
 
         return {"success": True, "chapter": chapter}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch chapter: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.delete("/chapters/{chapter_id}")
-async def delete_chapter_endpoint(chapter_id: str):
+async def delete_chapter_endpoint(chapter_id: UUID):
     """
     Delete a chapter and all its panels.
 
@@ -1105,27 +1076,26 @@ async def delete_chapter_endpoint(chapter_id: str):
 
     try:
         # Verify chapter exists
+        chapter_id = str(chapter_id)
         chapter = get_chapter(chapter_id)
         if not chapter:
             raise HTTPException(status_code=404, detail="Chapter not found")
 
         # Delete the chapter (cascades to panels)
         success = delete_chapter(chapter_id)
-        
+
         if not success:
             raise HTTPException(status_code=500, detail="Failed to delete chapter")
 
         return {"success": True, "message": "Chapter deleted successfully"}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to delete chapter: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/students/{student_id}/chapters")
-async def get_student_chapters(student_id: str):
+async def get_student_chapters(student_id: UUID):
     """
     Get all chapters across all classrooms a student is enrolled in.
 
@@ -1136,14 +1106,13 @@ async def get_student_chapters(student_id: str):
         List of chapter records with classroom info
     """
     from database.database import (
-        get_classrooms_by_student,
         get_chapters_by_classroom,
-        get_classroom,
+        get_classrooms_by_student,
     )
 
     try:
         # Get all classrooms the student is enrolled in
-        classrooms = get_classrooms_by_student(student_id)
+        classrooms = get_classrooms_by_student(str(student_id))
 
         # Collect all chapters from all classrooms
         all_chapters = []
@@ -1159,7 +1128,5 @@ async def get_student_chapters(student_id: str):
         all_chapters.sort(key=lambda x: x.get("created_at", ""), reverse=True)
 
         return {"success": True, "chapters": all_chapters}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch student chapters: {str(e)}"
-        )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")

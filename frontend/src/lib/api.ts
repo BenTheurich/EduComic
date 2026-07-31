@@ -74,14 +74,10 @@ export const api = {
           created_at: string;
         };
       }>(
-        `/classrooms?` +
-        `name=${encodeURIComponent(data.name)}` +
-        `&subject=${encodeURIComponent(data.subject)}` +
-        `&grade_level=${encodeURIComponent(data.grade_level)}` +
-        `&story_theme=${encodeURIComponent(data.story_theme)}` +
-        `&design_style=${encodeURIComponent(data.design_style)}`,
+        '/classrooms',
         {
           method: 'POST',
+          body: JSON.stringify(data),
         }
       ),
 
@@ -234,16 +230,18 @@ export const api = {
           }>;
           chosen_idea_id: string | null;
         };
-      }>(`/classrooms/${classroomId}/chapters/start?lesson_prompt=${encodeURIComponent(lessonPrompt)}`, {
+      }>(`/classrooms/${classroomId}/chapters/start`, {
         method: 'POST',
+        body: JSON.stringify({ lesson_prompt: lessonPrompt }),
       }),
 
     chooseIdea: (chapterId: string, ideaId: string, thumbnailUrl?: string) =>
       apiFetch<{
         success: boolean;
         chapter: Chapter;
-      }>(`/chapters/${chapterId}/choose-idea?idea_id=${ideaId}${thumbnailUrl ? `&thumbnail_url=${encodeURIComponent(thumbnailUrl)}` : ''}`, {
+      }>(`/chapters/${chapterId}/choose-idea`, {
         method: 'POST',
+        body: JSON.stringify({ idea_id: ideaId, thumbnail_url: thumbnailUrl ?? null }),
       }),
 
     commitChapter: (chapterId: string, ideaId: string) =>
@@ -298,8 +296,9 @@ export const api = {
           avatar_url: string | null;
           created_at: string;
         };
-      }>(`/students/create?name=${encodeURIComponent(name)}&interests=${encodeURIComponent(interests)}${photoUrl ? `&photo_url=${encodeURIComponent(photoUrl)}` : ''}`, {
+      }>('/students/create', {
         method: 'POST',
+        body: JSON.stringify({ name, interests, photo_url: photoUrl ?? null }),
       }),
 
     joinClassroom: (studentId: string, classroomId: string) =>

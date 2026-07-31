@@ -56,12 +56,15 @@ async def test_student_creation_does_not_generate_an_avatar(monkeypatch):
     database = importlib.import_module("database.database")
     avatar = importlib.import_module("services.avatar")
     main = importlib.import_module("main")
+    api_models = importlib.import_module("api_models")
     state = {"enrolled": False, "classroom": {"design_style": "cartoon"}}
     monkeypatch.setattr(database, "supabase", _Supabase(state))
     provider = AsyncMock()
     monkeypatch.setattr(avatar, "generate_avatar", provider)
 
-    result = await main.create_student("Ada Lovelace", "robots")
+    result = await main.create_student(
+        api_models.StudentCreateRequest(name="Ada Lovelace", interests="robots")
+    )
 
     provider.assert_not_awaited()
     assert result["student"]["id"] == "student-1"
@@ -91,6 +94,7 @@ async def test_explicit_avatar_generation_uses_the_enrolled_classroom_style(monk
     database = importlib.import_module("database.database")
     avatar = importlib.import_module("services.avatar")
     main = importlib.import_module("main")
+    api_models = importlib.import_module("api_models")
     student = {"id": "student-1", "name": "Ada Lovelace", "interests": "robots", "photo_url": None}
     classroom = {"id": "classroom-1", "name": "Science", "design_style": "cartoon"}
     state = {"enrolled": False, "classroom": classroom}
@@ -117,7 +121,11 @@ async def test_explicit_avatar_generation_uses_the_enrolled_classroom_style(monk
     monkeypatch.setattr(database, "is_student_in_classroom", lambda *_args: state["enrolled"])
     monkeypatch.setattr(database, "add_student_to_classroom", lambda *_args: state.update(enrolled=True))
 
-    await main.create_student(student["name"], student["interests"])
+    await main.create_student(
+        api_models.StudentCreateRequest(
+            name=student["name"], interests=student["interests"]
+        )
+    )
     await main.join_classroom(student["id"], classroom["id"])
     result = await main.create_avatar_endpoint(student["id"])
 

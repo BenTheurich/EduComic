@@ -4,7 +4,6 @@ import os
 import sys
 from types import ModuleType
 
-
 CONFIG_VARS = (
     "SUPABASE_URL",
     "SUPABASE_KEY",
@@ -16,6 +15,7 @@ CONFIG_VARS = (
     "BLACK_FOREST_API_KEY",
     "BFL_API_BASE",
     "BFL_MODEL_ENDPOINT",
+    "ALLOWED_ORIGINS",
 )
 
 
