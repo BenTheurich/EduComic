@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { exportStoryPdf } from "@/lib/exportStoryPdf";
 import type { Chapter } from "@/types/story";
 import {
   AlertDialog,
@@ -253,44 +254,7 @@ const ClassroomDetail = () => {
         return;
       }
 
-      // Dynamically import jsPDF
-      const { jsPDF } = await import('jspdf');
-
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 10;
-      const usableWidth = pageWidth - (2 * margin);
-      const usableHeight = pageHeight - (2 * margin);
-      const panelsPerPage = 2;
-
-      // Sort panels by index
-      const sortedPanels = [...panels].sort((a, b) => a.index - b.index);
-
-      for (let i = 0; i < sortedPanels.length; i++) {
-        const panel = sortedPanels[i];
-
-        if (i > 0 && i % panelsPerPage === 0) {
-          doc.addPage();
-        }
-
-        const indexOnPage = i % panelsPerPage;
-        const y = margin + (indexOnPage * (usableHeight / panelsPerPage));
-        const imgHeight = usableHeight / panelsPerPage - 5;
-
-        try {
-          doc.addImage(panel.image, 'PNG', margin, y, usableWidth, imgHeight);
-        } catch (err) {
-          console.error(`Failed to add panel ${panel.index}:`, err);
-        }
-      }
-
-      doc.save(`${chapterTitle}.pdf`);
+      await exportStoryPdf({ panels, title: chapterTitle });
       toast.success("PDF downloaded successfully!");
     } catch (error) {
       console.error("PDF export failed:", error);

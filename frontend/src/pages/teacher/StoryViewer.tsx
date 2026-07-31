@@ -18,6 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { exportStoryPdf } from "@/lib/exportStoryPdf";
 import type { Chapter, ChapterWithPanels, Panel } from "@/types/story";
 
 const StoryViewer = () => {
@@ -139,74 +140,13 @@ const StoryViewer = () => {
     try {
       toast.info("Generating PDF...");
 
-      // Dynamically import jsPDF
-      const { jsPDF } = await import('jspdf');
-
-      const doc = new jsPDF({
-        orientation: exportSettings.pageSize === 'letter' ? 'portrait' : 'portrait',
-        unit: 'mm',
-        format: exportSettings.pageSize === 'letter' ? 'letter' : 'a4'
+      const title = chapter.story_title || `Chapter ${chapter.index}`;
+      await exportStoryPdf({
+        panels,
+        title,
+        pageSize: exportSettings.pageSize as "a4" | "letter",
+        panelsPerPage: Number(exportSettings.layout) as 2 | 4,
       });
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const panelsPerPage = parseInt(exportSettings.layout);
-      const margin = 10;
-      const spacing = 5;
-      const usableWidth = pageWidth - (2 * margin);
-      const usableHeight = pageHeight - (2 * margin);
-
-      const sortedPanels = [...panels].sort((a, b) => a.index - b.index);
-      const aspectRatio = 1;
-      
-      let maxPanelWidth: number, maxPanelHeight: number;
-      
-      if (panelsPerPage === 2) {
-        maxPanelWidth = usableWidth;
-        maxPanelHeight = (usableHeight - spacing) / 2;
-      } else {
-        maxPanelWidth = (usableWidth - spacing) / 2;
-        maxPanelHeight = (usableHeight - spacing) / 2;
-      }
-
-      let panelWidth: number, panelHeight: number;
-      if (maxPanelWidth / maxPanelHeight > aspectRatio) {
-        panelHeight = maxPanelHeight;
-        panelWidth = panelHeight * aspectRatio;
-      } else {
-        panelWidth = maxPanelWidth;
-        panelHeight = panelWidth / aspectRatio;
-      }
-
-      for (let i = 0; i < sortedPanels.length; i++) {
-        const panel = sortedPanels[i];
-
-        if (i > 0 && i % panelsPerPage === 0) {
-          doc.addPage();
-        }
-
-        const indexOnPage = i % panelsPerPage;
-        let x: number, y: number;
-
-        if (panelsPerPage === 2) {
-          x = margin + (usableWidth - panelWidth) / 2;
-          y = margin + (indexOnPage * (maxPanelHeight + spacing)) + (maxPanelHeight - panelHeight) / 2;
-        } else {
-          const row = Math.floor(indexOnPage / 2);
-          const col = indexOnPage % 2;
-          x = margin + (col * (maxPanelWidth + spacing)) + (maxPanelWidth - panelWidth) / 2;
-          y = margin + (row * (maxPanelHeight + spacing)) + (maxPanelHeight - panelHeight) / 2;
-        }
-
-        try {
-          doc.addImage(panel.image, 'PNG', x, y, panelWidth, panelHeight);
-        } catch (err) {
-          console.error(`Failed to add panel ${panel.index}:`, err);
-        }
-      }
-
-      const fileName = `${chapter.story_title || `Chapter ${chapter.index}`}.pdf`;
-      doc.save(fileName);
 
       toast.success("PDF downloaded successfully!");
     } catch (error) {
