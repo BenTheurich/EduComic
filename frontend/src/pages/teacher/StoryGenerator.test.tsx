@@ -76,6 +76,7 @@ describe("StoryGenerator", () => {
     });
     vi.stubGlobal("fetch", vi.fn());
     vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
@@ -119,6 +120,7 @@ describe("StoryGenerator", () => {
 
     await waitFor(() => expect(chooseIdea).toHaveBeenCalledWith("chapter-1", "idea_1"));
     expect(fetch).not.toHaveBeenCalled();
+    expect(console.log).not.toHaveBeenCalled();
   });
 
   it("resets the consecutive polling failure limit after a successful poll", async () => {

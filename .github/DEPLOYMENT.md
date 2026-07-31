@@ -12,7 +12,7 @@ Add these secrets (you've already done this! ✓):
 - `SUPABASE_URL` - Your Supabase project URL
 - `SUPABASE_KEY` - Your Supabase anon/service key
 - `OPENAI_API_KEY` - Your OpenAI API key
-- `BLACK_FOREST_API_KEY` - Your Black Forest Labs API key
+- `BFL_API_KEY` - Your Black Forest Labs API key
 
 ### Optional Secrets (depending on deployment method):
 - `VITE_API_URL` - Your production backend URL (e.g., `https://api.educomic.com`)
@@ -199,7 +199,7 @@ git push origin main
 | `SUPABASE_URL` | ✅ | Supabase project URL | `https://xxx.supabase.co` |
 | `SUPABASE_KEY` | ✅ | Supabase anon key | `eyJhbGc...` |
 | `OPENAI_API_KEY` | ✅ | OpenAI API key | `sk-proj-...` |
-| `BLACK_FOREST_API_KEY` | ✅ | FLUX API key | `bfl_...` |
+| `BFL_API_KEY` | ✅ | FLUX API key | `bfl_...` |
 | `VITE_API_URL` | ⚠️ | Production backend URL | `https://api.educomic.com` |
 | `ENVIRONMENT` | ✅ | Environment name | `production` |
 

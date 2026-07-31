@@ -11,7 +11,7 @@ env:
   SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
   SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-  BLACK_FOREST_API_KEY: ${{ secrets.BLACK_FOREST_API_KEY }}
+  BFL_API_KEY: ${{ secrets.BFL_API_KEY }}
   ENVIRONMENT: production
 
 jobs:
@@ -44,7 +44,7 @@ jobs:
           echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
           echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
           echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
-          echo "BLACK_FOREST_API_KEY=${{ secrets.BLACK_FOREST_API_KEY }}" >> .env
+          echo "BFL_API_KEY=${{ secrets.BFL_API_KEY }}" >> .env
           echo "ENVIRONMENT=production" >> .env
       
       - name: Run backend tests (if any)

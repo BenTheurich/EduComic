@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, BaseModel, StringConstraints, UrlConstraints
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, StringConstraints, UrlConstraints
 
 ShortText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
@@ -40,6 +40,8 @@ class LessonPromptRequest(BaseModel):
 
 
 class StoryChoiceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     idea_id: IdeaId
 
 

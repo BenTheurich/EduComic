@@ -148,7 +148,6 @@ const StoryGenerator = () => {
     try {
       // Start chapter and generate story options
       const response = await api.story.startChapter(classroomId, lessonInput);
-      console.log("Chapter started:", response.chapter);
 
       setChapterId(response.chapter.id);
       const options = response.chapter.story_ideas || [];
@@ -178,11 +177,9 @@ const StoryGenerator = () => {
 
     try {
       await api.story.chooseIdea(chapterId, storyId);
-      console.log("Idea chosen:", storyId);
 
       // Start the comic generation in the background
       await api.story.commitChapter(chapterId, storyId);
-      console.log("Comic generation started");
 
       // Start polling for panels
       startPolling();

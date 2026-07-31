@@ -33,10 +33,42 @@ async def test_thumbnail_generation_route_is_not_public():
         "https://images.example/not-provider-owned.jpg",
     ],
 )
-async def test_choose_idea_ignores_caller_urls_without_network(
+async def test_choose_idea_rejects_caller_urls_before_handler_execution(
     monkeypatch, caller_url
 ):
-    """Catches caller-controlled URLs reaching any server-side HTTP client."""
+    """Catches caller-controlled URLs reaching database or network code."""
+    database = importlib.import_module("database.database")
+    app = importlib.import_module("main").app
+    chapter_id = uuid4()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        monkeypatch.setattr(
+            database,
+            "get_chapter",
+            lambda _id: pytest.fail("choose-idea reached the database"),
+        )
+        monkeypatch.setattr(
+            httpx,
+            "AsyncClient",
+            lambda *_args, **_kwargs: pytest.fail(
+                "choose-idea attempted network access"
+            ),
+        )
+        response = await client.post(
+            f"/chapters/{chapter_id}/choose-idea",
+            json={"idea_id": "idea_1", "thumbnail_url": caller_url},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "thumbnail_url"]
+    assert response.json()["detail"][0]["type"] == "extra_forbidden"
+
+
+@pytest.mark.asyncio
+async def test_choose_idea_accepts_only_a_valid_idea_id(monkeypatch):
+    """Catches strict extra-field validation rejecting the supported request."""
     database = importlib.import_module("database.database")
     app = importlib.import_module("main").app
     chapter_id = uuid4()
@@ -57,19 +89,12 @@ async def test_choose_idea_ignores_caller_urls_without_network(
     monkeypatch.setattr(
         database, "supabase", SimpleNamespace(table=lambda _name: Query())
     )
+
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        monkeypatch.setattr(
-            httpx,
-            "AsyncClient",
-            lambda *_args, **_kwargs: pytest.fail(
-                "choose-idea attempted network access"
-            ),
-        )
         response = await client.post(
-            f"/chapters/{chapter_id}/choose-idea",
-            json={"idea_id": "idea_1", "thumbnail_url": caller_url},
+            f"/chapters/{chapter_id}/choose-idea", json={"idea_id": "idea_1"}
         )
 
     assert response.status_code == 200

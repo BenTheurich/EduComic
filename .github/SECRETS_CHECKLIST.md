@@ -7,7 +7,7 @@ You've already added these to **Settings → Secrets and variables → Actions**
 - [x] `SUPABASE_URL`
 - [x] `SUPABASE_KEY`
 - [x] `OPENAI_API_KEY`
-- [x] `BLACK_FOREST_API_KEY`
+- [x] `BFL_API_KEY`
 
 ## 📋 Next: Add Platform-Specific Secrets
 
