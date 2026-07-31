@@ -147,18 +147,21 @@ Expected: the isolated health suite passes and no network request occurs.
 **Files:**
 
 - Modify: `frontend/package.json`
+- Modify: `frontend/package-lock.json`
 - Modify: `frontend/tsconfig.app.json`
 - Modify: `frontend/eslint.config.js`
-- Create: `frontend/src/pages/student/JoinClassroom.test.tsx`
-- Create: `frontend/src/pages/teacher/StoryGenerator.test.tsx`
-- Create: `frontend/src/components/ui/animated-sidebar.test.tsx`
+- Modify: `frontend/vite.config.ts`
+- Modify: `frontend/src/types/classroom.ts`
+- Modify: `frontend/src/lib/api.ts`
+- Create: `frontend/src/test/setup.ts`
+- Create: `frontend/src/pages/shared/Landing.test.tsx`
 
 - [ ] Add a `typecheck` script that runs `tsc --noEmit`.
 - [ ] Add Vitest, Testing Library for React, jest-dom matchers, and jsdom as development dependencies. Reuse Vite configuration; do not add an end-to-end framework.
-- [ ] Write a direct-invite test that renders `/student/join/:classroomCode` with a pending fetch and asserts a loading state instead of a crash.
-- [ ] Write a generation test that asserts an API failure produces an error state, not selectable mock options.
-- [ ] Write a mobile-sidebar test that asserts the same navigation children are present in mobile and desktop render paths.
-- [ ] Run the tests and record the expected current failures:
+- [ ] Run the explicit application type check first and record the current missing chapter-field failures.
+- [ ] Align the shared chapter and API response types with fields the current backend and UI already use. Do not change runtime behavior in this task.
+- [ ] Write one landing-route smoke test that renders the real component and verifies the teacher and student entry actions.
+- [ ] Run the tests and type check to green:
 
 ```powershell
 Set-Location frontend
@@ -166,7 +169,7 @@ npm run typecheck
 npm test -- --run
 ```
 
-- [ ] Enable unused-variable checking after dead code is removed. Increase strictness only where the current source can pass in the same task.
+- [ ] Configure test globals without weakening application checks. Enable unused-variable checking only after dead code is removed in Task 17.
 
 ### Task 5: Replace Placeholder Deployment With Secret-Free CI
 
@@ -198,7 +201,11 @@ Expected: CI has no deploy job, no provider secrets, and no allowed quality-gate
 - Modify: `frontend/src/components/ui/animated-sidebar.tsx`
 - Modify: `frontend/src/pages/teacher/ClassroomDetail.tsx`
 - Modify: `frontend/src/components/teacher/TeacherSidebar.tsx`
+- Create: `frontend/src/pages/student/JoinClassroom.test.tsx`
+- Create: `frontend/src/components/ui/animated-sidebar.test.tsx`
 
+- [ ] Write a direct-invite test that renders `/student/join/:classroomCode` with a pending fetch and asserts a loading state instead of a crash. Run it and confirm the null dereference failure.
+- [ ] Write a mobile-sidebar test that asserts the same navigation children are present in mobile and desktop render paths and the controls are keyboard buttons. Run it and confirm the current mobile failure.
 - [ ] Make direct invite rendering wait for a non-null classroom or show the existing error state.
 - [ ] Pass the existing navigation children into `MobileSidebar`.
 - [ ] Replace clickable SVG/div menu controls with labeled buttons. Restore focus on close and handle Escape.
@@ -230,7 +237,9 @@ Expected: direct invite and mobile navigation tests pass; no route points to `/s
 - Modify: `frontend/src/pages/student/StudentAllStories.tsx`
 - Modify: `backend/src/main.py`
 - Modify: `backend/src/services/avatar.py`
+- Create: `frontend/src/pages/teacher/StoryGenerator.test.tsx`
 
+- [ ] Write a generation test that asserts an API failure produces an error state, not selectable mock options. Run it first and confirm the current mock fallback fails the assertion.
 - [ ] Delete the fake avatar route and its “Edit Avatar” entry point. Existing signup avatar generation remains the only avatar flow.
 - [ ] Remove “Delete Account” until an authorized backend deletion contract exists.
 - [ ] Remove “Edit Classroom” until it performs a real mutation.
