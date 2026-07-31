@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ""
+      SUPABASE_KEY: ""
+      OPENAI_API_KEY: ""
+      BFL_API_KEY: ""
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v9
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen --extra dev
+      - name: Test backend
+        working-directory: backend
+        run: uv run --frozen --extra dev pytest -q
+      - name: Compile backend
+        working-directory: backend
+        run: uv run --frozen --extra dev python -m compileall -q src tests
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Type-check frontend
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+      - name: Test frontend
+        working-directory: frontend
+        run: npm test -- --run
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_URL: https://api.invalid
+        run: npm run build

@@ -83,3 +83,9 @@ Task 16A: feature-removal review is clean. Its repository-wide lint gate remains
 Sequencing ruling: execute Task 17 before Task 13 so the already-reviewed materials deletion can satisfy its full lint gate without polishing frontend modules scheduled for deletion.
 
 Task 16A: complete (commits 350392c..91ab256; re-review at bdf4980 clean after Task 17 closed the full lint gate).
+
+Task 17: complete (commits 4a53b1f..bdf4980; review clean). Deleted 38 unreachable source modules and 28 unused direct dependencies; all 16 routes remain, lint/typecheck/29 tests/build pass, and the main entry fell from 623.86 kB to 403.87 kB.
+
+Task 17 advisory: production audit reports 3 high React Router advisories with no v6 fix and 0 critical. Major-version migration is deferred to the founder checklist unless a safe in-scope fix appears.
+
+Task 20 follow-up: remove stale `frontend/RESTRUCTURE_SUMMARY.md` references to deleted `NavLink` and classroom type files.
