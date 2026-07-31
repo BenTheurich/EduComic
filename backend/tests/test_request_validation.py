@@ -54,6 +54,30 @@ async def test_student_creation_requires_bounded_json_body(client, monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path,payload,field",
+    [
+        (
+            "/students/create",
+            {"name": "Ada", "interests": "robots", "photo_url": "https://example.test/" + "a" * 5000},
+            "photo_url",
+        ),
+        (
+            f"/chapters/{uuid4()}/choose-idea",
+            {"idea_id": "idea_1", "thumbnail_url": "https://example.test/" + "a" * 5000},
+            "thumbnail_url",
+        ),
+    ],
+)
+async def test_oversized_url_references_are_rejected(client, path, payload, field):
+    """Catches oversized provider/storage references reaching active handlers."""
+    response = await client.post(path, json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", field]
+
+
+@pytest.mark.asyncio
 async def test_classroom_rejects_unknown_design_style(client):
     """Catches arbitrary classroom styles crossing the API boundary."""
     response = await client.post(
@@ -151,6 +175,46 @@ async def test_unlisted_origin_gets_no_credentialed_cors_permission(client):
     )
 
     assert "access-control-allow-origin" not in response.headers
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path,data,files,field",
+    [
+        (
+            "/students/upload-photo",
+            {"filename": "   "},
+            {"file": ("student.png", b"image", "image/png")},
+            "filename",
+        ),
+        (
+            f"/classrooms/{uuid4()}/materials/upload",
+            {"title": "   "},
+            {"file": ("lesson.pdf", b"%PDF-1.7", "application/pdf")},
+            "title",
+        ),
+        (
+            "/students/upload-photo",
+            {"filename": "a" * 256},
+            {"file": ("student.png", b"image", "image/png")},
+            "filename",
+        ),
+        (
+            f"/classrooms/{uuid4()}/materials/upload",
+            {"title": "a" * 201},
+            {"file": ("lesson.pdf", b"%PDF-1.7", "application/pdf")},
+            "title",
+        ),
+    ],
+)
+async def test_multipart_text_fields_are_nonblank_and_bounded(
+    client, path, data, files, field
+):
+    """Catches whitespace-only or oversized upload metadata reaching handlers."""
+    response = await client.post(path, data=data, files=files)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", field]
 
 
 def test_wildcard_origin_is_rejected_when_credentials_are_enabled(monkeypatch):

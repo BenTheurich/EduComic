@@ -344,7 +344,9 @@ async def join_classroom(student_id: UUID, classroom_id: UUID):
 @app.post("/students/upload-photo")
 async def upload_student_photo(
     file: UploadFile = File(...),
-    filename: str = Form(..., min_length=1, max_length=255),
+    filename: str = Form(
+        ..., min_length=1, max_length=255, pattern=r"^.*\S.*$"
+    ),
 ):
     """
     Upload a student photo to Supabase storage.
@@ -749,7 +751,7 @@ async def get_classroom_materials(classroom_id: UUID):
 async def upload_material(
     classroom_id: UUID,
     file: UploadFile = File(...),
-    title: str = Form(..., min_length=1, max_length=200),
+    title: str = Form(..., min_length=1, max_length=200, pattern=r"^.*\S.*$"),
     description: str = Form(None, max_length=2000),
     week_number: int = Form(None, ge=1, le=52),
 ):

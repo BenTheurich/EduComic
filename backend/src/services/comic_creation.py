@@ -13,8 +13,8 @@ Step 2 of the pipeline:
 - Update chapter JSON state and return full chapter payload
 """
 
-import os
 import json
+import os
 import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
@@ -24,12 +24,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from database.database import (
-    supabase,
+    create_panel,
+    get_chapter,
     get_classroom,
     get_students_by_classroom,
-    get_chapter,
+    supabase,
     update_chapter,
-    create_panel,
 )
 
 # NEW: quality review helper
@@ -98,34 +98,30 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
       }
     """
 
-    print(f"\n{'='*60}")
-    print(f"🎬 Starting Comic Generation")
-    print(f"{'='*60}")
-    print(f"Chapter ID: {chapter_id}")
-    print(f"Chosen Idea: {chosen_idea_id}")
-    
+    print("Starting comic generation")
+
     print("\n🧹 Step 0: Cleaning up existing panels (if any)...")
     # Delete any existing panels for this chapter to allow regeneration
     try:
         supabase.table("panels").delete().eq("chapter_id", chapter_id).execute()
         print("✓ Existing panels cleared")
-    except Exception as e:
-        print(f"⚠️  No existing panels to clear: {e}")
-    
+    except Exception:
+        print("Existing panel cleanup skipped")
+
     print("\n📚 Step 1: Fetching chapter data...")
     chapter = get_chapter(chapter_id)
     if chapter is None:
-        raise ValueError(f"Chapter {chapter_id} not found")
-    print(f"✓ Chapter found: Index {chapter.get('index')}")
+        raise ValueError("Chapter not found")
+    print("✓ Chapter found")
 
     classroom_id: str = chapter["classroom_id"]
-    print(f"\n🏫 Step 2: Fetching classroom data...")
+    print("\n🏫 Step 2: Fetching classroom data...")
     classroom = get_classroom(classroom_id)
     if classroom is None:
-        raise ValueError(f"Classroom {classroom_id} not found")
-    print(f"✓ Classroom: {classroom.get('name')} ({classroom.get('subject')})")
+        raise ValueError("Classroom not found")
+    print("✓ Classroom found")
 
-    print(f"\n👥 Step 3: Fetching students...")
+    print("\n👥 Step 3: Fetching students...")
     students = get_students_by_classroom(classroom_id)
     print(f"✓ Found {len(students)} students")
 
@@ -135,13 +131,10 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
     }
 
     # Get story ideas from the dedicated field
-    print(f"\n💡 Step 4: Loading story ideas...")
+    print("\n💡 Step 4: Loading story ideas...")
     story_ideas = chapter.get("story_ideas", [])
     if not story_ideas:
-        raise ValueError(
-            f"No story ideas found for chapter {chapter_id}; "
-            "start_chapter must be called first to generate ideas."
-        )
+        raise ValueError("No story ideas found; start the chapter first")
     print(f"✓ Found {len(story_ideas)} story ideas")
 
     teacher_outline = chapter.get("original_prompt", "")
@@ -152,23 +145,22 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
         None,
     )
     if chosen_idea is None:
-        raise ValueError(f"Chosen idea id {chosen_idea_id} not found for chapter {chapter_id}")
-    print(f"✓ Selected: {chosen_idea.get('title')}")
+        raise ValueError("Chosen idea not found")
+    print("✓ Story idea selected")
 
     # Generate full script + panels via OpenAI
-    print(f"\n🤖 Step 5: Generating comic script with OpenAI...")
-    print(f"   Model: {OPENAI_MODEL}")
+    print("\n🤖 Step 5: Generating comic script with OpenAI...")
     script = generate_full_script_and_panels(
         classroom=classroom,
         students=students,
         teacher_outline=teacher_outline,
         chosen_idea=chosen_idea,
     )
-    print(f"✓ Script generated: {script.get('episode_title')}")
+    print("✓ Script generated")
     print(f"✓ Panels to generate: {len(script.get('panels', []))}")
 
     # Build FLUX prompts
-    print(f"\n📝 Step 6: Building FLUX prompts...")
+    print("\n📝 Step 6: Building FLUX prompts...")
     flux_prompts = build_flux_prompts_from_script(
         classroom=classroom,
         students=students,
@@ -182,10 +174,9 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
     }
 
     # Generate images and create panel rows
-    print(f"\n🎨 Step 7: Generating images with FLUX...")
-    print(f"   Endpoint: {BFL_MODEL_ENDPOINT}")
-    print(f"   This may take 1-2 minutes per panel...\n")
-    
+    print("\n🎨 Step 7: Generating images with FLUX...")
+    print("Image generation may take 1-2 minutes per panel")
+
     panel_index_to_url: Dict[int, str] = {}
     previous_panel_image_url: Optional[str] = None
     panel_quality: Dict[int, Dict[str, Any]] = {}
@@ -241,7 +232,7 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
         # NEW: quality-aware generation loop
         if not PANEL_REVIEW_ENABLED:
             # Old behavior: single generation, no review
-            print(f"      - Review disabled; generating once...")
+            print("      - Review disabled; generating once...")
             image_bytes, source_url = call_flux_and_download(
                 base_prompt,
                 aspect_ratio=aspect_ratio,
@@ -267,7 +258,7 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
 
         for attempt in range(1, PANEL_REVIEW_MAX_ATTEMPTS + 1):
             print(f"\n      🎯 Attempt {attempt}/{PANEL_REVIEW_MAX_ATTEMPTS}")
-            print(f"      → Generating image with FLUX...")
+            print("      → Generating image with FLUX...")
             image_bytes, source_url = call_flux_and_download(
                 current_prompt,
                 aspect_ratio=aspect_ratio,
@@ -275,9 +266,9 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
             )
 
             print(f"      ✓ Image generated ({len(image_bytes)} bytes)")
-            
+
             # Run multimodal review against the *BFL sample URL*
-            print(f"      → Running quality review...")
+            print("      → Running quality review...")
             try:
                 review = review_panel_image(
                     image_url=source_url,
@@ -290,11 +281,9 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
                 print(f"      ✓ Quality score: {score:.1f}/10 (threshold: {PANEL_REVIEW_MIN_SCORE})")
                 issues = review.get("issues") or []
                 if issues:
-                    print(f"      ⚠️  Issues found:")
-                    for i, issue in enumerate(issues, 1):
-                        print(f"         {i}. {issue}")
-            except Exception as e:
-                print(f"      ❌ Panel review failed (attempt {attempt}): {e}")
+                    print(f"      ⚠️  Issues found: {len(issues)}")
+            except Exception:
+                print(f"      ❌ Panel review failed on attempt {attempt}")
                 review = None
                 score = 0.0
 
@@ -313,20 +302,20 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
             # Otherwise, refine prompt using suggested fix (if any) and try again
             if attempt < PANEL_REVIEW_MAX_ATTEMPTS:
                 print(f"      ⚠️  Score {score:.1f} below threshold {PANEL_REVIEW_MIN_SCORE}, will retry...")
-                
+
                 # Build aggressive, targeted fix prompt
                 fix_parts = []
-                
+
                 # Get the suggested fix from the review
                 if review:
                     suggested_fix = (review.get("suggested_fix_prompt") or "").strip()
                     if suggested_fix:
                         fix_parts.append(suggested_fix)
-                    
+
                     # Extract specific issues and create targeted fixes
                     issues = review.get("issues") or []
                     dimensions = review.get("dimensions") or {}
-                    
+
                     # If text accuracy is low, be VERY strict about spelling
                     text_accuracy = dimensions.get("text_accuracy", 0.0)
                     if text_accuracy < 7.0 and issues:
@@ -334,7 +323,7 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
                             "CRITICAL: Text must be spelled EXACTLY correctly with no errors. "
                             "Double-check every word for spelling mistakes."
                         )
-                    
+
                     # If character accuracy is low, emphasize character presence
                     char_accuracy = dimensions.get("character_accuracy", 0.0)
                     if char_accuracy < 7.0:
@@ -342,35 +331,35 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
                             f"REQUIRED: All characters must be clearly visible: {', '.join(featured_students)}. "
                             "Each character must be distinct and recognizable."
                         )
-                    
+
                     # Add specific issue-based fixes
                     for issue in issues:
                         issue_lower = issue.lower()
-                        
+
                         # Spelling/text issues
                         if any(word in issue_lower for word in ["spell", "misspell", "wrong text", "incorrect text"]):
                             fix_parts.append(
                                 f"FIX IMMEDIATELY: {issue}. "
                                 "Verify spelling character-by-character before rendering."
                             )
-                        
+
                         # Missing elements
                         elif "missing" in issue_lower:
                             fix_parts.append(
                                 f"MUST ADD: {issue}. "
                                 "This element is required and cannot be omitted."
                             )
-                        
+
                         # Bubble/dialogue issues
                         elif any(word in issue_lower for word in ["bubble", "dialogue", "speech"]):
                             fix_parts.append(
                                 f"DIALOGUE FIX: {issue}. "
                                 "Ensure bubble tails point to the correct speaker."
                             )
-                
+
                 # Escalate strictness on subsequent attempts
                 if attempt == 2:
-                    fix_parts.insert(0, 
+                    fix_parts.insert(0,
                         "SECOND ATTEMPT - BE MORE CAREFUL: The previous image had errors. "
                         "Pay extra attention to the following corrections:"
                     )
@@ -379,35 +368,33 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
                         "FINAL ATTEMPT - MAXIMUM PRECISION REQUIRED: Multiple attempts have failed. "
                         "This is the last chance. Follow these corrections EXACTLY:"
                     )
-                
+
                 if fix_parts:
                     # Join all fix parts with clear separation
                     comprehensive_fix = " ".join(fix_parts)
-                    print(f"      → Applying targeted fixes:")
-                    for i, part in enumerate(fix_parts, 1):
-                        print(f"         {i}. {part[:80]}...")
-                    
+                    print(f"      → Applying {len(fix_parts)} targeted fixes")
+
                     # Append to base prompt with emphasis
                     current_prompt = base_prompt + "\n\nCRITICAL CORRECTIONS: " + comprehensive_fix
                 else:
-                    print(f"      → No specific fixes available; retrying with same prompt")
+                    print("      → No specific fixes available; retrying with same prompt")
                     current_prompt = base_prompt
             else:
-                print(f"      ⚠️  Max attempts reached, will use best attempt")
+                print("      ⚠️  Max attempts reached, will use best attempt")
 
         # After attempts, accept best attempt (even if below threshold)
         if best_image_bytes is None or best_source_url is None:
             raise RuntimeError(f"Panel {idx}: generation failed; no image bytes returned")
 
         print(f"\n      📦 Using best attempt (score={best_score:.1f})")
-        print(f"      → Uploading to storage...")
+        print("      → Uploading to storage...")
         image_url = upload_image_and_get_url(
             img_bytes=best_image_bytes,
             chapter_id=chapter_id,
             panel_index=idx,
             fallback_url=best_source_url,
         )
-        print(f"      ✓ Uploaded: {image_url[:60]}...")
+        print("      ✓ Image uploaded")
 
         create_panel(chapter_id=chapter_id, index=idx, image=image_url)
         print(f"      ✓ Panel {idx} complete!\n")
@@ -418,7 +405,7 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
             panel_quality[idx] = best_review
 
     # Update chapter with story script and status
-    print(f"\n💾 Step 8: Saving chapter data...")
+    print("\n💾 Step 8: Saving chapter data...")
     # Attach panel_quality into the script for later inspection (optional)
     if panel_quality:
         script["panel_quality"] = panel_quality
@@ -431,10 +418,10 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
             "status": "ready",
         },
     )
-    print(f"✓ Chapter updated to 'ready' status")
+    print("✓ Chapter updated to 'ready' status")
 
     # Build structured payload for frontend
-    print(f"\n📦 Step 9: Building response payload...")
+    print("\n📦 Step 9: Building response payload...")
     panels_output: List[Dict[str, Any]] = []
     for panel in script["panels"]:
         idx = panel["index"]
@@ -458,14 +445,10 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
         "learning_objectives": script.get("learning_objectives", []),
         "panels": panels_output,
     }
-    
-    print(f"\n{'='*60}")
-    print(f"✅ Comic Generation Complete!")
-    print(f"{'='*60}")
-    print(f"Episode: {script['episode_title']}")
+
+    print("✅ Comic generation complete")
     print(f"Panels: {len(panels_output)}")
-    print(f"{'='*60}\n")
-    
+
     return result
 
 
@@ -571,8 +554,8 @@ def generate_full_script_and_panels(
     raw = resp.choices[0].message.content
     try:
         data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"OpenAI returned invalid JSON for script: {e}\nRaw: {raw}")
+    except json.JSONDecodeError:
+        raise RuntimeError("OpenAI returned invalid JSON for script") from None
 
     panels = data.get("panels", [])
     # Normalize panel indices to 1..N if missing/invalid
@@ -797,12 +780,12 @@ def call_flux_and_download(
 
     polling_url = submit_data.get("polling_url")
     if not polling_url:
-        raise RuntimeError(f"FLUX submit response missing polling_url: {submit_data}")
+        raise RuntimeError("FLUX submit response missing polling URL")
 
-    print(f"         → Request submitted, polling for result...")
+    print("         → Request submitted, polling for result...")
     start = time.time()
     poll_count = 0
-    
+
     while True:
         if time.time() - start > timeout_seconds:
             raise TimeoutError("Timed out while polling FLUX generation result")
@@ -822,26 +805,26 @@ def call_flux_and_download(
         poll_data = poll_resp.json()
 
         status = poll_data.get("status")
-        
+
         if poll_count % 5 == 0:  # Print every 5 polls
             elapsed = time.time() - start
-            print(f"         → Still generating... ({elapsed:.1f}s elapsed, status: {status})")
-        
+            print(f"         → Still generating... ({elapsed:.1f}s elapsed)")
+
         if status == "Ready":
             elapsed = time.time() - start
             print(f"         → Generation complete! ({elapsed:.1f}s)")
-            
+
             result = poll_data.get("result", {})
             sample_url = result.get("sample")
             if not sample_url:
-                raise RuntimeError(f"FLUX result missing sample URL: {poll_data}")
+                raise RuntimeError("FLUX result missing sample URL")
 
             img_resp = requests.get(sample_url, timeout=30)
             img_resp.raise_for_status()
             return img_resp.content, sample_url
 
         if status in {"Error", "Failed"}:
-            raise RuntimeError(f"FLUX generation failed: {poll_data}")
+            raise RuntimeError("FLUX generation failed")
 
 
 def upload_image_and_get_url(
@@ -882,8 +865,8 @@ def upload_image_and_get_url(
             )
 
         return public_url  # type: ignore[return-value]
-    except Exception as e:
-        print(f"[WARN] Failed to upload image to Supabase Storage: {e}")
+    except Exception:
+        print("[WARN] Image storage upload failed")
         return fallback_url
 
 
@@ -904,4 +887,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     result = commit_story_choice(args.chapter_id, args.chosen_idea_id)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    print(f"Comic generation complete: {len(result['panels'])} panels")

@@ -28,7 +28,7 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
     # Get student from database
     student = get_student(student_id)
     if not student:
-        raise ValueError(f"Student with ID {student_id} not found")
+        raise ValueError("Student not found")
 
     # Get classroom to retrieve design_style (student can be in multiple classrooms)
     # For avatar generation, we'll use the first classroom or None if not in any
@@ -147,8 +147,7 @@ async def _call_black_forest_api(prompt: str, api_key: str, image_url: Optional[
                 raise ValueError("No image URL in completed result")
 
             elif status == "Error":
-                error_msg = result_data.get("error", "Unknown error")
-                raise ValueError(f"Image generation failed: {error_msg}")
+                raise ValueError("Image generation failed")
 
             elif status in ["Pending", "Request Moderated"]:
                 # Continue polling
@@ -172,7 +171,7 @@ async def _upload_avatar_to_storage(image_url: str, student_id: str) -> str:
         httpx.HTTPError: If image download fails
         Exception: If upload to Supabase fails
     """
-    print(f"Downloading avatar from Black Forest Labs: {image_url}")
+    print("Downloading avatar")
 
     # Download the image from Black Forest Labs
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -187,7 +186,7 @@ async def _upload_avatar_to_storage(image_url: str, student_id: str) -> str:
 
     try:
         # Upload to Supabase storage in Avatars bucket (with upsert to replace if exists)
-        print(f"Uploading to Supabase Avatars bucket: {filename}")
+        print("Uploading avatar")
 
         storage_response = supabase.storage.from_("Avatars").upload(
             path=filename,
@@ -201,15 +200,15 @@ async def _upload_avatar_to_storage(image_url: str, student_id: str) -> str:
 
         # Check for upload errors
         if hasattr(storage_response, "error") and storage_response.error:
-            raise Exception(f"Supabase upload error: {storage_response.error}")
+            raise RuntimeError("Avatar upload failed")
 
-    except Exception as upload_error:
-        print(f"Upload error: {upload_error}")
-        raise Exception(f"Failed to upload avatar to Supabase: {str(upload_error)}")
+    except Exception:
+        print("Avatar upload failed")
+        raise RuntimeError("Avatar upload failed") from None
 
     # Get public URL
     public_url = supabase.storage.from_("Avatars").get_public_url(filename)
 
-    print(f"Avatar uploaded successfully: {public_url}")
+    print("Avatar upload complete")
 
     return public_url

@@ -45,3 +45,25 @@ Implemented validated request bodies and safe backend failures for the active de
 - `frontend/src/lib/api.ts`
 
 Self-review found no unresolved Task 11 defect. The deliberately excluded stale endpoints are scheduled for deletion in Tasks 12/16/16A as noted above.
+
+## Review fix round 1
+
+Addressed all three Important review findings:
+
+- Added a shared 2048-character constraint to active `photo_url` and `thumbnail_url` HTTP references.
+- Made active photo filename and material title form fields reject whitespace-only values while retaining their 255/200-character limits at the FastAPI boundary.
+- Audited `avatar.py`, `thumbnail.py`, and `comic_creation.py`; removed raw exceptions, tracebacks, identifiers, classroom/story/prompt content, provider bodies, and generated URLs from output. Remaining messages contain only generic events, numeric progress, counts, scores, elapsed time, or HTTP status codes. Provider/body-bearing exception messages encountered during the audit were also made generic.
+- Added real ASGI boundary coverage and representative avatar/thumbnail/comic failure-path output capture.
+
+TDD and verification:
+
+- RED: the focused backend command reported 7 failures / 12 passes: both 5,000-character URLs reached handlers, both whitespace-only multipart fields reached handlers, and all three representative service failures printed sensitive values.
+- GREEN: `uv run --frozen --extra dev pytest -q tests/test_request_validation.py tests/test_safe_service_logging.py` — 19 passed.
+- Backend full suite — 25 passed.
+- Ruff on all touched Python files — passed.
+- Frontend request-contract suite — 4 passed; full suite — 9 files / 25 tests passed.
+- Frontend typecheck and production build with `VITE_API_URL=https://api.example.invalid` — passed; existing Browserslist and chunk-size warnings remain.
+
+- Staged Round 1 scan: `gitleaks git . --staged --redact --no-banner --no-color` — no leaks found (Git emitted the environment's existing inaccessible global-ignore warning).
+
+Round 1 files: `backend/src/api_models.py`, `backend/src/main.py`, `backend/src/services/avatar.py`, `backend/src/services/thumbnail.py`, `backend/src/services/comic_creation.py`, `backend/tests/test_request_validation.py`, `backend/tests/test_safe_service_logging.py`, and this report.
