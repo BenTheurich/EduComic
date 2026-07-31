@@ -138,7 +138,7 @@ git add package.json package-lock.json
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_key
 OPENAI_API_KEY=your_openai_key
-BLACK_FOREST_API_KEY=your_flux_key
+BFL_API_KEY=your_black_forest_labs_key
 ENVIRONMENT=development
 ```
 

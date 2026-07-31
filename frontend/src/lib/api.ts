@@ -235,13 +235,13 @@ export const api = {
         body: JSON.stringify({ lesson_prompt: lessonPrompt }),
       }),
 
-    chooseIdea: (chapterId: string, ideaId: string, thumbnailUrl?: string) =>
+    chooseIdea: (chapterId: string, ideaId: string) =>
       apiFetch<{
         success: boolean;
         chapter: Chapter;
       }>(`/chapters/${chapterId}/choose-idea`, {
         method: 'POST',
-        body: JSON.stringify({ idea_id: ideaId, thumbnail_url: thumbnailUrl ?? null }),
+        body: JSON.stringify({ idea_id: ideaId }),
       }),
 
     commitChapter: (chapterId: string, ideaId: string) =>

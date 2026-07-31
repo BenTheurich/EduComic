@@ -27,7 +27,6 @@ from api_models import (
     LessonPromptRequest,
     StoryChoiceRequest,
     StudentCreateRequest,
-    ThumbnailRequest,
 )
 from services.avatar import generate_avatar
 from services.comic_creation import commit_story_choice
@@ -115,7 +114,7 @@ async def readiness_check():
     """Report whether the configuration required for work is present."""
     required = ("SUPABASE_URL", "SUPABASE_KEY", "OPENAI_API_KEY")
     missing = [name for name in required if not os.getenv(name)]
-    if not (os.getenv("BFL_API_KEY") or os.getenv("BLACK_FOREST_API_KEY")):
+    if not os.getenv("BFL_API_KEY"):
         missing.append("BFL_API_KEY")
     if missing:
         return JSONResponse(
@@ -585,32 +584,6 @@ async def generate_story_options_endpoint(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/story/generate-thumbnail")
-async def generate_thumbnail_endpoint(request: ThumbnailRequest):
-    """
-    Generate a thumbnail image for a story option using Flux.
-    This is a temporary image (not stored).
-
-    Request body:
-        {
-            "title": "Story title",
-            "summary": "Story summary"
-        }
-
-    Returns:
-        Thumbnail URL
-    """
-    from services.thumbnail import generate_story_thumbnail
-
-    try:
-        thumbnail_url = await generate_story_thumbnail(request.title, request.summary)
-        return {"success": True, "thumbnail_url": thumbnail_url}
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
 @app.post("/story/create/{classroom_id}")
 async def create_story_endpoint(classroom_id: UUID):
     """
@@ -962,63 +935,25 @@ async def start_chapter_endpoint(
 async def choose_story_idea(chapter_id: UUID, request: StoryChoiceRequest):
     """
     Teacher chooses a story idea for the chapter.
-    Downloads the thumbnail from Flux and uploads it to Supabase storage.
 
     Args:
         chapter_id: UUID of the chapter
         idea_id: ID of the chosen story idea
-        thumbnail_url: URL of the thumbnail from Flux (optional)
 
     Returns:
         Updated chapter
     """
-    import uuid
-
-    import httpx
-
     from database.database import get_chapter, supabase
 
     try:
         chapter_id = str(chapter_id)
         idea_id = request.idea_id
-        thumbnail_url = str(request.thumbnail_url) if request.thumbnail_url else None
         # Verify chapter exists
         chapter = get_chapter(chapter_id)
         if not chapter:
             raise HTTPException(status_code=404, detail="Chapter not found")
 
-        stored_thumbnail_url = None
-
-        # If thumbnail URL provided, download and upload to Supabase
-        if thumbnail_url:
-            try:
-                # Download the image from Flux
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.get(thumbnail_url)
-                    if response.status_code == 200:
-                        image_data = response.content
-
-                        # Generate unique filename
-                        filename = f"{chapter_id}/{uuid.uuid4()}.jpeg"
-
-                        # Upload to Supabase Thumbnails bucket
-                        supabase.storage.from_("Thumbnails").upload(
-                            filename, image_data, {"content-type": "image/jpeg"}
-                        )
-
-                        # Get public URL
-                        stored_thumbnail_url = supabase.storage.from_(
-                            "Thumbnails"
-                        ).get_public_url(filename)
-            except Exception:
-                # Continue even if thumbnail upload fails
-                pass
-
-        # Update chapter with chosen idea and thumbnail
         update_data = {"chosen_idea_id": idea_id, "status": "idea_chosen"}
-
-        if stored_thumbnail_url:
-            update_data["thumbnail_url"] = stored_thumbnail_url
 
         response = (
             supabase.table("chapters")

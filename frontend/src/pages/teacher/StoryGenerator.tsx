@@ -7,8 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { generateStoryThumbnails } from "@/services/thumbnailGenerator";
-import ClassicLoader from "@/components/ui/loader";
 import type { Panel } from "@/types/story";
 
 interface StoryOption {
@@ -29,8 +27,6 @@ const StoryGenerator = () => {
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [classroom, setClassroom] = useState<{ name: string; subject: string; grade_level: string } | null>(null);
-  const [thumbnails, setThumbnails] = useState<Map<string, string | null>>(new Map());
-  const [isGeneratingThumbnails, setIsGeneratingThumbnails] = useState(false);
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -160,21 +156,6 @@ const StoryGenerator = () => {
       setStep(2);
       toast.success("Story options generated!");
 
-      // Generate thumbnails in the background (optional, non-blocking)
-      if (options.length > 0) {
-        console.log('Starting thumbnail generation for', options.length, 'options');
-        setIsGeneratingThumbnails(true);
-        generateStoryThumbnails(options)
-          .then(thumbnailMap => {
-            console.log('Thumbnails generated:', thumbnailMap);
-            setThumbnails(thumbnailMap);
-            setIsGeneratingThumbnails(false);
-          })
-          .catch(error => {
-            console.error('Failed to generate thumbnails:', error);
-            setIsGeneratingThumbnails(false);
-          });
-      }
     } catch (error) {
       console.error("Failed to generate story options:", error);
       const message = error instanceof Error ? error.message : "Failed to generate story options";
@@ -196,12 +177,8 @@ const StoryGenerator = () => {
     setStep(3);
 
     try {
-      // Get the thumbnail URL for the selected story
-      const thumbnailUrl = thumbnails.get(storyId) || undefined;
-
-      // Save the chosen idea to the database with thumbnail
-      await api.story.chooseIdea(chapterId, storyId, thumbnailUrl);
-      console.log("Idea chosen:", storyId, "with thumbnail:", thumbnailUrl);
+      await api.story.chooseIdea(chapterId, storyId);
+      console.log("Idea chosen:", storyId);
 
       // Start the comic generation in the background
       await api.story.commitChapter(chapterId, storyId);
@@ -291,50 +268,34 @@ const StoryGenerator = () => {
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-foreground">Choose Your Story</h2>
               <div className="grid md:grid-cols-3 gap-6">
-                {storyOptions.map((option) => {
-                  const thumbnail = thumbnails.get(option.id);
-                  const isLoading = isGeneratingThumbnails && !thumbnail;
-                  
-                  return (
-                    <Card
-                      key={option.id}
-                      className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] border-2 hover:border-primary"
-                      onClick={() => selectStory(option.id)}
-                    >
-                      <CardContent className="pt-6 space-y-4">
-                        {/* Thumbnail or Loading Placeholder */}
-                        <div className="w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                          {thumbnail ? (
-                            <img
-                              src={thumbnail}
-                              alt={option.title}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : isLoading ? (
-                            <ClassicLoader />
-                          ) : (
-                            <span className="text-5xl">{option.theme}</span>
-                          )}
-                        </div>
+                {storyOptions.map((option) => (
+                  <Card
+                    key={option.id}
+                    className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] border-2 hover:border-primary"
+                    onClick={() => selectStory(option.id)}
+                  >
+                    <CardContent className="pt-6 space-y-4">
+                      <div className="w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+                        <span className="text-5xl">{option.theme}</span>
+                      </div>
                         
-                        {/* Title */}
-                        <h3 className="text-lg font-bold text-foreground text-center line-clamp-2 min-h-[3.5rem]">
-                          {option.title}
-                        </h3>
+                      {/* Title */}
+                      <h3 className="text-lg font-bold text-foreground text-center line-clamp-2 min-h-[3.5rem]">
+                        {option.title}
+                      </h3>
                         
-                        {/* Summary */}
-                        <p className="text-sm text-muted-foreground line-clamp-3 min-h-[4rem]">
-                          {option.summary}
-                        </p>
+                      {/* Summary */}
+                      <p className="text-sm text-muted-foreground line-clamp-3 min-h-[4rem]">
+                        {option.summary}
+                      </p>
                         
-                        {/* Select Button */}
-                        <Button className="w-full">
-                          Select This Story
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                      {/* Select Button */}
+                      <Button className="w-full">
+                        Select This Story
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </div>
           )}

@@ -41,16 +41,8 @@ class LessonPromptRequest(BaseModel):
 
 class StoryChoiceRequest(BaseModel):
     idea_id: IdeaId
-    thumbnail_url: BoundedHttpUrl | None = None
 
 
 class CommitStoryRequest(BaseModel):
     chapter_id: UUID
     chosen_idea_id: IdeaId
-
-
-class ThumbnailRequest(BaseModel):
-    title: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)
-    ]
-    summary: LongText

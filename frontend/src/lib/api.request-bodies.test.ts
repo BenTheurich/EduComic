@@ -37,10 +37,9 @@ describe("active POST request bodies", () => {
       send: () => api.story.chooseIdea(
         "00000000-0000-4000-8000-000000000002",
         "idea_1",
-        "https://images.example/idea.jpg",
       ),
       path: "/chapters/00000000-0000-4000-8000-000000000002/choose-idea",
-      body: { idea_id: "idea_1", thumbnail_url: "https://images.example/idea.jpg" },
+      body: { idea_id: "idea_1" },
     },
   ])("sends $path values as JSON", async ({ send, path, body }) => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", {

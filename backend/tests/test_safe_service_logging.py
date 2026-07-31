@@ -30,12 +30,6 @@ class _AsyncClient:
             raise self.error
         return self.response
 
-    async def post(self, *_args, **_kwargs):
-        if self.error:
-            raise self.error
-        return self.response
-
-
 class _FailingBucket:
     def upload(self, *_args, **_kwargs):
         raise RuntimeError("secret storage response")
@@ -110,32 +104,6 @@ async def test_avatar_storage_failure_prints_no_url_identifier_or_exception(
     assert student_id not in output
     assert "secret storage response" not in output
     assert "secret storage response" not in str(raised.value)
-
-
-@pytest.mark.asyncio
-async def test_thumbnail_provider_failure_prints_no_exception_or_story_content(
-    monkeypatch, capsys
-):
-    """Catches provider exceptions and teacher story content leaking to stdout."""
-    thumbnail = importlib.import_module("services.thumbnail")
-    title = "private lesson title"
-    summary = "private lesson summary"
-    monkeypatch.setattr(thumbnail, "BLACK_FOREST_API_KEY", "configured-test-key")
-    monkeypatch.setattr(
-        thumbnail.httpx,
-        "AsyncClient",
-        lambda **kwargs: _AsyncClient(error=RuntimeError("secret provider response"), **kwargs),
-    )
-    capsys.readouterr()
-
-    assert await thumbnail.generate_story_thumbnail(title, summary) is None
-
-    captured = capsys.readouterr()
-    output = captured.out + captured.err
-    assert "secret provider response" not in output
-    assert title not in output
-    assert summary not in output
-    assert "Traceback" not in output
 
 
 def test_comic_storage_failure_prints_no_exception_or_generated_url(

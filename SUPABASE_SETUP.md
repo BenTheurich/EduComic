@@ -56,7 +56,7 @@
    SUPABASE_URL=<your-supabase-project-url>
    SUPABASE_KEY=<your-supabase-anon-or-server-side-key>
    OPENAI_API_KEY=<your-openai-api-key>
-   BLACK_FOREST_API_KEY=<your-black-forest-labs-api-key>
+   BFL_API_KEY=<your-black-forest-labs-api-key>
    ```
 
 ## Step 7: Verify Database Setup

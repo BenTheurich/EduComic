@@ -3,9 +3,9 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StoryGenerator from "./StoryGenerator";
 
-const { commitChapter, generateStoryThumbnails, getChapter, getClassroom, startChapter } = vi.hoisted(() => ({
+const { chooseIdea, commitChapter, getChapter, getClassroom, startChapter } = vi.hoisted(() => ({
+  chooseIdea: vi.fn(),
   commitChapter: vi.fn(),
-  generateStoryThumbnails: vi.fn(),
   getChapter: vi.fn(),
   getClassroom: vi.fn(),
   startChapter: vi.fn(),
@@ -18,15 +18,11 @@ vi.mock("@/lib/api", () => ({
     },
     story: {
       startChapter,
-      chooseIdea: vi.fn(),
+      chooseIdea,
       commitChapter,
     },
     chapters: { getById: getChapter },
   },
-}));
-
-vi.mock("@/services/thumbnailGenerator", () => ({
-  generateStoryThumbnails,
 }));
 
 const chapterResponse = (status: string, panels: unknown[] = []) => ({
@@ -50,7 +46,7 @@ const startGeneration = async (fakeTimers = false) => {
     success: true,
     chapter: {
       id: "chapter-1",
-      story_ideas: [{ id: "idea-1", title: "Orbit", summary: "A lesson", theme: "Space" }],
+      story_ideas: [{ id: "idea_1", title: "Orbit", summary: "A lesson", theme: "Space" }],
     },
   });
   commitChapter.mockResolvedValue({ success: true });
@@ -71,18 +67,20 @@ const startGeneration = async (fakeTimers = false) => {
 describe("StoryGenerator", () => {
   beforeEach(() => {
     startChapter.mockReset();
+    chooseIdea.mockReset().mockResolvedValue({ success: true });
     commitChapter.mockReset();
     getChapter.mockReset();
     getClassroom.mockReset().mockResolvedValue({
       success: true,
       classroom: { name: "Science", subject: "Physics", grade_level: "8" },
     });
-    generateStoryThumbnails.mockReset().mockResolvedValue(new Map());
+    vi.stubGlobal("fetch", vi.fn());
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -98,6 +96,29 @@ describe("StoryGenerator", () => {
     expect(screen.queryByText("Newton's Space Race")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Select This Story" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Generate Story Options" })).toBeEnabled());
+  });
+
+  it("renders and selects story options without a thumbnail request", async () => {
+    startChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        story_ideas: [{ id: "idea_1", title: "Orbit", summary: "A lesson", theme: "Space" }],
+      },
+    });
+    commitChapter.mockResolvedValue({ success: true });
+    getChapter.mockResolvedValue(chapterResponse("failed"));
+
+    renderGenerator();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Newton's laws" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate Story Options" }));
+
+    expect(await screen.findByText("Orbit")).toBeInTheDocument();
+    expect(screen.getByText("Space")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Select This Story" }));
+
+    await waitFor(() => expect(chooseIdea).toHaveBeenCalledWith("chapter-1", "idea_1"));
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("resets the consecutive polling failure limit after a successful poll", async () => {

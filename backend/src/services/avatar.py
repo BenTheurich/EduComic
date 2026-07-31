@@ -42,9 +42,9 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
     classroom = response.data[0].get("classrooms") if response.data else None
 
     # Get API key
-    api_key = os.getenv("BFL_API_KEY") or os.getenv("BLACK_FOREST_API_KEY")
+    api_key = os.getenv("BFL_API_KEY")
     if not api_key:
-        raise ValueError("BFL_API_KEY or BLACK_FOREST_API_KEY not configured in environment")
+        raise ValueError("BFL_API_KEY not configured in environment")
 
     # Build prompt for avatar generation
     prompt = _build_avatar_prompt(student, classroom)

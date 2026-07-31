@@ -290,7 +290,7 @@ The project follows a structured implementation plan with 24 major tasks:
 - `SUPABASE_URL`: Supabase project URL
 - `SUPABASE_KEY`: Supabase API key
 - `OPENAI_API_KEY`: OpenAI API key for GPT-4
-- `FLUX_API_KEY`: FLUX API key for image generation
+- `BFL_API_KEY`: Black Forest Labs API key for image generation
 
 ### Frontend
 - `VITE_API_URL`: Backend API base URL

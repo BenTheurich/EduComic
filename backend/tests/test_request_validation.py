@@ -54,27 +54,19 @@ async def test_student_creation_requires_bounded_json_body(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "path,payload,field",
-    [
-        (
-            "/students/create",
-            {"name": "Ada", "interests": "robots", "photo_url": "https://example.test/" + "a" * 5000},
-            "photo_url",
-        ),
-        (
-            f"/chapters/{uuid4()}/choose-idea",
-            {"idea_id": "idea_1", "thumbnail_url": "https://example.test/" + "a" * 5000},
-            "thumbnail_url",
-        ),
-    ],
-)
-async def test_oversized_url_references_are_rejected(client, path, payload, field):
+async def test_oversized_photo_url_is_rejected(client):
     """Catches oversized provider/storage references reaching active handlers."""
-    response = await client.post(path, json=payload)
+    response = await client.post(
+        "/students/create",
+        json={
+            "name": "Ada",
+            "interests": "robots",
+            "photo_url": "https://example.test/" + "a" * 5000,
+        },
+    )
 
     assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"] == ["body", field]
+    assert response.json()["detail"][0]["loc"] == ["body", "photo_url"]
 
 
 @pytest.mark.asyncio

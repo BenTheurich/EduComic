@@ -46,11 +46,7 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.1")
 
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Support both BFL_API_KEY and BLACK_FOREST_API_KEY for compatibility
-BFL_API_KEY = os.getenv("BFL_API_KEY") or os.getenv(
-    "BLACK_FOREST_API_KEY", "YOUR_BFL_API_KEY_HERE"
-)
-BFL_API_BASE = os.getenv("BFL_API_BASE", "https://api.bfl.ai")
+BFL_API_KEY = os.getenv("BFL_API_KEY", "YOUR_BFL_API_KEY_HERE")
 
 BFL_MODEL_ENDPOINT = os.getenv("BFL_MODEL_ENDPOINT", "flux-2-pro")
 
@@ -65,7 +61,7 @@ if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_API_KEY_HERE":
     print("[WARN] OPENAI_API_KEY not set; OpenAI calls will fail until you configure it.")
 
 if not BFL_API_KEY or BFL_API_KEY == "YOUR_BFL_API_KEY_HERE":
-    print("[WARN] BFL_API_KEY or BLACK_FOREST_API_KEY not set; FLUX calls will fail until you configure it.")
+    print("[WARN] BFL_API_KEY not set; FLUX calls will fail until you configure it.")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -747,7 +743,7 @@ def call_flux_and_download(
     if not BFL_API_KEY or BFL_API_KEY == "YOUR_BFL_API_KEY_HERE":
         raise RuntimeError("BFL_API_KEY is not set; cannot call FLUX API")
 
-    submit_url = f"{BFL_API_BASE}/v1/{BFL_MODEL_ENDPOINT}"
+    submit_url = f"https://api.bfl.ai/v1/{BFL_MODEL_ENDPOINT}"
     headers = {
         "accept": "application/json",
         "Content-Type": "application/json",
