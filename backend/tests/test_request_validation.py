@@ -180,22 +180,10 @@ async def test_unlisted_origin_gets_no_credentialed_cors_permission(client):
             "filename",
         ),
         (
-            f"/classrooms/{uuid4()}/materials/upload",
-            {"title": "   "},
-            {"file": ("lesson.pdf", b"%PDF-1.7", "application/pdf")},
-            "title",
-        ),
-        (
             "/students/upload-photo",
             {"filename": "a" * 256},
             {"file": ("student.png", b"image", "image/png")},
             "filename",
-        ),
-        (
-            f"/classrooms/{uuid4()}/materials/upload",
-            {"title": "a" * 201},
-            {"file": ("lesson.pdf", b"%PDF-1.7", "application/pdf")},
-            "title",
         ),
     ],
 )

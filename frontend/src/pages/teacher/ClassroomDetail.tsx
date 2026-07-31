@@ -1,15 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Copy, Plus, Upload, CheckCircle, Clock, Filter, X, Loader2, Grid3x3, List, Trash2 } from "lucide-react";
+import { ChevronLeft, Copy, Plus, CheckCircle, Clock, Filter, Loader2, Grid3x3, List, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -45,12 +42,6 @@ interface Classroom {
   design_style: string;
 }
 
-interface MaterialFile {
-  file: File;
-  title: string;
-  description: string;
-}
-
 const ClassroomDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -61,10 +52,6 @@ const ClassroomDetail = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [storySortBy, setStorySortBy] = useState<"week" | "date">("week");
   const [studentViewMode, setStudentViewMode] = useState<"grid" | "list">("grid");
-  const [isDragging, setIsDragging] = useState(false);
-  const [materials, setMaterials] = useState<MaterialFile[]>([]);
-  const [uploadedMaterials, setUploadedMaterials] = useState<Awaited<ReturnType<typeof api.classrooms.getMaterials>>["materials"]>([]);
-  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const fetchClassroomData = async () => {
@@ -95,9 +82,6 @@ const ClassroomDetail = () => {
         const chaptersResponse = await api.classrooms.getChapters(id);
         setChapters(chaptersResponse.chapters);
 
-        // Fetch materials
-        const materialsResponse = await api.classrooms.getMaterials(id);
-        setUploadedMaterials(materialsResponse.materials);
       } catch (error) {
         console.error("Failed to fetch classroom data:", error);
         toast.error("Failed to load classroom data");
@@ -121,116 +105,6 @@ const ClassroomDetail = () => {
     const link = `${window.location.origin}/student/join/${id}`;
     navigator.clipboard.writeText(link);
     toast.success("Invite link copied to clipboard!");
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files).map(file => ({
-        file,
-        title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-        description: ""
-      }));
-      setMaterials([...materials, ...newFiles]);
-      toast.success(`${newFiles.length} file(s) added`);
-    }
-  };
-
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!isDragging) {
-      setIsDragging(true);
-    }
-  };
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX;
-    const y = e.clientY;
-
-    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
-      setIsDragging(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    const pdfFiles = droppedFiles.filter(file => file.type === 'application/pdf');
-
-    if (pdfFiles.length !== droppedFiles.length) {
-      toast.error("Only PDF files are allowed");
-    }
-
-    if (pdfFiles.length > 0) {
-      const newFiles = pdfFiles.map(file => ({
-        file,
-        title: file.name.replace(/\.[^/.]+$/, ""),
-        description: ""
-      }));
-      setMaterials([...materials, ...newFiles]);
-      toast.success(`${pdfFiles.length} file(s) added`);
-    }
-  };
-
-  const updateMaterial = (index: number, field: keyof MaterialFile, value: string) => {
-    const updatedMaterials = [...materials];
-    updatedMaterials[index] = { ...updatedMaterials[index], [field]: value };
-    setMaterials(updatedMaterials);
-  };
-
-  const removeMaterial = (index: number) => {
-    setMaterials(materials.filter((_, i) => i !== index));
-  };
-
-  const handleUploadMaterials = async () => {
-    if (!id) return;
-
-    setIsUploading(true);
-    try {
-      // Upload each material
-      for (const materialFile of materials) {
-        if (!materialFile.title.trim()) {
-          toast.error(`Please provide a title for ${materialFile.file.name}`);
-          setIsUploading(false);
-          return;
-        }
-
-        await api.classrooms.uploadMaterial(
-          id,
-          materialFile.file,
-          materialFile.title,
-          materialFile.description || undefined
-        );
-      }
-
-      toast.success(`${materials.length} material${materials.length > 1 ? 's' : ''} uploaded successfully!`);
-
-      // Clear the materials list
-      setMaterials([]);
-
-      // Refresh uploaded materials
-      const materialsResponse = await api.classrooms.getMaterials(id);
-      setUploadedMaterials(materialsResponse.materials);
-
-    } catch (error) {
-      console.error("Failed to upload materials:", error);
-      toast.error("Failed to upload materials. Please try again.");
-    } finally {
-      setIsUploading(false);
-    }
   };
 
   // Get calendar week from date
@@ -382,7 +256,6 @@ const ClassroomDetail = () => {
           <TabsList className="backdrop-blur-lg bg-muted/50 border border-border/30">
             <TabsTrigger value="students">Students</TabsTrigger>
             <TabsTrigger value="stories">Stories</TabsTrigger>
-            <TabsTrigger value="materials">Materials</TabsTrigger>
           </TabsList>
 
           <TabsContent value="students" className="space-y-6">
@@ -711,176 +584,6 @@ const ClassroomDetail = () => {
             )}
           </TabsContent>
 
-          <TabsContent value="materials" className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3 }}
-              className="space-y-6"
-            >
-              {/* Upload Area */}
-              <div
-                className={`backdrop-blur-lg bg-card/50 border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${isDragging
-                  ? 'border-primary bg-primary/10 scale-[1.02]'
-                  : 'border-muted-foreground/25 hover:border-primary/50'
-                  }`}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                <input
-                  type="file"
-                  id="material-upload"
-                  className="hidden"
-                  accept=".pdf"
-                  multiple
-                  onChange={handleFileUpload}
-                />
-                <label htmlFor="material-upload" className="cursor-pointer block">
-                  <Upload className={`w-12 h-12 mx-auto mb-4 transition-all ${isDragging ? 'text-primary scale-110' : 'text-muted-foreground'}`} />
-                  <div className={`text-sm font-medium mb-1 transition-colors ${isDragging ? 'text-primary' : 'text-foreground'}`}>
-                    {isDragging ? '📄 Drop PDF files here!' : 'Click to upload or drag PDF files'}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Max 10MB per file • PDF only
-                  </div>
-                </label>
-              </div>
-
-              {/* Existing Uploaded Materials */}
-              {uploadedMaterials.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-foreground">Existing Materials ({uploadedMaterials.length})</h3>
-                  <div className="space-y-3">
-                    {uploadedMaterials.map((material) => (
-                      <Card key={material.id} className="backdrop-blur-lg bg-card/70 border-border/50">
-                        <CardContent className="pt-4 pb-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="w-10 h-10 rounded bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                                <span className="text-xl">📄</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-foreground">{material.title}</p>
-                                {material.description && (
-                                  <p className="text-sm text-muted-foreground line-clamp-1">{material.description}</p>
-                                )}
-                                <p className="text-xs text-muted-foreground">
-                                  Uploaded {new Date(material.created_at).toLocaleDateString()}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => window.open(material.file_url, '_blank')}
-                              >
-                                View
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={async () => {
-                                  if (confirm('Are you sure you want to delete this material?')) {
-                                    try {
-                                      await api.classrooms.deleteMaterial(material.id);
-                                      setUploadedMaterials(uploadedMaterials.filter(m => m.id !== material.id));
-                                      toast.success('Material deleted');
-                                    } catch (error) {
-                                      toast.error('Failed to delete material');
-                                    }
-                                  }
-                                }}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* New Materials to Upload */}
-              {materials.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-foreground">New Materials to Upload ({materials.length})</h3>
-                  <div className="space-y-4">
-                    {materials.map((materialFile, index) => (
-                      <Card key={index} className="backdrop-blur-lg bg-card/70 border-border/50">
-                        <CardContent className="pt-4 space-y-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className="w-10 h-10 rounded bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                                <span className="text-xl">📄</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-medium text-foreground truncate">{materialFile.file.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {(materialFile.file.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeMaterial(index)}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`material-title-${index}`}>Material Title *</Label>
-                            <Input
-                              id={`material-title-${index}`}
-                              placeholder="e.g., Week 3: Newton's Laws"
-                              value={materialFile.title}
-                              onChange={(e) => updateMaterial(index, 'title', e.target.value)}
-                              className="backdrop-blur-sm bg-background/60"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label htmlFor={`material-description-${index}`}>Description (Optional)</Label>
-                            <Textarea
-                              id={`material-description-${index}`}
-                              placeholder="Brief description of this material"
-                              value={materialFile.description}
-                              onChange={(e) => updateMaterial(index, 'description', e.target.value)}
-                              rows={2}
-                              className="backdrop-blur-sm bg-background/60"
-                            />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                  <Button
-                    className="w-full backdrop-blur-sm"
-                    onClick={handleUploadMaterials}
-                    disabled={isUploading}
-                  >
-                    {isUploading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Uploading...
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-4 h-4 mr-2" />
-                        Upload {materials.length} Material{materials.length > 1 ? 's' : ''}
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </motion.div>
-          </TabsContent>
         </Tabs>
       </div>
     </div>

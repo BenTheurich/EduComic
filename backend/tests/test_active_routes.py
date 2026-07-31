@@ -99,3 +99,17 @@ def test_stale_story_paths_are_not_registered_for_any_method():
     }
 
     assert registered_paths.isdisjoint(stale_paths)
+
+
+def test_material_paths_are_not_registered_for_any_method():
+    """Catches the removed material-storage feature returning under any HTTP method."""
+    app = importlib.import_module("main").app
+
+    registered_paths = {route.path for route in app.routes}
+    material_paths = {
+        "/classrooms/{classroom_id}/materials",
+        "/classrooms/{classroom_id}/materials/upload",
+        "/materials/{material_id}",
+    }
+
+    assert registered_paths.isdisjoint(material_paths)

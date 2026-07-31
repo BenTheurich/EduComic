@@ -4,7 +4,6 @@ import {
   LogOut, 
   Users, 
   BookOpen, 
-  FileText, 
   ArrowLeft
 } from "lucide-react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/animated-sidebar";
@@ -45,11 +44,6 @@ export function TeacherSidebar({ open, setOpen }: TeacherSidebarProps) {
       label: "Stories",
       href: `/teacher/classroom/${classroomId}?tab=stories`,
       icon: <BookOpen className="text-foreground h-5 w-5 flex-shrink-0" />,
-    },
-    {
-      label: "Materials",
-      href: `/teacher/classroom/${classroomId}?tab=materials`,
-      icon: <FileText className="text-foreground h-5 w-5 flex-shrink-0" />,
     },
   ] : [];
 
