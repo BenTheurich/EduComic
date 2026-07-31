@@ -53,10 +53,10 @@
 
 2. Edit `backend/.env` and fill in your credentials:
    ```env
-   SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
-   SUPABASE_KEY=REMOVED_SUPABASE_ANON_KEY
-   OPENAI_API_KEY=sk-...
-   FLUX_API_KEY=...
+   SUPABASE_URL=<your-supabase-project-url>
+   SUPABASE_KEY=<your-supabase-anon-or-server-side-key>
+   OPENAI_API_KEY=<your-openai-api-key>
+   BLACK_FOREST_API_KEY=<your-black-forest-labs-api-key>
    ```
 
 ## Step 7: Verify Database Setup
