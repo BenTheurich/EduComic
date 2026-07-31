@@ -10,11 +10,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 
+type Classroom = Awaited<ReturnType<typeof api.classrooms.getById>>["classroom"];
+
 const JoinClassroom = () => {
     const navigate = useNavigate();
     const { classroomCode: urlClassroomCode } = useParams();
     const [classroomCode, setClassroomCode] = useState(urlClassroomCode || "");
-    const [classroom, setClassroom] = useState<any>(null);
+    const [classroom, setClassroom] = useState<Classroom | null>(null);
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [error, setError] = useState("");
     const [showClassroom, setShowClassroom] = useState(!!urlClassroomCode);
@@ -166,7 +168,15 @@ const JoinClassroom = () => {
             </header>
 
             <div className="container mx-auto px-4 py-12 max-w-2xl">
-                {!showClassroom ? (
+                {showClassroom && !classroom && isLoading ? (
+                    <div
+                        role="status"
+                        aria-label="Loading classroom"
+                        className="flex justify-center py-12"
+                    >
+                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    </div>
+                ) : !showClassroom || !classroom ? (
                     // Classroom Code Entry
                     <Card className="backdrop-blur-lg bg-card/70 border-2 border-border/50">
                         <CardContent className="pt-8 pb-8 space-y-6">

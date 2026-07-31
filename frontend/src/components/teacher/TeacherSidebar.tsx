@@ -1,7 +1,6 @@
 import { Link, useLocation, useParams } from "react-router-dom";
 import { 
   LayoutDashboard, 
-  Settings, 
   LogOut, 
   Users, 
   BookOpen, 
@@ -28,11 +27,6 @@ export function TeacherSidebar({ open, setOpen }: TeacherSidebarProps) {
       label: "Dashboard",
       href: "/teacher/dashboard",
       icon: <LayoutDashboard className="text-foreground h-5 w-5 flex-shrink-0" />,
-    },
-    {
-      label: "Settings",
-      href: "/teacher/settings",
-      icon: <Settings className="text-foreground h-5 w-5 flex-shrink-0" />,
     },
     {
       label: "Logout",

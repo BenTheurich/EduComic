@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
-import React, { useState, createContext, useContext } from "react";
+import React, { useEffect, useRef, useState, createContext, useContext } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 
@@ -73,7 +73,7 @@ export const SidebarBody = (props: React.ComponentProps<typeof motion.div>) => {
   return (
     <>
       <DesktopSidebar {...props} />
-      <MobileSidebar />
+      <MobileSidebar {...props}>{props.children}</MobileSidebar>
     </>
   );
 };
@@ -112,6 +112,23 @@ export const MobileSidebar = ({
   ...props
 }: React.ComponentProps<"div">) => {
   const { open, setOpen } = useSidebar();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+
+  useEffect(() => {
+    if (wasOpen.current && !open) menuButtonRef.current?.focus();
+    wasOpen.current = open;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [open, setOpen]);
+
   return (
     <>
       <div
@@ -121,10 +138,15 @@ export const MobileSidebar = ({
         {...props}
       >
         <div className="flex justify-end z-20 w-full">
-          <Menu
-            className="text-foreground cursor-pointer"
-            onClick={() => setOpen(!open)}
-          />
+          <button
+            ref={menuButtonRef}
+            type="button"
+            aria-label="Open navigation"
+            onClick={() => setOpen(true)}
+            className="text-foreground"
+          >
+            <Menu />
+          </button>
         </div>
         <AnimatePresence>
           {open && (
@@ -141,12 +163,14 @@ export const MobileSidebar = ({
                 className
               )}
             >
-              <div
-                className="absolute right-10 top-10 z-50 text-foreground cursor-pointer"
-                onClick={() => setOpen(!open)}
+              <button
+                type="button"
+                aria-label="Close navigation"
+                className="absolute right-10 top-10 z-50 text-foreground"
+                onClick={() => setOpen(false)}
               >
                 <X />
-              </div>
+              </button>
               {children}
             </motion.div>
           )}

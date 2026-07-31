@@ -50,6 +50,8 @@ interface MaterialFile {
   description: string;
 }
 
+type UploadedMaterial = Awaited<ReturnType<typeof api.classrooms.getMaterials>>["materials"][number];
+
 const ClassroomDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -62,7 +64,7 @@ const ClassroomDetail = () => {
   const [studentViewMode, setStudentViewMode] = useState<"grid" | "list">("grid");
   const [isDragging, setIsDragging] = useState(false);
   const [materials, setMaterials] = useState<MaterialFile[]>([]);
-  const [uploadedMaterials, setUploadedMaterials] = useState<any[]>([]);
+  const [uploadedMaterials, setUploadedMaterials] = useState<UploadedMaterial[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
@@ -637,7 +639,7 @@ const ClassroomDetail = () => {
                     No stories yet. Generate your first story based on a lesson!
                   </p>
                   <Button asChild className="backdrop-blur-sm">
-                    <a href={`/teacher/classroom/${id}/story/generate`}>
+                    <a href={`/teacher/classroom/${id}/story/new`}>
                       <Plus className="w-4 h-4 mr-2" />
                       Generate Story
                     </a>
