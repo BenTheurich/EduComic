@@ -7,6 +7,7 @@ The remaining production console calls are gone, and three loads that could prev
 ## Changes
 
 - Added persistent, retryable load errors to the student classroom page, the student sidebar classroom list, and the story-generator classroom metadata header.
+- Added the same truthful recovery path to the teacher classroom detail so a failed classroom or chapter request cannot appear as not-found or empty data.
 - Preserved existing user-facing toasts and successful behavior.
 - Removed production `console.log`, `console.debug`, `console.warn`, and `console.error` calls without introducing a logging abstraction.
 - Deleted the now-pointless 404 logging effect and its imports.
@@ -16,6 +17,8 @@ The remaining production console calls are gone, and three loads that could prev
 - RED: all three focused tests first failed because their expected alerts and retry controls did not exist.
 - GREEN: the focused suite passes `9` tests across `3` files.
 - Full frontend suite passes `40` tests across `17` files.
+- Review fix RED: ClassroomDetail rendered the false "Classroom not found" state after a rejected load; GREEN adds the alert/retry path and a local deterministic sidebar `scrollTo` test stub.
+- Review fix full frontend suite passes `41` tests across `17` files without unexpected stderr.
 
 ## Verification
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StudentSidebar } from "./StudentSidebar";
 
 const { getClassrooms } = vi.hoisted(() => ({ getClassrooms: vi.fn() }));
@@ -11,7 +11,12 @@ vi.mock("@/lib/api", () => ({
 
 describe("StudentSidebar", () => {
   beforeEach(() => {
+    vi.stubGlobal("scrollTo", vi.fn());
     getClassrooms.mockReset().mockImplementation(() => new Promise(() => undefined));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("names collapsed links and exposes classroom disclosure state", () => {

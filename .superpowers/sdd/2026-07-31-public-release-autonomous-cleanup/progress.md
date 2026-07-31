@@ -103,3 +103,5 @@ Task 15 preflight: preserve panels by generating and durably uploading the compl
 Task 18A: complete (commits 6eed33f..bf4ba58; re-review clean). Frontend 37 tests, typecheck, lint, production build, and diff check pass; the duplicate responsive-sidebar control ID was removed.
 
 Task 18B: complete. Production `frontend/src` contains zero `console.log`, `console.debug`, `console.warn`, or `console.error` calls. Student classroom, student sidebar classroom-list, and story-generator metadata failures now stay visible and provide retry actions. Focused 9 tests and full frontend 40 tests, typecheck, lint, production build, diff check, and staged Gitleaks pass.
+
+Task 18B: fix round 1/5 (2 addressed, 0 open - truthful retryable ClassroomDetail load failure and deterministic local `scrollTo` test stub). Full frontend 41 tests pass without unexpected stderr; typecheck, lint, production build, zero-console detector, diff check, and staged Gitleaks pass.

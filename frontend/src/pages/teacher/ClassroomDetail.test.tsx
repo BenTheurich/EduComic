@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TeacherSidebar } from "@/components/teacher/TeacherSidebar";
@@ -49,6 +49,41 @@ describe("removed classroom materials feature", () => {
 
     expect(await screen.findByRole("heading", { name: "Science" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Materials" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a failed load visible and retries the classroom", async () => {
+    getById
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        success: true,
+        classroom: {
+          id: "classroom-1",
+          name: "Science",
+          subject: "Physics",
+          grade_level: "8",
+          story_theme: "Space",
+          design_style: "comic",
+          created_at: "2026-07-31T00:00:00Z",
+          students: [],
+        },
+      });
+
+    render(
+      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1"]}>
+        <Routes>
+          <Route path="/teacher/classroom/:id" element={<ClassroomDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load classroom");
+    expect(screen.queryByText("Classroom not found")).not.toBeInTheDocument();
+    expect(screen.queryByText(/No stories yet/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("heading", { name: "Science" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("does not offer a Materials link in the real teacher sidebar", () => {

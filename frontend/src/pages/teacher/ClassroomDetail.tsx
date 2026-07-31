@@ -49,6 +49,8 @@ const ClassroomDetail = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [storySortBy, setStorySortBy] = useState<"week" | "date">("week");
   const [studentViewMode, setStudentViewMode] = useState<"grid" | "list">("grid");
 
@@ -58,6 +60,10 @@ const ClassroomDetail = () => {
 
       try {
         setIsLoading(true);
+        setLoadError(null);
+        setClassroom(null);
+        setStudents([]);
+        setChapters([]);
 
         // Fetch classroom with students
         const classroomResponse = await api.classrooms.getById(id);
@@ -75,6 +81,7 @@ const ClassroomDetail = () => {
         setChapters(chaptersResponse.chapters);
 
       } catch {
+        setLoadError("Failed to load classroom. Please try again.");
         toast.error("Failed to load classroom data");
       } finally {
         setIsLoading(false);
@@ -82,7 +89,7 @@ const ClassroomDetail = () => {
     };
 
     fetchClassroomData();
-  }, [id]);
+  }, [id, reloadKey]);
 
   // Get tab from URL or default to stories
   const currentTab = searchParams.get('tab') || 'stories';
@@ -173,6 +180,22 @@ const ClassroomDetail = () => {
         <div className="text-center space-y-4">
           <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto" />
           <p className="text-muted-foreground">Loading classroom...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <p role="alert" className="text-destructive">{loadError}</p>
+          <div className="flex justify-center gap-3">
+            <Button onClick={() => setReloadKey((key) => key + 1)}>Retry</Button>
+            <Button variant="outline" onClick={() => navigate("/teacher/dashboard")}>
+              Back to Dashboard
+            </Button>
+          </div>
         </div>
       </div>
     );
