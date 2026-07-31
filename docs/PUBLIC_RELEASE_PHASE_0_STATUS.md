@@ -6,7 +6,7 @@ Phase 0 goal: make the repository safe to share without leaking secrets, private
 
 ## Completed Or Staged Locally
 
-- Staged `backend/.env` and `frontend/.env` for removal from git tracking while leaving local copies on disk. The files and their leaked values remain in `HEAD`, `origin/main`, and repository history until the sanitized publication strategy is completed.
+- Env-file deletion is staged in the local index, not completed in remote history. The files and their leaked values remain in `HEAD`, `origin/main`, and repository history until the sanitized publication strategy is completed.
 - Replaced `backend/.env.example` and `frontend/.env.example` with placeholder-only templates.
 - Replaced a current `SUPABASE_SETUP.md` credential snippet with placeholder-only values.
 - Installed Gitleaks locally through `winget`.
@@ -68,14 +68,7 @@ Do not make the current repository public until the all-history scan passes.
 
 ## Non-Code Artifact Review Result
 
-The July 31, 2026 follow-up visually inspected the tracked PDFs and image and reviewed the local assistant files, fix notes, and manual test artifacts:
-
-- The three PDFs are obsolete internal hackathon artifacts. Two contain personal author metadata, and their technical guidance is stale. Remove them from the public source.
-- The image is a stale technical flowchart, not a personal photo. Remove it or replace it with current architecture documentation.
-- `.claude/settings.local.json` contains a contributor-specific local path. Remove `.claude/` from the public source.
-- Root fix notes include unsafe public-storage and RLS-disabling guidance. Remove the historical notes after current setup documentation is written.
-- Root manual test files call prototype or live-service paths and are not a release test suite. Remove them after isolated tests replace any useful coverage.
-- Replace the Lovable frontend README and social metadata with current EduComic documentation.
+The July 31, 2026 follow-up completed the artifact inspection and determined that obsolete internal PDFs, the stale flowchart image, contributor-specific assistant files, historical root fix notes, generated package metadata, and manual prototype testers must be removed before public release. Removal remains pending approval.
 
 The full result and exact autonomous cleanup plan are recorded in:
 
