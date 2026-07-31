@@ -18,22 +18,16 @@ import { Slider } from "@/components/ui/slider";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import api from "@/lib/api";
-
-interface Panel {
-  id: string;
-  index: number;
-  image: string;
-  chapter_id: string;
-  created_at: string;
-}
+import type { Chapter, ChapterWithPanels, Panel } from "@/types/story";
 
 const StoryViewer = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [chapter, setChapter] = useState<any>(null);
+  const [chapter, setChapter] = useState<ChapterWithPanels | null>(null);
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [allChapters, setAllChapters] = useState<any[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [allChapters, setAllChapters] = useState<Chapter[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
   const [exportSettings, setExportSettings] = useState({
     pageSize: "a4",
@@ -62,8 +56,15 @@ const StoryViewer = () => {
       if (!id) return;
 
       setIsLoading(true);
+      setLoadError(null);
+      setChapter(null);
+      setPanels([]);
       try {
         const response = await api.chapters.getById(id);
+        if (response.chapter.status !== "ready") {
+          setLoadError(`This chapter is ${response.chapter.status.replaceAll("_", " ")} and cannot be viewed yet.`);
+          return;
+        }
         setChapter(response.chapter);
         setPanels(response.chapter.panels || []);
 
@@ -73,9 +74,9 @@ const StoryViewer = () => {
             const chaptersResponse = await api.classrooms.getChapters(response.chapter.classroom_id);
             if (chaptersResponse.success && chaptersResponse.chapters) {
               // Sort chapters by created_at descending (newest first)
-              const sortedChapters = [...chaptersResponse.chapters].sort(
-                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-              );
+              const sortedChapters = chaptersResponse.chapters
+                .filter(chapter => chapter.status === "ready")
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
               setAllChapters(sortedChapters);
               
               // Find current chapter index
@@ -88,6 +89,7 @@ const StoryViewer = () => {
         }
       } catch (error) {
         console.error("Failed to load chapter:", error);
+        setLoadError("Failed to load this chapter. Please try again.");
         toast.error("Failed to load chapter");
       } finally {
         setIsLoading(false);
@@ -224,11 +226,11 @@ const StoryViewer = () => {
     );
   }
 
-  if (!chapter) {
+  if (loadError || !chapter) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center space-y-4">
-          <p className="text-muted-foreground">Chapter not found</p>
+          <p role="alert" className="text-muted-foreground">{loadError || "Chapter not found"}</p>
           <Button onClick={() => navigate(-1)}>Go Back</Button>
         </div>
       </div>

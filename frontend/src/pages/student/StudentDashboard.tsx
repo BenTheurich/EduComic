@@ -43,10 +43,8 @@ const StudentDashboard = () => {
           const chaptersResponse = await api.students.getChapters(studentId);
           const allChapters = chaptersResponse.chapters || [];
 
-          // Get the most recent chapter (already sorted by created_at desc from API)
-          if (allChapters.length > 0) {
-            setNewestStory(allChapters[0]);
-          }
+          // Chapters are already sorted by created_at desc from the API.
+          setNewestStory(allChapters.find(chapter => chapter.status === "ready") || null);
         } catch (chapterError) {
           console.error("Failed to fetch chapters:", chapterError);
           setStoriesError("Your latest story could not be loaded.");

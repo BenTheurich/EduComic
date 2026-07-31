@@ -52,3 +52,22 @@ The added tests cover:
 - No live services were called.
 - README, egg-info, and output changes present before this task were left untouched and unstaged.
 - No speculative expected-panel-count field or status formatting abstraction was added.
+
+## Review fix round 1
+
+Addressed both Important review findings and the associated test gap:
+
+- `StudentDashboard` now selects the first `ready` chapter from the API's newest-first list; newer `generating` and `failed` rows cannot become a readable latest-story card or link.
+- `StoryViewer` now rejects direct non-ready loads before rendering panels/export or fetching navigation data.
+- Teacher previous/next navigation now filters to `ready` chapters before sorting and indexing.
+- Replaced StoryViewer's duplicate local panel/`any` state types with the shared chapter and panel types.
+
+RED: `npm.cmd test -- --run StudentDashboard StoryViewer` failed all 3 new regressions for the intended behavior: the dashboard showed the generating row, the viewer exposed a generating chapter, and previous navigation selected a failed row.
+
+GREEN and verification:
+
+- Focused tests: PASS — 2 files, 3 tests, no React warnings.
+- Full frontend tests: PASS — 6 files, 10 tests.
+- Typecheck: PASS.
+- Touched-file ESLint: PASS with no findings.
+- Production build: PASS with the same existing Browserslist-age and >500 kB chunk warnings.
