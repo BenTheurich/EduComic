@@ -15,10 +15,23 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env file")
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+class DatabaseConfigurationError(RuntimeError):
+    """Raised when a database operation is attempted without Supabase credentials."""
+
+
+class _UnconfiguredSupabase:
+    def __getattr__(self, _name: str):
+        raise DatabaseConfigurationError(
+            "Supabase is not configured; set SUPABASE_URL and SUPABASE_KEY."
+        )
+
+
+supabase: Client | _UnconfiguredSupabase = (
+    create_client(SUPABASE_URL, SUPABASE_KEY)
+    if SUPABASE_URL and SUPABASE_KEY
+    else _UnconfiguredSupabase()
+)
 
 
 # ============================================

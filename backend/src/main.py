@@ -12,6 +12,7 @@ from fastapi import (
     BackgroundTasks,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
@@ -47,13 +48,23 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check."""
-    return {
-        "status": "healthy",
-        "supabase_configured": bool(
-            os.getenv("SUPABASE_URL") and os.getenv("SUPABASE_KEY")
-        ),
-    }
+    """Liveness check that never depends on external services."""
+    return {"status": "healthy"}
+
+
+@app.get("/ready")
+async def readiness_check():
+    """Report whether the configuration required for work is present."""
+    required = ("SUPABASE_URL", "SUPABASE_KEY", "OPENAI_API_KEY")
+    missing = [name for name in required if not os.getenv(name)]
+    if not (os.getenv("BFL_API_KEY") or os.getenv("BLACK_FOREST_API_KEY")):
+        missing.append("BFL_API_KEY")
+    if missing:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "missing_configuration": missing},
+        )
+    return {"status": "ready"}
 
 
 @app.post("/classrooms")
