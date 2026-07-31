@@ -12,8 +12,6 @@ dependencies = [
     "httpx",
     "requests",
     "pydantic",
-    "pydantic-settings",
-    "reportlab",
     "Pillow",
     "python-dotenv",
 ]

@@ -340,10 +340,8 @@ dependencies = [
     { name = "openai" },
     { name = "pillow" },
     { name = "pydantic" },
-    { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
-    { name = "reportlab" },
     { name = "requests" },
     { name = "supabase" },
     { name = "uvicorn", extra = ["standard"] },
@@ -364,12 +362,10 @@ requires-dist = [
     { name = "openai" },
     { name = "pillow" },
     { name = "pydantic" },
-    { name = "pydantic-settings" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
-    { name = "reportlab" },
     { name = "requests" },
     { name = "supabase" },
     { name = "uvicorn", extras = ["standard"] },
@@ -381,7 +377,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.13'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -1193,20 +1189,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pydantic-settings"
-version = "2.12.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "typing-inspection" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/43/4b/ac7e0aae12027748076d72a8764ff1c9d82ca75a7a52622e67ed3f765c54/pydantic_settings-2.12.0.tar.gz", hash = "sha256:005538ef951e3c2a68e1c08b292b5f2e71490def8589d4221b95dab00dafcfd0", size = 194184, upload-time = "2025-11-10T14:25:47.013Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/60/5d4751ba3f4a40a6891f24eec885f51afd78d208498268c734e256fb13c4/pydantic_settings-2.12.0-py3-none-any.whl", hash = "sha256:fddb9fd99a5b18da837b29710391e945b1e30c135477f484084ee513adb93809", size = 51880, upload-time = "2025-11-10T14:25:45.546Z" },
-]
-
-[[package]]
 name = "pygments"
 version = "2.19.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1355,19 +1337,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/3a/3b/0a85238e57842fbcda7a090e76459e59d21e0f339da9dda71c8c5efa1a0c/realtime-2.24.0.tar.gz", hash = "sha256:eaf6e2d298473ffb093c25f1ed12f479cb095ae7a59df699bbea9f11c68a087a", size = 18536, upload-time = "2025-11-07T17:08:13.113Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5c/08/1ab54f258a9afe1b0064f2ef2421975ea0065d9a0c970ce87f0933eae118/realtime-2.24.0-py3-none-any.whl", hash = "sha256:fd1b335caf178deaf99c7deae99498c9b820ebfc10522e44ad8c341121d1f230", size = 22139, upload-time = "2025-11-07T17:08:12.019Z" },
-]
-
-[[package]]
-name = "reportlab"
-version = "4.4.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "charset-normalizer" },
-    { name = "pillow" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/48/80/dfa85941e3c3800aa5cd2f940c1903358c1fb61149f5f91b62efa61e7d03/reportlab-4.4.5.tar.gz", hash = "sha256:0457d642aa76df7b36b0235349904c58d8f9c606a872456ed04436aafadc1510", size = 3910836, upload-time = "2025-11-18T11:43:10.242Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/16/0c26a7bdfd20cba49a011b1095461be120c53df3926e9843fccfb9530e72/reportlab-4.4.5-py3-none-any.whl", hash = "sha256:849773d7cd5dde2072fedbac18c8bc909506c8befba8f088ba7b09243c6684cc", size = 1954256, upload-time = "2025-11-17T12:03:05.214Z" },
 ]
 
 [[package]]
