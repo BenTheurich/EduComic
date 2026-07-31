@@ -81,3 +81,5 @@ Task 16A: fix round 1/5 (1 addressed - add a positive sidebar render assertion; 
 Task 16A: feature-removal review is clean. Its repository-wide lint gate remains open only because the remaining errors are in modules/config assigned to deletion-first Task 17; Task 16A will receive final clean review after Task 17.
 
 Sequencing ruling: execute Task 17 before Task 13 so the already-reviewed materials deletion can satisfy its full lint gate without polishing frontend modules scheduled for deletion.
+
+Task 16A: complete (commits 350392c..91ab256; re-review at bdf4980 clean after Task 17 closed the full lint gate).
