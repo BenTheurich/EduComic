@@ -44,4 +44,6 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = "Button";
 
+// Shared with the alert-dialog primitive; colocating the variant keeps button styling canonical.
+// eslint-disable-next-line react-refresh/only-export-components
 export { Button, buttonVariants };

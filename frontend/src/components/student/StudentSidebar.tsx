@@ -12,8 +12,10 @@ interface StudentSidebarProps {
   setOpen: (open: boolean) => void;
 }
 
+type StudentClassroom = Awaited<ReturnType<typeof api.students.getClassrooms>>["classrooms"][number];
+
 export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps) {
-  const [classrooms, setClassrooms] = useState<any[]>([]);
+  const [classrooms, setClassrooms] = useState<StudentClassroom[]>([]);
   const [classroomsExpanded, setClassroomsExpanded] = useState(false);
 
   useEffect(() => {
