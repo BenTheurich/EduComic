@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, User, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,8 +14,6 @@ const StudentSignup = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [interests, setInterests] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingClassroom, setPendingClassroom] = useState<{id: string, name: string} | null>(null);
 
@@ -29,18 +27,6 @@ const StudentSignup = () => {
     }
   }, []);
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPhoto(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const isFormValid = firstName.trim() && lastName.trim() && interests.trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,43 +36,13 @@ const StudentSignup = () => {
     setIsSubmitting(true);
 
     try {
-      // STEP 1: Upload photo FIRST (if provided)
-      let photoUrl: string | undefined;
-      if (photo) {
-        try {
-          toast.info("📸 Uploading your photo...");
-          console.log("Uploading photo:", photo.name, photo.size, "bytes");
-          
-          const uploadResponse = await api.students.uploadPhoto(photo);
-          photoUrl = uploadResponse.photo_url;
-          
-          console.log("✅ Photo uploaded successfully:", photoUrl);
-          toast.success("Photo uploaded!");
-        } catch (uploadError) {
-          console.error("❌ Photo upload failed:", uploadError);
-          toast.error("Photo upload failed. Please try again or continue without photo.");
-          setIsSubmitting(false);
-          return; // Stop if photo upload fails
-        }
-      }
-
-      // STEP 2: Create student account with the uploaded photo URL
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
       toast.info("👤 Creating your account...");
-      
-      console.log("Creating student:", { 
-        fullName, 
-        interests: interests.trim(), 
-        photoUrl: photoUrl || 'none' 
-      });
       
       const response = await api.students.create(
         fullName,
         interests.trim(),
-        photoUrl  // Photo URL from Step 1
       );
-      
-      console.log("✅ Student created:", response.student);
       
       const studentId = response.student.id;
 
@@ -210,38 +166,6 @@ const StudentSignup = () => {
                 <p className="text-sm text-muted-foreground">
                   This helps personalize your character in stories
                 </p>
-              </div>
-
-              {/* Photo Upload (Optional) */}
-              <div className="space-y-2">
-                <Label htmlFor="photo">Photo (Optional)</Label>
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0">
-                    {photoPreview ? (
-                      <img
-                        src={photoPreview}
-                        alt="Preview"
-                        className="w-24 h-24 rounded-full object-cover border-2 border-border"
-                      />
-                    ) : (
-                      <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center border-2 border-border">
-                        <User className="w-10 h-10 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <Input
-                      id="photo"
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePhotoChange}
-                      className="cursor-pointer"
-                    />
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Upload a photo to personalize your character
-                    </p>
-                  </div>
-                </div>
               </div>
 
               {/* Submit Button */}

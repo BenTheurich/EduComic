@@ -113,7 +113,6 @@ export const api = {
             name: string;
             interests: string;
             avatar_url: string | null;
-            photo_url: string | null;
             created_at: string;
           }>;
         };
@@ -127,7 +126,6 @@ export const api = {
           name: string;
           interests: string;
           avatar_url: string | null;
-          photo_url: string | null;
           created_at: string;
         }>;
       }>(`/classrooms/${classroomId}/students`),
@@ -203,26 +201,24 @@ export const api = {
           id: string;
           name: string;
           interests: string;
-          photo_url: string | null;
           avatar_url: string | null;
           created_at: string;
         }>;
       }>('/students'),
 
-    create: (name: string, interests: string, photoUrl?: string) =>
+    create: (name: string, interests: string) =>
       apiFetch<{
         success: boolean;
         student: {
           id: string;
           name: string;
           interests: string;
-          photo_url: string | null;
           avatar_url: string | null;
           created_at: string;
         };
       }>('/students/create', {
         method: 'POST',
-        body: JSON.stringify({ name, interests, photo_url: photoUrl ?? null }),
+        body: JSON.stringify({ name, interests }),
       }),
 
     joinClassroom: (studentId: string, classroomId: string) =>
@@ -233,7 +229,6 @@ export const api = {
           id: string;
           name: string;
           interests: string;
-          photo_url: string | null;
           avatar_url: string | null;
           created_at: string;
         };
@@ -255,7 +250,6 @@ export const api = {
           id: string;
           name: string;
           interests: string;
-          photo_url: string | null;
           avatar_url: string | null;
           created_at: string;
         };
@@ -298,16 +292,6 @@ export const api = {
         method: 'DELETE',
       }),
 
-    uploadPhoto: async (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('filename', file.name);
-
-      return apiFetch<{ success: boolean; photo_url: string }>('/students/upload-photo', {
-        method: 'POST',
-        body: formData,
-      });
-    },
   },
 
   // Chapters

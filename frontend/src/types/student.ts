@@ -3,7 +3,6 @@ export interface Student {
   name: string;
   interests: string;
   avatar_url: string | null;
-  photo_url: string | null;
   created_at: string;
 }
 

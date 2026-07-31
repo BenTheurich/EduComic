@@ -41,27 +41,27 @@ async def test_student_creation_requires_bounded_json_body(client, monkeypatch):
 
     accepted = await client.post(
         "/students/create",
-        json={"name": "  Ada Lovelace  ", "interests": "  robots  ", "photo_url": None},
+        json={"name": "  Ada Lovelace  ", "interests": "  robots  "},
     )
     rejected = await client.post(
         "/students/create",
-        json={"name": "x" * 101, "interests": "robots", "photo_url": None},
+        json={"name": "x" * 101, "interests": "robots"},
     )
 
     assert accepted.status_code == 200
-    assert inserted == {"name": "Ada Lovelace", "interests": "robots", "photo_url": None}
+    assert inserted == {"name": "Ada Lovelace", "interests": "robots"}
     assert rejected.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_oversized_photo_url_is_rejected(client):
-    """Catches oversized provider/storage references reaching active handlers."""
+async def test_student_creation_rejects_removed_photo_field(client):
+    """Catches the unauthenticated child-photo contract returning."""
     response = await client.post(
         "/students/create",
         json={
             "name": "Ada",
             "interests": "robots",
-            "photo_url": "https://example.test/" + "a" * 5000,
+            "photo_url": "https://example.test/ada.jpg",
         },
     )
 
@@ -167,34 +167,6 @@ async def test_unlisted_origin_gets_no_credentialed_cors_permission(client):
     )
 
     assert "access-control-allow-origin" not in response.headers
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "path,data,files,field",
-    [
-        (
-            "/students/upload-photo",
-            {"filename": "   "},
-            {"file": ("student.png", b"image", "image/png")},
-            "filename",
-        ),
-        (
-            "/students/upload-photo",
-            {"filename": "a" * 256},
-            {"file": ("student.png", b"image", "image/png")},
-            "filename",
-        ),
-    ],
-)
-async def test_multipart_text_fields_are_nonblank_and_bounded(
-    client, path, data, files, field
-):
-    """Catches whitespace-only or oversized upload metadata reaching handlers."""
-    response = await client.post(path, data=data, files=files)
-
-    assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"] == ["body", field]
 
 
 def test_wildcard_origin_is_rejected_when_credentials_are_enabled(monkeypatch):

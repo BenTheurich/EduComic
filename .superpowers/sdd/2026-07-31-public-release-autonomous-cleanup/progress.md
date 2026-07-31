@@ -89,3 +89,7 @@ Task 17: complete (commits 4a53b1f..bdf4980; review clean). Deleted 38 unreachab
 Task 17 advisory: production audit reports 3 high React Router advisories with no v6 fix and 0 critical. Major-version migration is deferred to the founder checklist unless a safe in-scope fix appears.
 
 Task 20 follow-up: remove stale `frontend/RESTRUCTURE_SUMMARY.md` references to deleted `NavLink` and classroom type files.
+
+Task 5: complete (commit e6ab427; review clean). The sole workflow is read-only, secret-free CI and every mirrored backend/frontend gate passes locally.
+
+Task 13 preflight ruling: delete the unauthenticated optional student-photo upload instead of adding validation/storage compensation to it. Avatar generation already works text-only; with no access model, signed bearer URLs would not make child photos meaningfully private. Remove the orphan-prone two-request upload flow, photo fields/fallbacks, and now-unused Pillow/python-multipart dependencies. Reintroduction is a founder gate after authentication, consent, retention, private object storage, authorized signed access, and abandoned-upload cleanup exist.

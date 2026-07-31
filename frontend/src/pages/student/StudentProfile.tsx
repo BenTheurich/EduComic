@@ -87,7 +87,7 @@ const StudentProfile = () => {
                                 {/* Avatar Section */}
                                 <div className="flex flex-col items-center space-y-4">
                                     <Avatar className="w-32 h-32 border-4 border-primary/20">
-                                        <AvatarImage src={student.avatar_url || student.photo_url || undefined} />
+                                        <AvatarImage src={student.avatar_url || undefined} />
                                         <AvatarFallback className="bg-primary/20 text-4xl">
                                             {getInitials(student.name)}
                                         </AvatarFallback>

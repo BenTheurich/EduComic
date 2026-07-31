@@ -399,29 +399,39 @@ rg -n "api\.bfl\.ml|BLACK_FOREST_API_KEY|thumbnail_url" backend frontend
 
 Expected: no arbitrary server-side URL fetch, no stale provider base, and one BFL key name.
 
-### Task 13: Validate Upload Bytes And Make Storage Mutations Consistent
+### Task 13: Delete The Unauthenticated Student-Photo Flow
 
 **Files:**
 
 - Modify: `backend/src/main.py`
-- Create: `backend/src/upload_validation.py`
-- Create: `backend/tests/test_upload_validation.py`
+- Modify: `backend/src/api_models.py`
+- Modify: `backend/src/services/avatar.py`
+- Modify: `backend/tests/test_active_routes.py`
+- Modify: `backend/tests/test_request_validation.py`
+- Modify: `backend/tests/test_student_signup_flow.py`
+- Modify: `frontend/src/lib/api.ts`
+- Modify: student signup, login, profile, classroom detail, types, fixtures, and tests
+- Modify: `backend/pyproject.toml`
+- Modify: `backend/uv.lock`
 
-- [ ] Write tests for a mislabeled executable, an oversized stream, a fake PDF, a valid small image, and a storage-success/database-failure compensation path.
-- [ ] Use a bounded read and verify signatures before upload.
-- [ ] Re-encode accepted images with the already-installed image support only if image upload remains enabled; otherwise reject photo upload in the read-only release.
-- [ ] Generate server-owned object names and ignore caller filename extensions.
-- [ ] Remove an uploaded object when its database insert fails.
-- [ ] Do not remove the database record when storage deletion fails. Return a truthful retryable error.
-- [ ] Keep photos, avatars, and materials private in the migration contract.
+- [ ] Delete `/students/upload-photo` and assert that no HTTP method registers the path.
+- [ ] Remove `photo_url` from the student-create request and reject it as an unknown field.
+- [ ] Generate avatars from bounded student text and classroom style only; make the provider prompt and payload honest about having no reference image.
+- [ ] Delete the upload-first signup orchestration, photo input/preview, client method, response types, and every original-photo fallback.
+- [ ] Display a generated avatar or initials only.
+- [ ] Remove Pillow and python-multipart after confirming no remaining runtime use.
+- [ ] Preserve historical deployed objects and schema until the founder chooses a retention policy; this source cleanup does not authorize remote deletion.
+- [ ] Reintroduce child photos only after authentication, explicit consent, retention/deletion rules, private object storage, authorized signed access, and abandoned-upload cleanup exist.
 - [ ] Run:
 
 ```powershell
 Set-Location backend
-uv run --frozen --extra dev pytest -q tests/test_upload_validation.py
+uv run --frozen --extra dev pytest -q tests/test_active_routes.py tests/test_request_validation.py tests/test_student_signup_flow.py
+Set-Location ../frontend
+npm test -- --run src/lib/api.request-bodies.test.ts src/pages/shared/StudentSignup.test.tsx
 ```
 
-Expected: invalid bytes never reach storage and partial failures do not create invisible orphan state.
+Expected: public source has no student-photo intake or display path, and avatar generation remains text-only.
 
 ### Task 14: Validate Provider Output Before Persistence
 

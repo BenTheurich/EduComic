@@ -113,3 +113,12 @@ def test_material_paths_are_not_registered_for_any_method():
     }
 
     assert registered_paths.isdisjoint(material_paths)
+
+
+def test_student_photo_upload_is_not_registered_for_any_method():
+    """Catches the unauthenticated child-photo endpoint returning under any method."""
+    app = importlib.import_module("main").app
+
+    registered_paths = {route.path for route in app.routes}
+
+    assert "/students/upload-photo" not in registered_paths

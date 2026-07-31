@@ -24,9 +24,9 @@ describe("active POST request bodies", () => {
       },
     },
     {
-      send: () => api.students.create("Ada", "robots", "https://images.example/ada.jpg"),
+      send: () => api.students.create("Ada", "robots"),
       path: "/students/create",
-      body: { name: "Ada", interests: "robots", photo_url: "https://images.example/ada.jpg" },
+      body: { name: "Ada", interests: "robots" },
     },
     {
       send: () => api.story.startChapter("00000000-0000-4000-8000-000000000001", "Newton's laws"),

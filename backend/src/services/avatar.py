@@ -48,10 +48,8 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
 
     # Build prompt for avatar generation
     prompt = _build_avatar_prompt(student, classroom)
-    photo_url = student.get("photo_url")
-
     # Call Black Forest Labs API to generate avatar
-    bfl_avatar_url = await _call_black_forest_api(prompt, api_key, photo_url)
+    bfl_avatar_url = await _call_black_forest_api(prompt, api_key)
 
     # Download and upload to Supabase storage
     supabase_avatar_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
@@ -79,8 +77,7 @@ def _build_avatar_prompt(student: Dict[str, Any], classroom: Optional[Dict[str, 
     comic_style = classroom.get("design_style", "manga") if classroom else "manga"
 
     prompt = (
-        f"Full-body avatar of this child, using the reference photo to preserve their face, "
-        f"skin tone, hairstyle, and body shape. The child is standing in a relaxed, front-facing pose, "
+        f"Full-body avatar of a child standing in a relaxed, front-facing pose, "
         f"centered in the frame, single character only. In the style of a {comic_style} classroom comic strip: "
         f"clean line art, flat colors, friendly and age-appropriate. "
         f"Outfit and accessories reflect the child's interests: {interests}. "
@@ -90,15 +87,13 @@ def _build_avatar_prompt(student: Dict[str, Any], classroom: Optional[Dict[str, 
     return prompt
 
 
-async def _call_black_forest_api(prompt: str, api_key: str, image_url: Optional[str] = None) -> str:
+async def _call_black_forest_api(prompt: str, api_key: str) -> str:
     """
     Call Black Forest Labs API to generate an image.
 
     Args:
         prompt: Text prompt for image generation
         api_key: Black Forest Labs API key
-        image_url: Optional reference image URL for image-to-image generation
-
     Returns:
         URL of the generated image
 
@@ -110,10 +105,6 @@ async def _call_black_forest_api(prompt: str, api_key: str, image_url: Optional[
     headers = {"accept": "application/json", "x-key": api_key, "Content-Type": "application/json"}
 
     payload = {"prompt": prompt}
-
-    # Add reference image if provided
-    if image_url:
-        payload["input_image"] = image_url
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         # Submit generation request

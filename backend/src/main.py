@@ -10,11 +10,8 @@ from dotenv import load_dotenv
 from fastapi import (
     BackgroundTasks,
     FastAPI,
-    File,
-    Form,
     HTTPException,
     Request,
-    UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -249,12 +246,10 @@ async def get_classroom_chapters(classroom_id: UUID):
 async def create_student(request: StudentCreateRequest):
     """
     Create a new student account (without classroom).
-    Photo must be uploaded first, then this endpoint creates the student.
 
     Args:
         name: Student's full name
         interests: Student's interests/hobbies
-        photo_url: URL to student's photo (should be uploaded first)
 
     Returns:
         Created student record
@@ -265,7 +260,6 @@ async def create_student(request: StudentCreateRequest):
         student_data = {
             "name": request.name,
             "interests": request.interests,
-            "photo_url": str(request.photo_url) if request.photo_url else None,
         }
 
         response = supabase.table("students").insert(student_data).execute()
@@ -331,84 +325,6 @@ async def join_classroom(student_id: UUID, classroom_id: UUID):
             "student": student,
             "classroom": classroom,
         }
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=500, detail="Internal server error")
-
-
-@app.post("/students/upload-photo")
-async def upload_student_photo(
-    file: UploadFile = File(...),
-    filename: str = Form(
-        ..., min_length=1, max_length=255, pattern=r"^.*\S.*$"
-    ),
-):
-    """
-    Upload a student photo to Supabase storage.
-
-    Args:
-        file: Photo file upload
-        filename: Name of the file
-
-    Returns:
-        Public URL of the uploaded photo
-    """
-    import uuid
-
-    from database.database import supabase
-
-    try:
-        # Validate file type
-        allowed_types = [
-            "image/jpeg",
-            "image/jpg",
-            "image/png",
-            "image/gif",
-            "image/webp",
-        ]
-        if file.content_type not in allowed_types:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid file type: {file.content_type}. Allowed: {', '.join(allowed_types)}",
-            )
-
-        # Read file content
-        file_content = await file.read()
-
-        # Validate file size (max 10MB)
-        max_size = 10 * 1024 * 1024  # 10MB
-        if len(file_content) > max_size:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File too large: {len(file_content)} bytes. Max: {max_size} bytes (10MB)",
-            )
-
-        # Generate unique filename
-        file_ext = filename.split(".")[-1] if "." in filename else "jpg"
-        unique_filename = f"{uuid.uuid4()}.{file_ext}"
-
-        # Upload to Supabase storage
-        try:
-            response = supabase.storage.from_("StudentPhotos").upload(
-                unique_filename,
-                file_content,
-                {"content-type": file.content_type or f"image/{file_ext}"},
-            )
-
-            # Check for upload errors
-            if hasattr(response, "error") and response.error:
-                raise Exception(f"Supabase upload error: {response.error}")
-
-        except Exception:
-            raise HTTPException(status_code=500, detail="Internal server error")
-
-        # Get public URL
-        public_url = supabase.storage.from_("StudentPhotos").get_public_url(
-            unique_filename
-        )
-
-        return {"success": True, "photo_url": public_url}
     except HTTPException:
         raise
     except Exception:

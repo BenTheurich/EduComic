@@ -29,7 +29,6 @@ interface Student {
   name: string;
   interests: string;
   avatar_url: string | null;
-  photo_url: string | null;
   status: "pending" | "generated";
 }
 
@@ -65,17 +64,10 @@ const ClassroomDetail = () => {
         setClassroom(classroomResponse.classroom);
 
         // Map students and add status based on avatar_url
-        const studentsWithStatus = classroomResponse.classroom.students.map(student => {
-          console.log(`Student ${student.name}:`, {
-            hasPhoto: !!student.photo_url,
-            hasAvatar: !!student.avatar_url,
-            avatarUrl: student.avatar_url?.substring(0, 50) + '...'
-          });
-          return {
-            ...student,
-            status: student.avatar_url ? "generated" as const : "pending" as const
-          };
-        });
+        const studentsWithStatus = classroomResponse.classroom.students.map(student => ({
+          ...student,
+          status: student.avatar_url ? "generated" as const : "pending" as const
+        }));
         setStudents(studentsWithStatus);
 
         // Fetch chapters
@@ -310,34 +302,18 @@ const ClassroomDetail = () => {
                       >
                         <Card className="backdrop-blur-lg bg-card/70 border-border/50 hover:bg-card/80 transition-all hover:shadow-xl h-full">
                           <CardContent className="pt-6 pb-6 flex flex-col h-full">
-                            {/* Student Photo - Fixed Height */}
+                            {/* Student Avatar - Fixed Height */}
                             <div className="flex justify-center mb-4">
-                              <div className="relative">
-                                <Avatar className="w-24 h-24 border-4 border-border/30">
-                                  <AvatarImage
-                                    src={student.photo_url || student.avatar_url || undefined}
-                                    alt={student.name}
-                                    className="object-cover"
-                                  />
-                                  <AvatarFallback className="bg-primary/20 text-2xl">
-                                    {student.name.split(' ').map(n => n[0]).join('')}
-                                  </AvatarFallback>
-                                </Avatar>
-                                {student.avatar_url && student.photo_url && (
-                                  <div className="absolute -bottom-2 -right-2 w-12 h-12 rounded-full border-3 border-background overflow-hidden bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg">
-                                    <Avatar className="w-full h-full">
-                                      <AvatarImage
-                                        src={student.avatar_url}
-                                        alt={`${student.name} avatar`}
-                                        className="object-cover"
-                                      />
-                                      <AvatarFallback className="bg-gradient-to-br from-purple-500 to-pink-500 text-white text-xs font-bold">
-                                        🎨
-                                      </AvatarFallback>
-                                    </Avatar>
-                                  </div>
-                                )}
-                              </div>
+                              <Avatar className="w-24 h-24 border-4 border-border/30">
+                                <AvatarImage
+                                  src={student.avatar_url || undefined}
+                                  alt={student.name}
+                                  className="object-cover"
+                                />
+                                <AvatarFallback className="bg-primary/20 text-2xl">
+                                  {student.name.split(' ').map(n => n[0]).join('')}
+                                </AvatarFallback>
+                              </Avatar>
                             </div>
 
                             {/* Student Info - Fixed Height */}

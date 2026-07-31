@@ -25,7 +25,6 @@ describe("StudentDashboard", () => {
         id: "student-1",
         name: "Ada Student",
         interests: "Space",
-        photo_url: null,
         avatar_url: null,
         created_at: "2026-07-01T00:00:00Z",
       },

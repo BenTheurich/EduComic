@@ -95,7 +95,7 @@ async def test_explicit_avatar_generation_uses_the_enrolled_classroom_style(monk
     avatar = importlib.import_module("services.avatar")
     main = importlib.import_module("main")
     api_models = importlib.import_module("api_models")
-    student = {"id": "student-1", "name": "Ada Lovelace", "interests": "robots", "photo_url": None}
+    student = {"id": "student-1", "name": "Ada Lovelace", "interests": "robots"}
     classroom = {"id": "classroom-1", "name": "Science", "design_style": "cartoon"}
     state = {"enrolled": False, "classroom": classroom}
     fake_supabase = _Supabase(state)
@@ -107,7 +107,7 @@ async def test_explicit_avatar_generation_uses_the_enrolled_classroom_style(monk
     monkeypatch.setattr(avatar, "update_student", lambda _student_id, updates: {**student, **updates})
     monkeypatch.setenv("BFL_API_KEY", "test-key")
 
-    async def capture_prompt(prompt, _api_key, _photo_url):
+    async def capture_prompt(prompt, _api_key):
         prompts.append(prompt)
         return "provider-image"
 
@@ -132,3 +132,5 @@ async def test_explicit_avatar_generation_uses_the_enrolled_classroom_style(monk
     assert result["student"]["avatar_url"] == "stored-avatar"
     assert len(prompts) == 1
     assert "style of a cartoon classroom comic strip" in prompts[0]
+    assert "robots" in prompts[0]
+    assert "reference photo" not in prompts[0].lower()

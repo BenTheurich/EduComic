@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, StringConstraints, UrlConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 ShortText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
@@ -12,7 +12,6 @@ LongText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
 ]
 IdeaId = Annotated[str, StringConstraints(pattern=r"^idea_[1-3]$")]
-BoundedHttpUrl = Annotated[AnyHttpUrl, UrlConstraints(max_length=2048)]
 
 
 class ClassroomCreateRequest(BaseModel):
@@ -28,11 +27,12 @@ class ClassroomCreateRequest(BaseModel):
 
 
 class StudentCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: ShortText
     interests: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
     ]
-    photo_url: BoundedHttpUrl | None = None
 
 
 class LessonPromptRequest(BaseModel):
