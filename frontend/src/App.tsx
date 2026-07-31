@@ -19,7 +19,6 @@ import StudentClassroom from "./pages/student/StudentClassroom";
 import StudentStoryReader from "./pages/student/StudentStoryReader";
 import StudentAllStories from "./pages/student/StudentAllStories";
 import JoinClassroom from "./pages/student/JoinClassroom";
-import CreateAvatar from "./pages/student/CreateAvatar";
 import StudentProfile from "./pages/student/StudentProfile";
 import NotFound from "./pages/shared/NotFound";
 
@@ -47,7 +46,6 @@ const App = () => (
             <Route path="/student/login" element={<StudentLogin />} />
             <Route path="/student/join" element={<JoinClassroom />} />
             <Route path="/student/join/:classroomCode" element={<JoinClassroom />} />
-            <Route path="/student/create-avatar" element={<CreateAvatar />} />
             <Route path="/student/dashboard/:studentId" element={<StudentLayout><StudentDashboard /></StudentLayout>} />
             <Route path="/student/classroom/:classroomId/:studentId" element={<StudentLayout><StudentClassroom /></StudentLayout>} />
             <Route path="/student/stories/:studentId" element={<StudentLayout><StudentAllStories /></StudentLayout>} />

@@ -25,33 +25,13 @@ interface Panel {
   created_at: string;
 }
 
-const mockStoryOptions: StoryOption[] = [
-  {
-    id: "1",
-    title: "Newton's Space Race",
-    theme: "🚀",
-    summary: "Emma and Liam find themselves in a space race where understanding forces and acceleration is the key to winning against alien competitors."
-  },
-  {
-    id: "2",
-    title: "The Gravity Challenge",
-    theme: "🌍",
-    summary: "When gravity mysteriously changes on different parts of the playground, Sophia must use Newton's laws to save her friends from floating away."
-  },
-  {
-    id: "3",
-    title: "Motion Lab Mystery",
-    theme: "🔬",
-    summary: "The students discover a lab where they can manipulate forces and mass. They must solve physics puzzles to unlock the secret of perpetual motion."
-  }
-];
-
 const StoryGenerator = () => {
   const navigate = useNavigate();
   const { classroomId } = useParams<{ classroomId: string }>();
   const [step, setStep] = useState(1);
   const [lessonInput, setLessonInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [storyOptions, setStoryOptions] = useState<StoryOption[]>([]);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
@@ -160,6 +140,7 @@ const StoryGenerator = () => {
     }
 
     setIsGenerating(true);
+    setGenerationError(null);
     try {
       // Start chapter and generate story options
       const response = await api.story.startChapter(classroomId, lessonInput);
@@ -188,10 +169,9 @@ const StoryGenerator = () => {
       }
     } catch (error) {
       console.error("Failed to generate story options:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate story options");
-      // Fallback to mock data for testing
-      setStoryOptions(mockStoryOptions);
-      setStep(2);
+      const message = error instanceof Error ? error.message : "Failed to generate story options";
+      setGenerationError(message);
+      toast.error(message);
     } finally {
       setIsGenerating(false);
     }
@@ -269,6 +249,12 @@ const StoryGenerator = () => {
                     {lessonInput.length}/500 characters
                   </div>
                 </div>
+
+                {generationError && (
+                  <p role="alert" className="text-sm text-destructive">
+                    {generationError} Please try again.
+                  </p>
+                )}
 
                 <Button
                   onClick={generateOptions}

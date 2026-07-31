@@ -1,24 +1,26 @@
 """
 Avatar generation service using Black Forest Labs API.
 """
-import os
+
 import asyncio
+import os
+from typing import Any, Dict, Optional
+
 import httpx
-import uuid
-from typing import Optional, Dict, Any
-from database.database import get_student, update_student, get_classroom, supabase
+
+from database.database import get_student, supabase, update_student
 
 
 async def generate_avatar(student_id: str) -> Dict[str, Any]:
     """
     Generate an avatar for a student using Black Forest Labs API.
-    
+
     Args:
         student_id: The UUID of the student
-        
+
     Returns:
         Dict containing the student data with updated avatar_url
-        
+
     Raises:
         ValueError: If student not found or API key not configured
         httpx.HTTPError: If API request fails
@@ -32,17 +34,16 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
     # For avatar generation, we'll use the first classroom or None if not in any
     classroom = None
     try:
-        # Query the junction table to find classrooms this student is in
-        from database.database import supabase
-        response = supabase.table("student_classrooms").select(
-            "classrooms(*)"
-        ).eq("student_id", student_id).limit(1).execute()
-        
-        if response.data and response.data[0].get("classrooms"):
-            classroom = response.data[0]["classrooms"]
-    except Exception as e:
-        print(f"[WARN] Could not fetch classroom for student {student_id}: {e}")
-        # Continue without classroom - will use default design style
+        response = (
+            supabase.table("student_classrooms")
+            .select("classrooms(*)")
+            .eq("student_id", student_id)
+            .limit(1)
+            .execute()
+        )
+        classroom = response.data[0].get("classrooms") if response.data else None
+    except Exception as error:
+        print(f"[WARN] Could not fetch classroom for student {student_id}: {error}")
 
     # Get API key
     api_key = os.getenv("BFL_API_KEY") or os.getenv("BLACK_FOREST_API_KEY")
@@ -68,16 +69,15 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
 def _build_avatar_prompt(student: Dict[str, Any], classroom: Optional[Dict[str, Any]] = None) -> str:
     """
     Build a prompt for avatar generation based on student data.
-    
+
     Args:
         student: Student data dictionary
         classroom: Classroom data dictionary (optional)
-        
+
     Returns:
         Prompt string for image generation
     """
     interests = student.get("interests", "")
-    photo_url = student.get("photo_url")
 
     # Get comic style from classroom, default to manga
     comic_style = classroom.get("design_style", "manga") if classroom else "manga"
@@ -95,40 +95,29 @@ def _build_avatar_prompt(student: Dict[str, Any], classroom: Optional[Dict[str, 
 
 
 async def _call_black_forest_api(prompt: str, api_key: str, image_url: Optional[str] = None) -> str:
-
     """
     Call Black Forest Labs API to generate an image.
-    
+
     Args:
         prompt: Text prompt for image generation
         api_key: Black Forest Labs API key
         image_url: Optional reference image URL for image-to-image generation
-        
+
     Returns:
         URL of the generated image
-        
+
     Raises:
         httpx.HTTPError: If API request fails
     """
     url = "https://api.bfl.ai/v1/flux-2-pro"
 
+    headers = {"accept": "application/json", "x-key": api_key, "Content-Type": "application/json"}
 
-    headers = {
-        "accept": "application/json",
-        "x-key": api_key,
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-        "prompt": prompt
-
-
-    }
+    payload = {"prompt": prompt}
 
     # Add reference image if provided
     if image_url:
         payload["input_image"] = image_url
-
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         # Submit generation request
@@ -175,56 +164,56 @@ async def _call_black_forest_api(prompt: str, api_key: str, image_url: Optional[
 async def _upload_avatar_to_storage(image_url: str, student_id: str) -> str:
     """
     Download image from URL and upload to Supabase Avatars bucket.
-    
+
     Args:
         image_url: URL of the generated image from Black Forest Labs
         student_id: UUID of the student (used for filename)
-        
+
     Returns:
         Public URL of the uploaded image in Supabase storage
-        
+
     Raises:
         httpx.HTTPError: If image download fails
         Exception: If upload to Supabase fails
     """
     print(f"Downloading avatar from Black Forest Labs: {image_url}")
-    
+
     # Download the image from Black Forest Labs
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.get(image_url)
         response.raise_for_status()
         image_data = response.content
-    
+
     print(f"Downloaded {len(image_data)} bytes")
-    
+
     # Generate filename with student ID
     filename = f"{student_id}.png"
-    
+
     try:
         # Upload to Supabase storage in Avatars bucket (with upsert to replace if exists)
         print(f"Uploading to Supabase Avatars bucket: {filename}")
-        
+
         storage_response = supabase.storage.from_("Avatars").upload(
             path=filename,
             file=image_data,
             file_options={
                 "content-type": "image/png",
                 "cache-control": "3600",
-                "upsert": "true"  # Replace if already exists
-            }
+                "upsert": "true",  # Replace if already exists
+            },
         )
-        
+
         # Check for upload errors
-        if hasattr(storage_response, 'error') and storage_response.error:
+        if hasattr(storage_response, "error") and storage_response.error:
             raise Exception(f"Supabase upload error: {storage_response.error}")
-            
+
     except Exception as upload_error:
         print(f"Upload error: {upload_error}")
         raise Exception(f"Failed to upload avatar to Supabase: {str(upload_error)}")
-    
+
     # Get public URL
     public_url = supabase.storage.from_("Avatars").get_public_url(filename)
-    
+
     print(f"Avatar uploaded successfully: {public_url}")
-    
+
     return public_url

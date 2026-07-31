@@ -1,42 +1,30 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useParams } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
-import { User, Mail, Heart, Trash2, Edit } from "lucide-react";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { User, Mail, Heart } from "lucide-react";
 import api from "@/lib/api";
+
+type Student = Awaited<ReturnType<typeof api.students.getById>>["student"];
 
 const StudentProfile = () => {
     const { studentId } = useParams();
-    const navigate = useNavigate();
-    const [student, setStudent] = useState<any>(null);
+    const [student, setStudent] = useState<Student | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [avatarError, setAvatarError] = useState<string | null>(null);
+    const [generatingAvatar, setGeneratingAvatar] = useState(false);
 
     useEffect(() => {
-        if (studentId) {
-            loadStudentData();
-        }
-    }, [studentId]);
-
-    const loadStudentData = async () => {
+        if (!studentId) return;
+        const loadStudentData = async () => {
         try {
             setLoading(true);
             setError(null);
-            const response = await api.students.getById(studentId!);
+            const response = await api.students.getById(studentId);
             setStudent(response.student);
         } catch (err) {
             console.error("Failed to load student data:", err);
@@ -44,16 +32,26 @@ const StudentProfile = () => {
         } finally {
             setLoading(false);
         }
-    };
+        };
+        loadStudentData();
+    }, [studentId]);
 
     const getInitials = (name: string) =>
         name.split(' ').map(n => n[0]).join('').toUpperCase();
 
-    const handleDeleteAccount = () => {
-        console.log("Deleting account:", studentId);
-        // In production, this would delete the student account
-        // For now, navigate back to landing page
-        navigate("/");
+    const retryAvatar = async () => {
+        if (!studentId) return;
+        setGeneratingAvatar(true);
+        setAvatarError(null);
+        try {
+            const response = await api.avatar.create(studentId);
+            setStudent(response.student);
+        } catch (err) {
+            console.error("Failed to generate avatar:", err);
+            setAvatarError("Avatar generation failed. Please try again.");
+        } finally {
+            setGeneratingAvatar(false);
+        }
     };
 
     if (loading) {
@@ -94,10 +92,12 @@ const StudentProfile = () => {
                                             {getInitials(student.name)}
                                         </AvatarFallback>
                                     </Avatar>
-                                    <Button variant="outline" size="sm" onClick={() => navigate("/student/create-avatar")}>
-                                        <Edit className="w-4 h-4 mr-2" />
-                                        Edit Avatar
-                                    </Button>
+                                    {!student.avatar_url && (
+                                        <Button variant="outline" size="sm" onClick={retryAvatar} disabled={generatingAvatar}>
+                                            {generatingAvatar ? "Generating Avatar..." : "Try Avatar Again"}
+                                        </Button>
+                                    )}
+                                    {avatarError && <p role="alert" className="text-sm text-destructive">{avatarError}</p>}
                                 </div>
 
                                 {/* Account Details */}
@@ -146,45 +146,6 @@ const StudentProfile = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Danger Zone */}
-                    <Card className="backdrop-blur-lg bg-card/70 border-2 border-destructive/50">
-                        <CardHeader>
-                            <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <p className="text-sm text-muted-foreground">
-                                Once you delete your account, there is no going back. This will permanently delete your profile, remove you from all classrooms, and erase all your data.
-                            </p>
-
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" className="w-full md:w-auto">
-                                        <Trash2 className="w-4 h-4 mr-2" />
-                                        Delete Account
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This action cannot be undone. This will permanently delete your account
-                                            and remove your data from our servers. You will be removed from all classrooms
-                                            and lose access to all stories.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={handleDeleteAccount}
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        >
-                                            Yes, Delete My Account
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </CardContent>
-                    </Card>
                 </motion.div>
             </div>
         </div>

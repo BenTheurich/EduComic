@@ -211,8 +211,7 @@ async def get_classroom_chapters(classroom_id: str):
 async def create_student(name: str, interests: str, photo_url: str = None):
     """
     Create a new student account (without classroom).
-    Photo must be uploaded first, then this endpoint creates the student
-    and generates their avatar.
+    Photo must be uploaded first, then this endpoint creates the student.
 
     Args:
         name: Student's full name
@@ -220,13 +219,11 @@ async def create_student(name: str, interests: str, photo_url: str = None):
         photo_url: URL to student's photo (should be uploaded first)
 
     Returns:
-        Created student record with generated avatar
+        Created student record
     """
     from database.database import supabase
-    from services.avatar import generate_avatar
 
     try:
-        # Step 1: Create student record with photo_url (no classroom_id)
         student_data = {
             "name": name,
             "interests": interests,
@@ -238,24 +235,7 @@ async def create_student(name: str, interests: str, photo_url: str = None):
         if not response.data:
             raise HTTPException(status_code=500, detail="Failed to create student")
 
-        student = response.data[0]
-        student_id = student["id"]
-
-        # Step 2: Generate avatar based on the student's photo and interests
-        # This will update the avatar_url in the database
-        try:
-            print(f"Starting avatar generation for student {student_id}")
-            student = await generate_avatar(student_id)
-            print(f"Avatar generation completed successfully")
-        except Exception as e:
-            print(f"❌ Avatar generation failed: {e}")
-            import traceback
-
-            traceback.print_exc()
-            # Continue even if avatar generation fails
-            # Student still has their real photo
-
-        return {"success": True, "student": student}
+        return {"success": True, "student": response.data[0]}
     except HTTPException:
         raise
     except Exception as e:

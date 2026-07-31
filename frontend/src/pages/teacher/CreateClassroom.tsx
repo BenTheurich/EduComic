@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Upload, X } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import {
@@ -16,132 +15,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface MaterialFile {
-  file: File;
-  title: string;
-  description: string;
-}
-
 const styles = [
   { id: "manga", name: "Manga" },
   { id: "comic", name: "Comic" },
-  { id: "cartoon", name: "Cartoon" }
+  { id: "cartoon", name: "Cartoon" },
 ];
 
 const CreateClassroom = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [files, setFiles] = useState<MaterialFile[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-
   const [formData, setFormData] = useState({
     name: "",
     subject: "",
     grade: "",
     customTheme: "",
-    style: ""
+    style: "",
   });
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files).map(file => ({
-        file,
-        title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-        description: ""
-      }));
-      setFiles([...files, ...newFiles]);
-    }
-  };
-
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Keep the dragging state active
-    if (!isDragging) {
-      setIsDragging(true);
-    }
-  };
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Only set isDragging to false if we're leaving the drop zone entirely
-    // Check if the related target is outside the drop zone
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX;
-    const y = e.clientY;
-
-    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
-      setIsDragging(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    const pdfFiles = droppedFiles.filter(file => file.type === 'application/pdf');
-
-    if (pdfFiles.length !== droppedFiles.length) {
-      toast.error("Only PDF files are allowed");
-    }
-
-    if (pdfFiles.length > 0) {
-      const newFiles = pdfFiles.map(file => ({
-        file,
-        title: file.name.replace(/\.[^/.]+$/, ""),
-        description: ""
-      }));
-      setFiles([...files, ...newFiles]);
-      toast.success(`${pdfFiles.length} file(s) added`);
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setFiles(files.filter((_, i) => i !== index));
-  };
-
-  const updateFile = (index: number, field: keyof MaterialFile, value: string) => {
-    const updatedFiles = [...files];
-    updatedFiles[index] = { ...updatedFiles[index], [field]: value };
-    setFiles(updatedFiles);
-  };
 
   const handleSubmit = async () => {
     try {
-      // Create classroom
-      const classroomData = {
+      await api.classrooms.create({
         name: formData.name,
         subject: formData.subject,
         grade_level: formData.grade,
         story_theme: formData.customTheme,
-        design_style: formData.style
-      };
-
-      const response = await api.classrooms.create(classroomData);
-      const classroomId = response.classroom.id;
-
-      // Upload materials if any
-      if (files.length > 0) {
-        for (const materialFile of files) {
-          await api.classrooms.uploadMaterial(
-            classroomId,
-            materialFile.file,
-            materialFile.title,
-            materialFile.description || undefined
-          );
-        }
-      }
-
+        design_style: formData.style,
+      });
       toast.success("Classroom created successfully!");
       navigate("/teacher/dashboard");
     } catch (error) {
@@ -152,7 +51,6 @@ const CreateClassroom = () => {
 
   return (
     <div className="min-h-screen bg-muted/20">
-      {/* Header */}
       <header className="bg-background border-b">
         <div className="container mx-auto px-4 py-4">
           <Button variant="ghost" onClick={() => navigate("/teacher/dashboard")}>
@@ -162,20 +60,16 @@ const CreateClassroom = () => {
         </div>
       </header>
 
-      {/* Main Content */}
       <div className="container mx-auto px-4 py-12 max-w-3xl">
         <div className="space-y-8">
-          {/* Progress */}
           <div className="space-y-2">
             <h1 className="text-3xl font-bold text-foreground">Create New Classroom</h1>
             <div className="flex items-center gap-2">
-              <div className="text-sm text-muted-foreground">
-                Step {step} of 3
-              </div>
+              <div className="text-sm text-muted-foreground">Step {step} of 2</div>
               <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${(step / 3) * 100}%` }}
+                  style={{ width: `${(step / 2) * 100}%` }}
                 />
               </div>
             </div>
@@ -183,7 +77,7 @@ const CreateClassroom = () => {
 
           <Card>
             <CardContent className="pt-6 space-y-6">
-              {step === 1 && (
+              {step === 1 ? (
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Classroom Name *</Label>
@@ -191,35 +85,34 @@ const CreateClassroom = () => {
                       id="name"
                       placeholder="e.g., Physics 101"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                     />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="subject">Subject *</Label>
-                    <Select value={formData.subject} onValueChange={(value) => setFormData({ ...formData, subject: value })}>
-                      <SelectTrigger>
+                    <Select value={formData.subject} onValueChange={(subject) => setFormData({ ...formData, subject })}>
+                      <SelectTrigger id="subject">
                         <SelectValue placeholder="Select subject" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="physics">Physics</SelectItem>
-                        <SelectItem value="chemistry">Chemistry</SelectItem>
-                        <SelectItem value="biology">Biology</SelectItem>
-                        <SelectItem value="math">Math</SelectItem>
-                        <SelectItem value="english">English</SelectItem>
-                        <SelectItem value="history">History</SelectItem>
+                        {['physics', 'chemistry', 'biology', 'math', 'english', 'history'].map((subject) => (
+                          <SelectItem key={subject} value={subject} className="capitalize">
+                            {subject}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="grade">Grade Level *</Label>
-                    <Select value={formData.grade} onValueChange={(value) => setFormData({ ...formData, grade: value })}>
-                      <SelectTrigger>
+                    <Select value={formData.grade} onValueChange={(grade) => setFormData({ ...formData, grade })}>
+                      <SelectTrigger id="grade">
                         <SelectValue placeholder="Select grade" />
                       </SelectTrigger>
                       <SelectContent>
-                        {[6, 7, 8, 9, 10, 11, 12].map(grade => (
+                        {[6, 7, 8, 9, 10, 11, 12].map((grade) => (
                           <SelectItem key={grade} value={grade.toString()}>
                             Grade {grade}
                           </SelectItem>
@@ -236,9 +129,7 @@ const CreateClassroom = () => {
                     Next
                   </Button>
                 </div>
-              )}
-
-              {step === 2 && (
+              ) : (
                 <div className="space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="customTheme">Custom Story Theme *</Label>
@@ -246,7 +137,7 @@ const CreateClassroom = () => {
                       id="customTheme"
                       placeholder="e.g., Space Adventure, Mystery Detective, Time Travel"
                       value={formData.customTheme}
-                      onChange={(e) => setFormData({ ...formData, customTheme: e.target.value })}
+                      onChange={(event) => setFormData({ ...formData, customTheme: event.target.value })}
                     />
                     <p className="text-xs text-muted-foreground">
                       Enter a custom theme for your story generation (e.g., Space Adventure, Historical Fiction, Fantasy Quest)
@@ -259,8 +150,7 @@ const CreateClassroom = () => {
                       {styles.map((style) => (
                         <Card
                           key={style.id}
-                          className={`cursor-pointer transition-all hover:shadow-md ${formData.style === style.id ? 'border-primary border-2' : ''
-                            }`}
+                          className={`cursor-pointer transition-all hover:shadow-md ${formData.style === style.id ? "border-primary border-2" : ""}`}
                           onClick={() => setFormData({ ...formData, style: style.id })}
                         >
                           <CardContent className="pt-6 text-center">
@@ -276,97 +166,10 @@ const CreateClassroom = () => {
                       Back
                     </Button>
                     <Button
-                      onClick={() => setStep(3)}
+                      onClick={handleSubmit}
                       className="flex-1"
                       disabled={!formData.customTheme || !formData.style}
                     >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-6">
-                  <div className="space-y-3">
-                    <Label>Learning Materials (Optional)</Label>
-                    <div
-                      className={`border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 ${isDragging
-                        ? 'border-primary bg-primary/10 scale-[1.02]'
-                        : 'border-muted-foreground/25 hover:border-primary/50'
-                        }`}
-                      onDragEnter={handleDragEnter}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                    >
-                      <input
-                        type="file"
-                        id="file-upload"
-                        className="hidden"
-                        accept=".pdf"
-                        multiple
-                        onChange={handleFileUpload}
-                      />
-                      <label htmlFor="file-upload" className="cursor-pointer block">
-                        <Upload className={`w-12 h-12 mx-auto mb-4 transition-all ${isDragging ? 'text-primary scale-110' : 'text-muted-foreground'}`} />
-                        <div className={`text-sm font-medium mb-1 transition-colors ${isDragging ? 'text-primary' : 'text-foreground'}`}>
-                          {isDragging ? '📄 Drop PDF files here!' : 'Click to upload or drag PDF files'}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Max 10MB per file • PDF only
-                        </div>
-                      </label>
-                    </div>
-
-                    {files.length > 0 && (
-                      <div className="space-y-4">
-                        {files.map((materialFile, index) => (
-                          <Card key={index}>
-                            <CardContent className="pt-4 space-y-3">
-                              <div className="flex items-start justify-between">
-                                <span className="text-sm font-medium truncate flex-1">{materialFile.file.name}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeFile(index)}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label htmlFor={`title-${index}`}>Material Title *</Label>
-                                <Input
-                                  id={`title-${index}`}
-                                  placeholder="e.g., Chapter 1 Notes"
-                                  value={materialFile.title}
-                                  onChange={(e) => updateFile(index, 'title', e.target.value)}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label htmlFor={`description-${index}`}>Description</Label>
-                                <Textarea
-                                  id={`description-${index}`}
-                                  placeholder="Brief description of this material"
-                                  value={materialFile.description}
-                                  onChange={(e) => updateFile(index, 'description', e.target.value)}
-                                  rows={2}
-                                />
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3">
-                    <Button variant="outline" onClick={() => setStep(2)} className="flex-1">
-                      Back
-                    </Button>
-                    <Button onClick={handleSubmit} className="flex-1">
                       Create Classroom
                     </Button>
                   </div>

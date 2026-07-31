@@ -88,16 +88,9 @@ const StudentSignup = () => {
       
       console.log("✅ Student created:", response.student);
       
-      // STEP 3: Avatar generation happens automatically in backend
-      if (response.student.avatar_url) {
-        toast.success("🎨 Avatar generated!");
-      } else {
-        toast.info("Avatar will be generated shortly...");
-      }
-
       const studentId = response.student.id;
 
-      // STEP 4: Join classroom if pending
+      // Enroll before avatar generation so the classroom design style is available.
       if (pendingClassroom) {
         toast.info(`🏫 Joining ${pendingClassroom.name}...`);
         await api.students.joinClassroom(studentId, pendingClassroom.id);
@@ -107,6 +100,15 @@ const StudentSignup = () => {
         sessionStorage.removeItem('pendingClassroomName');
         
         toast.success(`Joined ${pendingClassroom.name}!`);
+      }
+
+      try {
+        toast.info("🎨 Generating your avatar...");
+        await api.avatar.create(studentId);
+        toast.success("Avatar generated!");
+      } catch (avatarError) {
+        console.error("Avatar generation failed:", avatarError);
+        toast.error("Your account is ready, but avatar generation failed. You can retry from your profile.");
       }
 
       toast.success("✅ Account created successfully!");

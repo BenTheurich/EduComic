@@ -410,7 +410,6 @@ const ClassroomDetail = () => {
                 </Button>
               </div>
             </div>
-            <Button variant="outline" className="backdrop-blur-sm bg-background/60">Edit Classroom</Button>
           </div>
         </motion.div>
 

@@ -29,16 +29,19 @@ const subjectColors: Record<string, string> = {
 const TeacherDashboard = () => {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchClassrooms = async () => {
       try {
         setIsLoading(true);
+        setLoadError(null);
         const response = await api.classrooms.getAll();
         setClassrooms(response.classrooms);
       } catch (error) {
         console.error("Failed to fetch classrooms:", error);
         toast.error("Failed to load classrooms");
+        setLoadError("Failed to load classrooms. Please try again.");
       } finally {
         setIsLoading(false);
       }
@@ -56,6 +59,10 @@ const TeacherDashboard = () => {
           <div className="flex flex-col items-center justify-center py-24 space-y-6">
             <Loader2 className="w-16 h-16 text-primary animate-spin" />
             <p className="text-muted-foreground">Loading classrooms...</p>
+          </div>
+        ) : loadError ? (
+          <div className="flex items-center justify-center py-24">
+            <p role="alert" className="text-destructive">{loadError}</p>
           </div>
         ) : classrooms.length === 0 ? (
           /* Empty State */
@@ -124,7 +131,7 @@ const TeacherDashboard = () => {
       </div>
 
       {/* Floating Add Button */}
-      {classrooms.length > 0 && (
+      {!loadError && classrooms.length > 0 && (
         <Button
           asChild
           size="lg"

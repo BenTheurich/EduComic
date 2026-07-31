@@ -8,22 +8,27 @@ import { BookOpen, CheckCircle, Loader2 } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 
+type Chapters = Awaited<ReturnType<typeof api.students.getChapters>>["chapters"];
+
 const StudentAllStories = () => {
     const { studentId } = useParams();
-    const [chapters, setChapters] = useState<any[]>([]);
+    const [chapters, setChapters] = useState<Chapters>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadChapters = async () => {
             if (!studentId) return;
 
             setIsLoading(true);
+            setLoadError(null);
             try {
                 const response = await api.students.getChapters(studentId);
                 setChapters(response.chapters || []);
             } catch (error) {
                 console.error("Failed to load chapters:", error);
                 toast.error("Failed to load stories");
+                setLoadError("Failed to load stories. Please try again.");
             } finally {
                 setIsLoading(false);
             }
@@ -48,6 +53,14 @@ const StudentAllStories = () => {
                     <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto" />
                     <p className="text-muted-foreground">Loading stories...</p>
                 </div>
+            </div>
+        );
+    }
+
+    if (loadError) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <p role="alert" className="text-destructive">{loadError}</p>
             </div>
         );
     }

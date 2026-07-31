@@ -10,18 +10,25 @@ import { ClassPictureBanner } from "@/components/shared/ClassPictureBanner";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
+type StudentResponse = Awaited<ReturnType<typeof api.students.getById>>;
+type ChapterResponse = Awaited<ReturnType<typeof api.students.getChapters>>;
+
 const StudentDashboard = () => {
   const { studentId } = useParams();
-  const [student, setStudent] = useState<any>(null);
-  const [newestStory, setNewestStory] = useState<any>(null);
-  const [classrooms, setClassrooms] = useState<any[]>([]);
+  const [student, setStudent] = useState<StudentResponse["student"] | null>(null);
+  const [newestStory, setNewestStory] = useState<ChapterResponse["chapters"][number] | null>(null);
+  const [classrooms, setClassrooms] = useState<StudentResponse["classrooms"]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [storiesError, setStoriesError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchStudentData = async () => {
       if (!studentId) return;
 
       setIsLoading(true);
+      setLoadError(null);
+      setStoriesError(null);
       try {
         // Fetch student data with their classrooms from API
         const response = await api.students.getById(studentId);
@@ -42,23 +49,13 @@ const StudentDashboard = () => {
           }
         } catch (chapterError) {
           console.error("Failed to fetch chapters:", chapterError);
-          // Continue without newest story
+          setStoriesError("Your latest story could not be loaded.");
         }
 
       } catch (error) {
         console.error("Failed to fetch student data:", error);
         toast.error("Failed to load student data");
-
-        // Fallback for development
-        setStudent({
-          id: studentId,
-          name: "Student",
-          interests: "Learning",
-          avatar_url: null,
-          photo_url: null,
-          created_at: new Date().toISOString()
-        });
-        setClassrooms([]);
+        setLoadError("Failed to load your dashboard. Please try again.");
       } finally {
         setIsLoading(false);
       }
@@ -79,13 +76,21 @@ const StudentDashboard = () => {
     Biology: "bg-emerald-500"
   };
 
-  if (isLoading || !student) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center space-y-4">
           <Loader2 className="w-16 h-16 text-primary animate-spin mx-auto" />
           <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError || !student) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p role="alert" className="text-destructive">{loadError || "Student not found"}</p>
       </div>
     );
   }
@@ -119,6 +124,7 @@ const StudentDashboard = () => {
         </motion.div>
 
         {/* Newest Story Section */}
+        {storiesError && <p role="alert" className="mb-8 text-sm text-destructive">{storiesError}</p>}
         {newestStory && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
