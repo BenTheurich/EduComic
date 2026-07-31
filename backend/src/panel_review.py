@@ -14,9 +14,9 @@ It:
   - Returns a JSON score (0–10) plus concrete issues and a suggested fix prompt.
 """
 
-import os
 import json
-from typing import Any, Dict, List, Optional
+import os
+from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -83,9 +83,8 @@ def review_panel_image(
       "notes": "Additional free-form comments if needed."
     }
     """
-    
-    print(f"         🔍 Starting quality review...")
-    print(f"         → Image URL: {image_url[:60]}...")
+
+    print("         🔍 Starting quality review...")
 
     if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_API_KEY_HERE":
         raise RuntimeError("OPENAI_API_KEY not set; cannot run panel review")
@@ -169,10 +168,10 @@ def review_panel_image(
         "and can be as low as 0 for very poor matches.\n"
     )
 
-    print(f"         → Building review prompt...")
-    print(f"         → Expected students: {featured_students}")
+    print("         → Building review prompt...")
+    print(f"         → Expected students: {len(featured_students)}")
     print(f"         → Expected text lines: {len(expected_text)}")
-    
+
     user_prompt_text = (
         "Here is the structured description of what this panel SHOULD contain.\n"
         "Then you see the actual rendered image.\n\n"
@@ -213,32 +212,35 @@ def review_panel_image(
         f"PANEL SPEC JSON:\n{json.dumps(review_payload, ensure_ascii=False)}"
     )
 
-    print(f"         → Calling OpenAI Vision API ({OPENAI_QA_MODEL})...")
-    
-    resp = openai_client.chat.completions.create(
-        model=OPENAI_QA_MODEL,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_prompt_text},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_url},
-                    },
-                ],
-            },
-        ],
-    )
+    print("         → Calling panel review provider...")
 
-    print(f"         → Received response, parsing...")
-    raw = resp.choices[0].message.content
+    try:
+        resp = openai_client.chat.completions.create(
+            model=OPENAI_QA_MODEL,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_prompt_text},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_url},
+                        },
+                    ],
+                },
+            ],
+        )
+        raw = resp.choices[0].message.content
+    except Exception:
+        raise RuntimeError("Panel review request failed") from None
+
+    print("         → Received response, parsing...")
     try:
         data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"Panel review returned invalid JSON: {e}\nRaw: {raw}")
+    except (json.JSONDecodeError, TypeError):
+        raise RuntimeError("Panel review returned invalid JSON") from None
 
     # Light normalization so caller can assume keys exist
     data.setdefault("score", 0.0)
@@ -250,7 +252,7 @@ def review_panel_image(
     data.setdefault("suggested_fix_prompt", "")
     data.setdefault("notes", "")
 
-    print(f"         ✓ Review complete!")
+    print("         ✓ Review complete!")
     print(f"         → Overall score: {data['score']:.1f}/10")
     print(f"         → Text accuracy: {dims['text_accuracy']:.1f}/10")
     print(f"         → Character accuracy: {dims['character_accuracy']:.1f}/10")

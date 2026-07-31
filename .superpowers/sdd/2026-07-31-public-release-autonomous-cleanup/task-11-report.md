@@ -67,3 +67,20 @@ TDD and verification:
 - Staged Round 1 scan: `gitleaks git . --staged --redact --no-banner --no-color` — no leaks found (Git emitted the environment's existing inaccessible global-ignore warning).
 
 Round 1 files: `backend/src/api_models.py`, `backend/src/main.py`, `backend/src/services/avatar.py`, `backend/src/services/thumbnail.py`, `backend/src/services/comic_creation.py`, `backend/tests/test_request_validation.py`, `backend/tests/test_safe_service_logging.py`, and this report.
+
+## Review fix round 2
+
+- Audited the reachable `panel_review.py` path. Quality-review output no longer includes provider image URLs, featured-student names, configured model names, prompt content, raw provider exceptions, or invalid response bodies. Provider-call and JSON-parse failures now expose generic errors only; retained output is generic events and safe numeric counts/scores.
+- Extended representative success, provider-failure, and invalid-response output capture around the real `review_panel_image` behavior. The thumbnail regression now inspects combined stdout and stderr for traceback and sensitive values.
+- Normalized `avatar.py`, `thumbnail.py`, `comic_creation.py`, and `panel_review.py` to LF without semantic changes. All four were verified as `i/lf w/lf`, and `git diff --check` passed.
+
+TDD and verification:
+
+- RED: the focused safe-logging suite reported 3 failures / 3 passes for the exposed panel URL/student name, raw provider exception, and raw invalid response.
+- GREEN: `uv run --frozen --extra dev pytest -q tests/test_safe_service_logging.py` — 6 passed.
+- Backend full suite — 28 passed.
+- Ruff on all touched Python files — passed.
+- Frontend request-contract regression — 4 passed; frontend typecheck — passed. No API or frontend file changed in this round, so the immediately prior successful production-build evidence remains applicable.
+- Staged Round 2 scan: `gitleaks git . --staged --redact --no-banner --no-color` — no leaks found (Git emitted the environment's existing inaccessible global-ignore warning).
+
+Round 2 files: `backend/src/panel_review.py`, `backend/src/services/avatar.py`, `backend/src/services/thumbnail.py`, `backend/src/services/comic_creation.py`, `backend/tests/test_safe_service_logging.py`, and this report.
