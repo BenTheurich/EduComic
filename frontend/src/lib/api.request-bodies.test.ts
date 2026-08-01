@@ -84,3 +84,23 @@ it("sends explicit confirmation for classroom-only student removal", async () =>
     expect.objectContaining({ method: "DELETE" }),
   );
 });
+
+it("sends an optional portrait as the avatar request body", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response("{}", {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+  const portrait = new File(["fictional portrait"], "portrait.png", { type: "image/png" });
+
+  await api.avatar.create("student-1", portrait);
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "http://127.0.0.1:8000/avatar/create/student-1",
+    expect.objectContaining({
+      method: "POST",
+      body: portrait,
+      headers: { "Content-Type": "image/png" },
+    }),
+  );
+});

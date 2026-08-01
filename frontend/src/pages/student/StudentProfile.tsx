@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
@@ -22,7 +23,9 @@ const StudentProfile = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [avatarError, setAvatarError] = useState<string | null>(null);
+    const [avatarMessage, setAvatarMessage] = useState<string | null>(null);
     const [generatingAvatar, setGeneratingAvatar] = useState(false);
+    const [portrait, setPortrait] = useState<File>();
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState({ name: "", interests: "" });
     const [profileMessage, setProfileMessage] = useState("");
@@ -51,9 +54,12 @@ const StudentProfile = () => {
         if (!studentId) return;
         setGeneratingAvatar(true);
         setAvatarError(null);
+        setAvatarMessage(null);
         try {
-            const response = await api.avatar.create(studentId);
+            const response = await api.avatar.create(studentId, portrait);
             setStudent(response.student);
+            setPortrait(undefined);
+            setAvatarMessage("Avatar updated.");
         } catch {
             setAvatarError("Avatar generation failed. Please try again.");
         } finally {
@@ -116,15 +122,29 @@ const StudentProfile = () => {
                                 {/* Avatar Section */}
                                 <div className="flex flex-col items-center space-y-4">
                                     <Avatar className="w-32 h-32 border-4 border-primary/20">
-                                        <AvatarImage src={student.avatar_url || undefined} />
+                                        <AvatarImage src={student.avatar_url || undefined} alt={`${student.name} avatar`} />
                                         <AvatarFallback className="bg-primary/20 text-4xl">
                                             {getInitials(student.name)}
                                         </AvatarFallback>
                                     </Avatar>
+                                    <div className="max-w-60 space-y-2">
+                                        <Label htmlFor="profile-portrait">Portrait photo (optional)</Label>
+                                        <Input
+                                            id="profile-portrait"
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            onChange={(event) => setPortrait(event.target.files?.[0])}
+                                            disabled={generatingAvatar}
+                                        />
+                                        <p className="text-center text-xs text-muted-foreground">
+                                            If selected, this image is sent to Black Forest Labs for avatar generation and is not kept by EduComic after the request.
+                                        </p>
+                                    </div>
                                     <Button variant="outline" size="sm" onClick={retryAvatar} disabled={generatingAvatar}>
                                         {generatingAvatar ? "Generating avatar..." : student.avatar_url ? "Regenerate avatar" : "Try avatar again"}
                                     </Button>
                                     {student.avatar_url && <p className="max-w-52 text-center text-xs text-muted-foreground">Your current avatar stays visible until a replacement succeeds.</p>}
+                                    {avatarMessage && <p role="status" className="text-sm text-muted-foreground">{avatarMessage}</p>}
                                     {avatarError && <p role="alert" className="text-sm text-destructive">{avatarError}</p>}
                                 </div>
 

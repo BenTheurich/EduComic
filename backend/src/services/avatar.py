@@ -3,11 +3,14 @@ Avatar generation service using Black Forest Labs API.
 """
 
 import asyncio
+import base64
+from io import BytesIO
 import logging
 import os
 from typing import Any, Dict, Optional
 
 import httpx
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from database.database import (
     begin_avatar_work,
@@ -22,13 +25,49 @@ from provider_config import SUPPORTED_BFL_MODELS, require_supported_model
 
 
 logger = logging.getLogger("educomic.avatar")
+MAX_PORTRAIT_BYTES = 8 * 1024 * 1024
+MAX_PORTRAIT_PIXELS = 16 * 1024 * 1024
+PORTRAIT_FORMATS = {"image/jpeg": "JPEG", "image/png": "PNG", "image/webp": "WEBP"}
 
 
 class ProviderConfigurationError(RuntimeError):
     """A requested provider capability is not configured locally."""
 
 
-async def generate_avatar(student_id: str) -> Dict[str, Any]:
+class PortraitRejected(ValueError):
+    def __init__(self, detail: str, status_code: int = 400):
+        super().__init__(detail)
+        self.detail = detail
+        self.status_code = status_code
+
+
+def normalize_portrait(body: bytes, content_type: str) -> bytes:
+    """Decode bounded portrait bytes and re-encode a metadata-free PNG."""
+    if len(body) > MAX_PORTRAIT_BYTES:
+        raise PortraitRejected("Portrait must be 8 MB or smaller", 413)
+    expected_format = PORTRAIT_FORMATS.get(content_type.lower())
+    if expected_format is None:
+        raise PortraitRejected("Portrait must be a JPEG, PNG, or WebP image", 415)
+    try:
+        with Image.open(BytesIO(body)) as image:
+            if image.format != expected_format:
+                raise PortraitRejected("Portrait content does not match its media type", 415)
+            if image.width * image.height > MAX_PORTRAIT_PIXELS:
+                raise PortraitRejected("Portrait dimensions are too large", 413)
+            normalized = ImageOps.exif_transpose(image).convert("RGB")
+            normalized.load()
+            output = BytesIO()
+            normalized.save(output, format="PNG")
+            return output.getvalue()
+    except PortraitRejected:
+        raise
+    except Image.DecompressionBombError:
+        raise PortraitRejected("Portrait dimensions are too large", 413) from None
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise PortraitRejected("Portrait is corrupt or is not an image") from None
+
+
+async def generate_avatar(student_id: str, portrait: bytes | None = None) -> Dict[str, Any]:
     """
     Generate an avatar for a student using Black Forest Labs API.
 
@@ -51,7 +90,10 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
         classrooms = get_classrooms_by_student(student_id)
         classroom = classrooms[0] if classrooms else None
         prompt = _build_avatar_prompt(student, classroom)
-        bfl_avatar_url = await _call_black_forest_api(prompt, api_key, model=model)
+        provider_options = {"model": model}
+        if portrait is not None:
+            provider_options["input_image"] = base64.b64encode(portrait).decode("ascii")
+        bfl_avatar_url = await _call_black_forest_api(prompt, api_key, **provider_options)
         avatar_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
         try:
             updated_student, previous_path = replace_student_avatar(student_id, avatar_url)
@@ -114,7 +156,13 @@ def _build_avatar_prompt(student: Dict[str, Any], classroom: Optional[Dict[str, 
     return prompt
 
 
-async def _call_black_forest_api(prompt: str, api_key: str, *, model: str = "flux-2-pro") -> str:
+async def _call_black_forest_api(
+    prompt: str,
+    api_key: str,
+    *,
+    model: str = "flux-2-pro",
+    input_image: str | None = None,
+) -> str:
     """
     Call Black Forest Labs API to generate an image.
 
@@ -133,6 +181,8 @@ async def _call_black_forest_api(prompt: str, api_key: str, *, model: str = "flu
     headers = {"accept": "application/json", "x-key": api_key, "Content-Type": "application/json"}
 
     payload = {"prompt": prompt}
+    if input_image is not None:
+        payload["input_image"] = input_image
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         # Submit generation request

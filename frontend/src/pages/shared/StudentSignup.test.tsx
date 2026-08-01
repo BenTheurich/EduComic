@@ -28,7 +28,7 @@ describe("StudentSignup", () => {
     vi.stubGlobal("crypto", { randomUUID: () => "11111111-1111-4111-8111-111111111111" });
   });
 
-  it("creates a text-only student without offering a photo upload", async () => {
+  it("creates a student with an optional disclosed portrait", async () => {
     render(
       <MemoryRouter
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
@@ -41,7 +41,10 @@ describe("StudentSignup", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByLabelText(/photo/i)).not.toBeInTheDocument();
+    const portrait = new File(["fictional portrait"], "portrait.png", { type: "image/png" });
+    fireEvent.change(screen.getByLabelText(/portrait photo/i), { target: { files: [portrait] } });
+    expect(screen.getByText(/sent to Black Forest Labs/i)).toBeInTheDocument();
+    expect(screen.getByText(/not kept by EduComic/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Ada" } });
     fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Lovelace" } });
@@ -56,6 +59,7 @@ describe("StudentSignup", () => {
       undefined,
       "11111111-1111-4111-8111-111111111111",
     ));
+    expect(createAvatar).toHaveBeenCalledWith("student-1", portrait);
     expect(await screen.findByRole("heading", { name: "Student dashboard" })).toBeInTheDocument();
   });
 

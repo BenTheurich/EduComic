@@ -31,7 +31,7 @@ from local_runtime import initialize_local_backend, local_readiness_details, res
 from local_storage import LocalStorage, StorageValidationError
 from materials import MAX_PDF_BYTES, MaterialRejected, extract_pdf
 from provider_config import configured_secret
-from services.avatar import ProviderConfigurationError, generate_avatar
+from services.avatar import PortraitRejected, ProviderConfigurationError, generate_avatar, normalize_portrait
 from services.generation import run_generation
 
 # Load environment variables
@@ -601,7 +601,7 @@ async def leave_classroom(student_id: UUID, classroom_id: UUID, confirm: bool = 
 
 
 @app.post("/avatar/create/{student_id}")
-async def create_avatar_endpoint(student_id: UUID):
+async def create_avatar_endpoint(student_id: UUID, request: Request):
     """
     Generate an avatar for a student.
 
@@ -614,8 +614,12 @@ async def create_avatar_endpoint(student_id: UUID):
     from database.database import GenerationConflict
 
     try:
-        student = await generate_avatar(str(student_id))
+        body = await request.body()
+        portrait = normalize_portrait(body, request.headers.get("content-type", "").split(";", 1)[0]) if body else None
+        student = await generate_avatar(str(student_id), portrait)
         return {"success": True, "student": student}
+    except PortraitRejected as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail)
     except ProviderConfigurationError:
         raise HTTPException(status_code=503, detail="Avatar generation is unavailable")
     except ValueError:

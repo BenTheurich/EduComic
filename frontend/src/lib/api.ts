@@ -213,12 +213,13 @@ export const api = {
 
   // Avatar generation
   avatar: {
-    create: (studentId: string) =>
+    create: (studentId: string, portrait?: File) =>
       apiFetch<{
         success: boolean;
         student: Student;
       }>(`/avatar/create/${studentId}`, {
         method: 'POST',
+        ...(portrait ? { body: portrait, headers: { 'Content-Type': portrait.type } } : {}),
       }),
   },
 

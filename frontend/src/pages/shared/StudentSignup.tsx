@@ -14,6 +14,7 @@ const StudentSignup = () => {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [interests, setInterests] = useState("");
+  const [portrait, setPortrait] = useState<File>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestStudentId] = useState(() => crypto.randomUUID());
   const [pendingClassroom, setPendingClassroom] = useState<{id: string, name: string} | null>(null);
@@ -57,7 +58,7 @@ const StudentSignup = () => {
 
       try {
         toast.info("🎨 Generating your avatar...");
-        await api.avatar.create(studentId);
+        await api.avatar.create(studentId, portrait);
         toast.success("Avatar generated!");
       } catch {
         toast.error("Your profile was saved locally, but avatar generation failed. You can retry from your profile.");
@@ -156,6 +157,20 @@ const StudentSignup = () => {
                 />
                 <p className="text-sm text-muted-foreground">
                   This helps personalize your character in stories
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="portrait">Portrait photo (optional)</Label>
+                <Input
+                  id="portrait"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => setPortrait(event.target.files?.[0])}
+                  disabled={isSubmitting}
+                />
+                <p className="text-sm text-muted-foreground">
+                  If selected, this image is sent to Black Forest Labs for avatar generation and is not kept by EduComic after the request.
                 </p>
               </div>
 
