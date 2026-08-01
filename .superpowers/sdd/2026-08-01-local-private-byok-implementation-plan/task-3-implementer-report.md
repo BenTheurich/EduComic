@@ -10,6 +10,8 @@ Review-hardening commit: `1c4b526 fix: harden durable generation recovery`
 
 Migration timestamp commit: `89be00a fix: type legacy migration timestamp`
 
+Frontend retry-stage commit: `57be661 fix: retry ambiguous story commit directly`
+
 ## Architecture and boundaries
 
 - The existing `chapters.revision` pointer and `(chapter_id, revision, panel_number)` panel key remain the readable-revision boundary.
@@ -35,7 +37,7 @@ The existing globally unique stored idempotency column is retained. Client keys 
 
 `POST /chapters/commit` accepts additive optional `idempotency_key` input and returns additive `run_id`. Legacy callers receive a deterministic chapter/revision key. An identical retry returns the existing run without scheduling work; a different key while work is active returns `409`.
 
-The frontend creates one UUID per chapter/idea attempt and retains it across ambiguous commit-response failures. It rotates the key only after observing a terminal result or creating a new chapter. Existing active chapter/run claims prevent response-loss retries from starting another provider job.
+The frontend creates one UUID per chapter/idea attempt and retains both its key and confirmed stage across ambiguous failures. A failed choose remains at `choose`; once choose resolves, a lost commit response remains at `commit` and retries commit directly without repeating choose. It rotates the key only after observing a terminal result or creating a new chapter. Existing active chapter/run claims prevent response-loss retries from starting another provider job.
 
 `GET /ready` remains provider-call-free and now reports:
 
@@ -63,8 +65,9 @@ All provider behavior was mocked; no live request was made.
 8. PNG RED/GREEN: malformed dimensions, bit depth, color type, interlace, row filters, decoded length, and trailing bytes were initially accepted. Strict chunk-order/CRC/header validation and bounded incremental decompression made the input suite 9/9.
 9. Persistent-cleanup RED/GREEN: one filesystem failure initially discarded both failed-run and successful-retirement cleanup state. Pending manifests now survive, readiness reports `cleanup: false`, startup fails safely, and a later startup clears the manifest after deletion succeeds. Durability suite: 14/14.
 10. Populated-migration RED/GREEN: a real 0001 database with colliding active rows failed the new partial unique index. The migration now terminalizes legacy work first, preserves a readable current revision, fails an initial generation, and declares matching SQLite/PostgreSQL predicates. Its timestamp bind is explicitly typed; the focused migration test passes with `DeprecationWarning` promoted to an error.
-11. Frontend ambiguity RED/GREEN: a lost commit response initially produced two different keys. The retry now reuses the first key, while an observed terminal failure rotates it. Focused StoryGenerator suite: 8/8.
-12. Final backend suite: 129/129. Final frontend suite: 48/48 across 18 files.
+11. Frontend ambiguity RED/GREEN: a lost commit response initially produced two different keys. The retry now reuses the first key, while an observed terminal failure rotates it.
+12. Frontend re-review RED/GREEN: with key retention in place, the focused call-order test still observed two choose calls after the first choose succeeded and the commit response was lost. The attempt now records `choose`/`commit`; retry observes one choose followed by two commits with the identical key. Focused StoryGenerator suite: 8/8.
+13. Final backend suite: 129/129. Final frontend suite: 48/48 across 18 files.
 
 The fault assertions verify that the old chapter stays `ready`, its revision remains unchanged, its panel remains readable, its media file remains present, the run becomes `failed`, the safe code/reference is persisted, sensitive exception text is absent, and staging/new files are removed.
 
@@ -95,8 +98,14 @@ cd C:\tmp\EduComic-worktrees\product-intent-recovery\backend
 # exit 0
 
 cd C:\tmp\EduComic-worktrees\product-intent-recovery\frontend
+npm.cmd test -- --run src/pages/teacher/StoryGenerator.test.tsx
+# 1 file passed; 8 tests passed
+
 npm.cmd test -- --run
 # 18 files passed; 48 tests passed
+
+npm.cmd run typecheck
+# exit 0
 
 npm.cmd run lint
 # exit 0
@@ -106,6 +115,8 @@ $env:VITE_API_URL='http://127.0.0.1:8000'; npm.cmd run build
 ```
 
 The production build correctly refused to run without `VITE_API_URL`; the successful gate used the supported loopback URL. Ruff is configured but is not installed in the checked-in backend development environment (`python -m ruff` reported `No module named ruff`), so Python compilation plus the full pytest suite were the available backend static/runtime gates. No dependency was added merely to run that optional command.
+
+The frontend-only retry-stage follow-up changed no backend file, so its final gate repeated the focused and complete frontend suites, TypeScript no-emit typecheck, ESLint, and production build. The build emitted only the pre-existing stale Browserslist database advisory; refreshing frontend dependency metadata was outside this narrow fix.
 
 ## Files and commits
 
@@ -129,6 +140,8 @@ Review-hardening commit: `1c4b526 fix: harden durable generation recovery`.
 
 Migration timestamp commit: `89be00a fix: type legacy migration timestamp`.
 
+Frontend retry-stage commit: `57be661 fix: retry ambiguous story commit directly`.
+
 ## Preservation evidence
 
 - No Supabase, hosted database, deployment, provider, or real student-data operation was run.
@@ -139,7 +152,7 @@ Migration timestamp commit: `89be00a fix: type legacy migration timestamp`.
 
 ## Self-review and Phase 7 handoff
 
-Self-review found and fixed the post-`os.replace` manifest crash window, database-swap bypass of the storage traversal/existence boundary, unbounded delivery buffering, permissive PNG decompression, non-persistent cleanup failures, populated migration collision, and ambiguous-response key rotation. It also found the startup recovery database-path bug during the full suite; recovery now uses the exact database URL initialized by startup.
+Self-review found and fixed the post-`os.replace` manifest crash window, database-swap bypass of the storage traversal/existence boundary, unbounded delivery buffering, permissive PNG decompression, non-persistent cleanup failures, populated migration collision, ambiguous-response key rotation, and repeated choose call before a same-key commit retry. It also found the startup recovery database-path bug during the full suite; recovery now uses the exact database URL initialized by startup.
 
 Deliberate simplifications:
 
