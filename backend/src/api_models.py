@@ -29,6 +29,10 @@ class ClassroomCreateRequest(BaseModel):
     design_style: Literal["manga", "comic", "cartoon"]
 
 
+class ClassroomUpdateRequest(ClassroomCreateRequest):
+    pass
+
+
 class StudentCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -38,6 +42,27 @@ class StudentCreateRequest(BaseModel):
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
     ]
     classroom_id: UUID | None = None
+
+
+class StudentUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: ShortText
+    interests: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+    ]
+
+
+class SettingsUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    story_length: Literal[12, 20] | None = None
+    default_design_style: Literal["manga", "comic", "cartoon"] | None = None
+    openai_model: Literal["gpt-5.1"] | None = None
+    bfl_model: Literal["flux-2-pro"] | None = None
+    automatic_panel_review: bool | None = None
+    panel_review_attempt_cap: Literal[1, 2, 3] | None = None
+    reader_preferences: dict[str, bool] | None = None
 
 
 class LessonPromptRequest(BaseModel):

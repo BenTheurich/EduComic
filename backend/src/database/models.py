@@ -216,6 +216,8 @@ class GenerationRun(TimestampMixin, Base):
     error_code: Mapped[str | None] = mapped_column(String(40))
     error_reference: Mapped[str | None] = mapped_column(String(64))
     artifact_paths: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    settings_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    script_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
@@ -235,3 +237,19 @@ class Setting(TimestampMixin, Base):
     retain_original_photos: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     generation_defaults: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     reader_preferences: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+
+
+class DeletionManifest(TimestampMixin, Base):
+    __tablename__ = "deletion_manifests"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'failed')", name="ck_deletion_manifests_status"),
+        UniqueConstraint("operation", name="uq_deletion_manifests_operation"),
+    )
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=_uuid)
+    operation: Mapped[str] = mapped_column(String(600), nullable=False)
+    target_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    target_id: Mapped[str | None] = mapped_column(String(80))
+    object_paths: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    error_reference: Mapped[str | None] = mapped_column(String(64))

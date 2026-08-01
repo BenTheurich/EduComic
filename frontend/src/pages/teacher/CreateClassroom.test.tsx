@@ -1,12 +1,13 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import CreateClassroom from "./CreateClassroom";
 
-vi.mock("@/lib/api", () => ({ api: { classrooms: { create: vi.fn() } } }));
+const { getSettings } = vi.hoisted(() => ({ getSettings: vi.fn().mockResolvedValue({ settings: { default_design_style: "manga" } }) }));
+vi.mock("@/lib/api", () => ({ api: { classrooms: { create: vi.fn() }, settings: { get: getSettings } } }));
 
 describe("CreateClassroom", () => {
-  it("selects the design style through a labelled radio group", () => {
+  it("uses the saved default design style through a labelled radio group", async () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <CreateClassroom />
@@ -21,9 +22,7 @@ describe("CreateClassroom", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     const manga = screen.getByRole("radio", { name: "Manga" });
-    expect(manga).not.toBeChecked();
-    fireEvent.click(manga);
-    expect(manga).toBeChecked();
+    await waitFor(() => expect(manga).toBeChecked());
     expect(screen.getByRole("radiogroup", { name: "Design Style *" })).toBeInTheDocument();
   });
 });

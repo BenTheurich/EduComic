@@ -35,7 +35,7 @@ class DialogueLine(_StrictModel):
 
 
 class ComicPanel(_StrictModel):
-    index: int = Field(ge=1, le=12)
+    index: int = Field(ge=1, le=20)
     setting: _text(300)
     description: _text(1200)
     narration: Annotated[str, StringConstraints(strip_whitespace=True, max_length=240)]
@@ -53,7 +53,7 @@ class ComicPanel(_StrictModel):
 class ComicScript(_StrictModel):
     episode_title: _text(160)
     learning_objectives: list[_text(240)] = Field(min_length=1, max_length=5)
-    panels: list[ComicPanel] = Field(min_length=8, max_length=12)
+    panels: list[ComicPanel] = Field(min_length=12, max_length=20)
 
     @model_validator(mode="after")
     def validate_sequence_and_cast(self, info: ValidationInfo) -> "ComicScript":
@@ -62,6 +62,9 @@ class ComicScript(_StrictModel):
 
         if info.context is None:
             return self
+        panel_count = info.context.get("panel_count")
+        if panel_count is not None and len(self.panels) != panel_count:
+            raise ValueError(f"comic script must contain exactly {panel_count} panels")
         known_students = set(info.context.get("student_names", ()))
 
         allowed_speakers = known_students | {"Teacher", "Narrator"}

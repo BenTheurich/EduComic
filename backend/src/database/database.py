@@ -12,12 +12,32 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from database.models import Chapter, Classroom, GenerationRun, LocalProfile, Panel, Student, StudentClassroom
+from database.models import (
+    Chapter,
+    Classroom,
+    DeletionManifest,
+    GenerationRun,
+    LocalProfile,
+    Material,
+    Panel,
+    Setting,
+    Student,
+    StudentClassroom,
+)
 from database.session import create_session_factory
 from local_runtime import local_database_url, resolve_local_paths
 from local_storage import LocalStorage, media_url
 
 LOCAL_TEACHER_ID = "00000000-0000-0000-0000-000000000001"
+DEFAULT_SETTINGS = {
+    "story_length": 12,
+    "default_design_style": "comic",
+    "openai_model": "gpt-5.1",
+    "bfl_model": "flux-2-pro",
+    "automatic_panel_review": False,
+    "panel_review_attempt_cap": 3,
+    "reader_preferences": {},
+}
 
 
 class GenerationConflict(RuntimeError):
@@ -110,6 +130,7 @@ def _generation_run(run: GenerationRun) -> dict[str, Any]:
         "error_code": run.error_code,
         "error_reference": run.error_reference,
         "artifact_paths": list(run.artifact_paths or []),
+        "settings_snapshot": dict(run.settings_snapshot or {}),
         "started_at": _iso(run.started_at) if run.started_at else None,
         "finished_at": _iso(run.finished_at) if run.finished_at else None,
     }
@@ -131,6 +152,20 @@ def ensure_local_teacher(database_url: str | None = None) -> dict[str, Any]:
             )
             session.add(profile)
             session.flush()
+        setting = session.scalar(select(Setting).where(Setting.profile_id == profile.id))
+        if setting is None:
+            session.add(
+                Setting(
+                    profile_id=profile.id,
+                    default_design_style="comic",
+                    openai_model="gpt-5.1",
+                    bfl_endpoint="flux-2-pro",
+                    automatic_panel_review=False,
+                    panel_review_attempt_cap=3,
+                    generation_defaults={"story_length": 12},
+                    reader_preferences={},
+                )
+            )
         return {"id": profile.id, "display_name": profile.display_name, "role": profile.role}
 
 
@@ -167,6 +202,57 @@ def get_all_classrooms() -> list[dict[str, Any]]:
     with _session() as session:
         rows = session.scalars(select(Classroom).order_by(Classroom.created_at.desc())).all()
         return [_classroom(row) for row in rows]
+
+
+def update_classroom(classroom_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
+    allowed = {"name", "subject", "grade_level", "story_theme", "design_style"}
+    if set(updates) != allowed:
+        raise ValueError("Classroom update must include every editable field")
+    with _session() as session:
+        classroom = session.get(Classroom, classroom_id)
+        if classroom is None:
+            return None
+        for key, value in updates.items():
+            setattr(classroom, key, value)
+        session.flush()
+        return _classroom(classroom)
+
+
+def get_settings() -> dict[str, Any]:
+    with _session() as session:
+        setting = session.scalar(select(Setting).where(Setting.profile_id == LOCAL_TEACHER_ID))
+        if setting is None:
+            raise RuntimeError("Local settings are unavailable")
+        return {
+            "story_length": int((setting.generation_defaults or {}).get("story_length", 12)),
+            "default_design_style": setting.default_design_style or "comic",
+            "openai_model": setting.openai_model or "gpt-5.1",
+            "bfl_model": setting.bfl_endpoint or "flux-2-pro",
+            "automatic_panel_review": setting.automatic_panel_review,
+            "panel_review_attempt_cap": setting.panel_review_attempt_cap,
+            "reader_preferences": dict(setting.reader_preferences or {}),
+        }
+
+
+def update_settings(updates: dict[str, Any]) -> dict[str, Any]:
+    with _session() as session:
+        setting = session.scalar(select(Setting).where(Setting.profile_id == LOCAL_TEACHER_ID))
+        if setting is None:
+            raise RuntimeError("Local settings are unavailable")
+        if "story_length" in updates:
+            setting.generation_defaults = {**(setting.generation_defaults or {}), "story_length": updates["story_length"]}
+        for source, target in (
+            ("default_design_style", "default_design_style"),
+            ("openai_model", "openai_model"),
+            ("bfl_model", "bfl_endpoint"),
+            ("automatic_panel_review", "automatic_panel_review"),
+            ("panel_review_attempt_cap", "panel_review_attempt_cap"),
+            ("reader_preferences", "reader_preferences"),
+        ):
+            if source in updates:
+                setattr(setting, target, updates[source])
+        session.flush()
+    return get_settings()
 
 
 def create_student(
@@ -372,6 +458,7 @@ def begin_generation_run(
                 job_state="queued",
                 stage="queued",
                 artifact_paths=[],
+                settings_snapshot=_generation_snapshot(session, chapter.classroom_id),
             )
             session.add(run)
             if chapter.revision == 0:
@@ -392,6 +479,26 @@ def get_generation_run(run_id: str) -> dict[str, Any] | None:
     with _session() as session:
         run = session.get(GenerationRun, run_id)
         return _generation_run(run) if run else None
+
+
+def _generation_snapshot(session: Session, classroom_id: str) -> dict[str, Any]:
+    setting = session.scalar(select(Setting).where(Setting.profile_id == LOCAL_TEACHER_ID))
+    student_ids = list(
+        session.scalars(
+            select(StudentClassroom.student_id)
+            .where(StudentClassroom.classroom_id == classroom_id)
+            .order_by(StudentClassroom.created_at, StudentClassroom.student_id)
+        ).all()
+    )
+    return {
+        "story_length": int((setting.generation_defaults or {}).get("story_length", 12)) if setting else 12,
+        "default_design_style": setting.default_design_style if setting else "comic",
+        "openai_model": setting.openai_model if setting else "gpt-5.1",
+        "bfl_model": setting.bfl_endpoint if setting else "flux-2-pro",
+        "automatic_panel_review": setting.automatic_panel_review if setting else False,
+        "panel_review_attempt_cap": setting.panel_review_attempt_cap if setting else 3,
+        "student_ids": student_ids,
+    }
 
 
 def start_generation_run(run_id: str) -> dict[str, Any] | None:
@@ -453,10 +560,7 @@ def finalize_generation_run(
         if chapter is None or run.target_revision != chapter.revision + 1:
             raise GenerationConflict("Generation target revision is stale")
 
-        old_paths = list(
-            session.scalars(select(Panel.image_object_path).where(Panel.chapter_id == chapter.id)).all()
-        )
-        session.execute(delete(Panel).where(Panel.chapter_id == chapter.id))
+        old_paths: list[str] = []
         for data in panels:
             session.add(
                 Panel(
@@ -477,6 +581,7 @@ def finalize_generation_run(
         run.job_state = "succeeded"
         run.stage = "ready"
         run.artifact_paths = old_paths
+        run.script_snapshot = script
         run.finished_at = datetime.now(timezone.utc)
         session.flush()
         return old_paths
@@ -675,6 +780,151 @@ def delete_chapter(chapter_id: str) -> list[str] | None:
         )
         session.delete(chapter)
         return object_paths
+
+
+def execute_deletion(target_kind: str, target_id: str | None = None) -> bool:
+    """Delete managed files first, then rows; return false while cleanup is incomplete."""
+    operation = f"{target_kind}:{target_id or 'all'}"
+    with _session() as session:
+        manifest = session.scalar(select(DeletionManifest).where(DeletionManifest.operation == operation))
+        if manifest is None:
+            paths = _deletion_paths(session, target_kind, target_id)
+            manifest = DeletionManifest(
+                operation=operation,
+                target_kind=target_kind,
+                target_id=target_id,
+                object_paths=paths,
+                status="pending",
+            )
+            session.add(manifest)
+            session.flush()
+        paths = list(manifest.object_paths or [])
+
+    storage = LocalStorage(resolve_local_paths().root)
+    remaining = []
+    for object_path in paths:
+        try:
+            storage.delete(object_path)
+        except Exception:
+            remaining.append(object_path)
+    if remaining:
+        with _session() as session:
+            manifest = session.scalar(select(DeletionManifest).where(DeletionManifest.operation == operation))
+            if manifest:
+                manifest.object_paths = remaining
+                manifest.status = "failed"
+                manifest.error_reference = uuid4().hex
+        return False
+
+    with _session() as session:
+        _apply_deletion(session, target_kind, target_id)
+        manifest = session.scalar(select(DeletionManifest).where(DeletionManifest.operation == operation))
+        if manifest:
+            session.delete(manifest)
+    return True
+
+
+def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -> list[str]:
+    paths: list[str | None] = []
+    if target_kind == "chapter":
+        paths.extend(session.scalars(select(Panel.image_object_path).where(Panel.chapter_id == target_id)).all())
+        for run in session.scalars(select(GenerationRun).where(GenerationRun.chapter_id == target_id)).all():
+            paths.extend(run.artifact_paths or [])
+    elif target_kind == "classroom":
+        chapter_ids = select(Chapter.id).where(Chapter.classroom_id == target_id)
+        paths.extend(session.scalars(select(Panel.image_object_path).where(Panel.chapter_id.in_(chapter_ids))).all())
+        paths.extend(session.scalars(select(Material.object_path).where(Material.classroom_id == target_id)).all())
+        for run in session.scalars(select(GenerationRun).where(GenerationRun.chapter_id.in_(chapter_ids))).all():
+            paths.extend(run.artifact_paths or [])
+    elif target_kind == "student":
+        student = session.get(Student, target_id)
+        if student:
+            paths.extend((student.photo_object_path, student.avatar_object_path))
+        for run in _affected_runs(session, target_id):
+            paths.extend(run.artifact_paths or [])
+            paths.extend(
+                session.scalars(
+                    select(Panel.image_object_path).where(
+                        Panel.chapter_id == run.chapter_id, Panel.revision == run.target_revision
+                    )
+                ).all()
+            )
+    elif target_kind == "reset":
+        paths.extend(session.scalars(select(Panel.image_object_path)).all())
+        paths.extend(session.scalars(select(Material.object_path)).all())
+        for student in session.scalars(select(Student)).all():
+            paths.extend((student.photo_object_path, student.avatar_object_path))
+        for run in session.scalars(select(GenerationRun)).all():
+            paths.extend(run.artifact_paths or [])
+    else:
+        raise ValueError("Unsupported deletion target")
+    return list(dict.fromkeys(path for path in paths if path))
+
+
+def _affected_runs(session: Session, student_id: str | None) -> list[GenerationRun]:
+    return [
+        run
+        for run in session.scalars(select(GenerationRun)).all()
+        if student_id in (run.settings_snapshot or {}).get("student_ids", [])
+    ]
+
+
+def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -> None:
+    if target_kind == "chapter":
+        chapter = session.get(Chapter, target_id)
+        if chapter:
+            session.delete(chapter)
+        return
+    if target_kind == "classroom":
+        classroom = session.get(Classroom, target_id)
+        if classroom:
+            session.delete(classroom)
+        return
+    if target_kind == "reset":
+        session.execute(delete(Classroom))
+        session.execute(delete(Student))
+        setting = session.scalar(select(Setting).where(Setting.profile_id == LOCAL_TEACHER_ID))
+        if setting:
+            setting.default_design_style = "comic"
+            setting.openai_model = "gpt-5.1"
+            setting.bfl_endpoint = "flux-2-pro"
+            setting.automatic_panel_review = False
+            setting.panel_review_attempt_cap = 3
+            setting.generation_defaults = {"story_length": 12}
+            setting.reader_preferences = {}
+        return
+    if target_kind != "student":
+        raise ValueError("Unsupported deletion target")
+    affected = _affected_runs(session, target_id)
+    chapter_ids = {run.chapter_id for run in affected}
+    for run in affected:
+        session.execute(
+            delete(Panel).where(Panel.chapter_id == run.chapter_id, Panel.revision == run.target_revision)
+        )
+        session.delete(run)
+    student = session.get(Student, target_id)
+    if student:
+        session.delete(student)
+    session.flush()
+    for chapter_id in chapter_ids:
+        chapter = session.get(Chapter, chapter_id)
+        if chapter is None:
+            continue
+        latest = session.scalar(
+            select(GenerationRun)
+            .where(GenerationRun.chapter_id == chapter_id, GenerationRun.job_state == "succeeded")
+            .order_by(GenerationRun.target_revision.desc())
+        )
+        if latest:
+            chapter.revision = latest.target_revision
+            chapter.story_script = latest.script_snapshot
+            chapter.title = (latest.script_snapshot or {}).get("episode_title")
+            chapter.status = "ready"
+        else:
+            chapter.revision = 0
+            chapter.story_script = None
+            chapter.title = None
+            chapter.status = "idea_chosen" if chapter.chosen_idea_id else "options_generated"
 
 
 def get_classroom_with_students(classroom_id: str) -> dict[str, Any] | None:

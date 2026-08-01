@@ -21,6 +21,8 @@ The public fictional demo comes later. It will reuse the private application's s
 8. Multi-user authentication, Internet hosting, object storage, tenant isolation, and school operations belong to a later hosted track.
 9. A UI/UX critique, technical audit, remediation pass, and visual-system freeze occur after the private application is functionally complete and before work begins on the fictional demo.
 10. The fictional demo uses the polished private application as its visual and interaction source.
+11. Story generation defaults to exactly 12 panels and offers an explicit exactly-20-panel `Full comic` option.
+12. Full student erasure is distinct from classroom removal and deletes the student's profile, personal files, provider-input provenance, and every completed revision/asset generated from that student's identity or likeness while preserving a regenerable chapter shell and selected idea.
 
 ## Scope
 
@@ -264,24 +266,23 @@ Avatar regeneration is available when an avatar already exists. The old avatar s
 The UI distinguishes:
 
 - remove a student from one classroom;
-- delete the local student profile and its private source/avatar files;
+- fully erase the local student profile, source/avatar files, provider inputs, and affected story revisions/assets;
 - delete a chapter and its panel images;
 - delete a classroom and its owned materials and chapters;
 - reset all local application data.
 
-Each confirmation names the affected data. A deletion reports success only after the required database transaction and file cleanup complete. Shared-story treatment follows the founder-approved deletion policy recorded in the reconciliation document.
+Each confirmation names the affected data. A deletion reports success only after the required database mutation and file cleanup complete, and an interrupted cleanup remains retryable. After full student erasure, the latest unaffected revision becomes readable; if none exists, the chapter keeps its selected idea as a non-readable shell that can be regenerated without that student.
 
 ### Settings
 
 The first settings page contains only values with an implemented effect:
 
-- story length/default panel count;
+- story length: exactly 12 by default or exactly 20 with `Full comic`;
 - default design style;
 - OpenAI model selection;
 - BFL endpoint selection;
 - automatic panel review enabled/disabled and attempt cap;
-- original-photo retention;
-- local data directory display and backup guidance;
+- local-data/reset information without exposing a raw filesystem path;
 - provider readiness;
 - reduced-motion and reader preferences already supported by the UI.
 

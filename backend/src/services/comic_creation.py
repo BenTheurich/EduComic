@@ -498,6 +498,7 @@ def generate_full_script_and_panels(
     students: List[Dict[str, Any]],
     teacher_outline: str,
     chosen_idea: Dict[str, Any],
+    panel_count: int = 12,
 ) -> Dict[str, Any]:
     """
     Ask OpenAI for a full script + panel breakdown.
@@ -508,14 +509,14 @@ def generate_full_script_and_panels(
 
     system_prompt = (
         "You write scripts for short educational comics. "
-        "Target: kids 6–16, clear and simple language, 8–12 panels per chapter. "
+        f"Target: kids 6–16, clear and simple language, exactly {panel_count} panels per chapter. "
         "Always respond with a single JSON object following the requested schema."
     )
 
     user_prompt = (
         "Using the given classroom, students, teacher_outline and chosen_idea, write a single comic chapter.\n\n"
                 "Constraints:\n"
-        "- 8 to 12 panels total.\n"
+        f"- Exactly {panel_count} panels total.\n"
         "- Panels 1–3: introduce the situation and characters.\n"
         "- Middle panels: show a small challenge or question related to the learning topic.\n"
         "- Final panels: resolve the situation and recap the key learning objective.\n"
@@ -566,7 +567,7 @@ def generate_full_script_and_panels(
 
     validated = ComicScript.model_validate(
         parsed.model_dump(),
-        context={"student_names": {student["name"] for student in students}},
+        context={"student_names": {student["name"] for student in students}, "panel_count": panel_count},
     )
     return validated.model_dump()
 

@@ -22,7 +22,7 @@ def _ideas():
 
 def _script():
     panels = []
-    for index in range(1, 9):
+    for index in range(1, 13):
         panels.append(
             {
                 "index": index,
@@ -107,7 +107,7 @@ def test_comic_script_accepts_only_expected_fields_and_known_cast():
         {"speaker": "Teacher", "text": "Watch what happens next."},
         {"speaker": "Narrator", "text": "The rocket starts moving."},
     ]
-    assert len(_validate_script(script).panels) == 8
+    assert len(_validate_script(script).panels) == 12
 
     script["unexpected"] = True
     with pytest.raises(ValidationError):
@@ -219,7 +219,7 @@ def test_comic_service_uses_structured_parse_and_contextual_cast_validation(monk
         _classroom(), _students(), "Teach forces", {"id": "idea_1", "title": "Rocket lesson", "summary": "Learn."}
     )
 
-    assert len(result["panels"]) == 8
+    assert len(result["panels"]) == 12
     call = completions.calls[0]
     assert call["response_format"] is ComicScript
     assert call["max_completion_tokens"] == 8192

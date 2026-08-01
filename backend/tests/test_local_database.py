@@ -49,9 +49,10 @@ def test_blank_database_upgrades_to_migration_head(tmp_path):
     engine = create_engine(url)
     assert set(inspect(engine).get_table_names()) == {
         "alembic_version",
-        "chapter_materials",
-        "chapters",
-        "classrooms",
+            "chapter_materials",
+            "chapters",
+            "classrooms",
+            "deletion_manifests",
         "generation_runs",
         "local_profiles",
         "materials",
@@ -60,7 +61,7 @@ def test_blank_database_upgrades_to_migration_head(tmp_path):
         "student_classrooms",
         "students",
     }
-    assert engine.connect().execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0002_generation_durability"
+    assert engine.connect().execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0003_local_mutations"
     generation_columns = {column["name"] for column in inspect(engine).get_columns("generation_runs")}
     assert {"selected_idea_id", "stage", "error_code", "artifact_paths"} <= generation_columns
     indexes = {index["name"] for index in inspect(engine).get_indexes("generation_runs")}
@@ -127,7 +128,11 @@ def test_populated_0001_database_reconciles_active_runs_before_unique_index(tmp_
 
     with engine.connect() as connection:
         runs = connection.execute(
-            text("SELECT job_state, stage, error_code, error_reference FROM generation_runs")
+            text(
+                "SELECT job_state, stage, error_code, error_reference FROM generation_runs WHERE id IN ("
+                "'00000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000007', "
+                "'00000000-0000-4000-8000-000000000008')"
+            )
         ).mappings().all()
         statuses = dict(connection.execute(text("SELECT id, status FROM chapters")).all())
     assert all(
@@ -338,4 +343,4 @@ def test_schema_compiles_for_postgresql_dialect():
     """Catches SQLite-only column definitions entering the portable model contract."""
     statements = [str(CreateTable(table).compile(dialect=postgresql.dialect())) for table in Base.metadata.sorted_tables]
 
-    assert len(statements) == 10
+    assert len(statements) == 11

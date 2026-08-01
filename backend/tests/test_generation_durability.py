@@ -25,7 +25,7 @@ def _script():
                 "dialogue": [{"speaker": "Teacher", "text": "Watch the orbit."}],
                 "featured_students": [],
             }
-            for index in range(1, 9)
+            for index in range(1, 13)
         ],
     }
 
@@ -141,8 +141,8 @@ def test_every_generation_fault_preserves_the_ready_revision(monkeypatch, tmp_pa
     assert list((Path(tmp_path) / "staging").iterdir()) == []
 
 
-def test_success_publishes_one_complete_local_revision_and_retires_old_media(monkeypatch, tmp_path):
-    """Catches partial panel publication or temporary provider/staging URLs reaching ready rows."""
+def test_success_publishes_one_complete_local_revision_and_preserves_provenance_history(monkeypatch, tmp_path):
+    """Catches partial publication or loss of history needed for later erasure."""
     database, storage, chapter_id, old_path = _ready_chapter(monkeypatch, tmp_path)
     generation = importlib.import_module("services.generation")
     _mock_successful_providers(monkeypatch, generation)
@@ -154,18 +154,38 @@ def test_success_publishes_one_complete_local_revision_and_retires_old_media(mon
     succeeded = database.get_generation_run(run["id"])
     assert current["status"] == "ready"
     assert current["revision"] == 2
-    assert [panel["index"] for panel in current["panels"]] == list(range(1, 9))
+    assert [panel["index"] for panel in current["panels"]] == list(range(1, 13))
     assert all(panel["image"].startswith("/media/story-images/") for panel in current["panels"])
     assert all("delivery" not in panel["image"] and "staging" not in panel["image"] for panel in current["panels"])
     assert succeeded["job_state"] == "succeeded"
-    assert not storage.absolute_path(old_path).exists()
+    assert storage.absolute_path(old_path).exists()
 
 
-def test_successful_swap_persists_failed_old_media_retirement(monkeypatch, tmp_path):
-    """Catches a cleanup fault hiding an unretired old file after successful publication."""
+def test_snapshotted_panel_review_setting_reviews_each_selected_panel_once(monkeypatch, tmp_path):
+    """Catches the visible review setting being decorative in the active durable path."""
+    database, _storage, chapter_id, _old_path = _ready_chapter(monkeypatch, tmp_path)
+    database.update_settings({"automatic_panel_review": True, "panel_review_attempt_cap": 2})
+    generation = importlib.import_module("services.generation")
+    _mock_successful_providers(monkeypatch, generation)
+    reviews = []
+    monkeypatch.setattr(
+        generation,
+        "review_panel_image",
+        lambda *_args, **_kwargs: reviews.append(1) or {"score": 10, "suggested_fix_prompt": ""},
+        raising=False,
+    )
+    run, _created = database.begin_generation_run(chapter_id, "idea_1", "review-enabled")
+
+    generation.run_generation(run["id"])
+
+    assert len(reviews) == 12
+    assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
+
+
+def test_successful_swap_does_not_retire_historical_media(monkeypatch, tmp_path):
+    """Catches ordinary regeneration deleting history required for selective erasure."""
     database, storage, chapter_id, old_path = _ready_chapter(monkeypatch, tmp_path)
     generation = importlib.import_module("services.generation")
-    runtime = importlib.import_module("local_runtime")
     _mock_successful_providers(monkeypatch, generation)
     original_delete = type(storage).delete
 
@@ -182,18 +202,9 @@ def test_successful_swap_persists_failed_old_media_retirement(monkeypatch, tmp_p
     current = database.get_chapter_with_panels(chapter_id)
     assert current["status"] == "ready"
     assert current["revision"] == 2
-    assert database.get_generation_run(run["id"])["artifact_paths"] == [old_path]
-    assert storage.absolute_path(old_path).is_file()
-    assert runtime.local_readiness_details(tmp_path)["cleanup"] is False
-    with pytest.raises(RuntimeError, match="cleanup"):
-        runtime.initialize_local_backend(tmp_path)
-
-    monkeypatch.setattr(type(storage), "delete", original_delete)
-    runtime.initialize_local_backend(tmp_path)
-
-    assert not storage.absolute_path(old_path).exists()
     assert database.get_generation_run(run["id"])["artifact_paths"] == []
-    assert database.get_chapter_with_panels(chapter_id)["revision"] == 2
+    assert storage.absolute_path(old_path).is_file()
+    monkeypatch.setattr(type(storage), "delete", original_delete)
 
 
 def test_finalization_crash_after_replace_cleans_the_unpublished_file(monkeypatch, tmp_path):

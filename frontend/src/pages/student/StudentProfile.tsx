@@ -2,11 +2,17 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { User, Mail, Heart } from "lucide-react";
 import api from "@/lib/api";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+    AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type Student = Awaited<ReturnType<typeof api.students.getById>>["student"];
 
@@ -17,6 +23,9 @@ const StudentProfile = () => {
     const [error, setError] = useState<string | null>(null);
     const [avatarError, setAvatarError] = useState<string | null>(null);
     const [generatingAvatar, setGeneratingAvatar] = useState(false);
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState({ name: "", interests: "" });
+    const [profileMessage, setProfileMessage] = useState("");
 
     useEffect(() => {
         if (!studentId) return;
@@ -49,6 +58,28 @@ const StudentProfile = () => {
             setAvatarError("Avatar generation failed. Please try again.");
         } finally {
             setGeneratingAvatar(false);
+        }
+    };
+
+    const saveProfile = async () => {
+        if (!studentId) return;
+        setProfileMessage("");
+        try {
+            const response = await api.students.update(studentId, draft);
+            setStudent(response.student);
+            setEditing(false);
+        } catch {
+            setProfileMessage("Profile could not be saved. Your changes are still shown.");
+        }
+    };
+
+    const eraseProfile = async () => {
+        if (!studentId) return;
+        try {
+            await api.students.erase(studentId);
+            setProfileMessage("Profile and personal data erased.");
+        } catch {
+            setProfileMessage("Erasure is incomplete. Retry to finish local file cleanup.");
         }
     };
 
@@ -90,11 +121,10 @@ const StudentProfile = () => {
                                             {getInitials(student.name)}
                                         </AvatarFallback>
                                     </Avatar>
-                                    {!student.avatar_url && (
-                                        <Button variant="outline" size="sm" onClick={retryAvatar} disabled={generatingAvatar}>
-                                            {generatingAvatar ? "Generating Avatar..." : "Try Avatar Again"}
-                                        </Button>
-                                    )}
+                                    <Button variant="outline" size="sm" onClick={retryAvatar} disabled={generatingAvatar}>
+                                        {generatingAvatar ? "Generating avatar..." : student.avatar_url ? "Regenerate avatar" : "Try avatar again"}
+                                    </Button>
+                                    {student.avatar_url && <p className="max-w-52 text-center text-xs text-muted-foreground">Your current avatar stays visible until a replacement succeeds.</p>}
                                     {avatarError && <p role="alert" className="text-sm text-destructive">{avatarError}</p>}
                                 </div>
 
@@ -103,7 +133,14 @@ const StudentProfile = () => {
                                     <div>
                                         <h2 className="text-2xl font-bold text-foreground mb-1">{student.name}</h2>
                                         <Badge variant="outline" className="mt-2">Student</Badge>
+                                        <Button variant="outline" className="ml-3" onClick={() => { setDraft({ name: student.name, interests: student.interests }); setEditing(true); }}>Edit profile</Button>
                                     </div>
+
+                                    {editing && <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => { event.preventDefault(); void saveProfile(); }}>
+                                        <label>Name<Input required maxLength={100} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+                                        <label>Interests<Input required maxLength={500} value={draft.interests} onChange={(event) => setDraft({ ...draft, interests: event.target.value })} /></label>
+                                        <Button type="submit">Save profile</Button>
+                                    </form>}
 
                                     <div className="space-y-4">
                                         {/* Student ID */}
@@ -143,6 +180,14 @@ const StudentProfile = () => {
                             </div>
                         </CardContent>
                     </Card>
+
+                    <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive">Erase profile and personal data</Button></AlertDialogTrigger>
+                        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Erase all personal data?</AlertDialogTitle>
+                            <AlertDialogDescription>This removes the profile, source photo, avatar, provider inputs, and every story revision generated from this student's identity.</AlertDialogDescription>
+                        </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={eraseProfile}>Confirm full erasure</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                    </AlertDialog>
+                    {profileMessage && <p role="status" className="mt-3">{profileMessage}</p>}
 
                 </motion.div>
             </div>

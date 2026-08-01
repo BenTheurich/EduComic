@@ -13,6 +13,7 @@ import requests
 from database import database
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
+from panel_review import review_panel_image
 from services import comic_creation
 
 
@@ -232,30 +233,46 @@ def run_generation(run_id: str) -> None:
             students=students,
             teacher_outline=chapter["original_prompt"],
             chosen_idea=chosen,
+            panel_count=run["settings_snapshot"]["story_length"],
         )
+        expected_count = run["settings_snapshot"]["story_length"]
+        if len(script["panels"]) != expected_count:
+            raise ValueError("Comic script panel count is invalid")
         prompts = comic_creation.build_flux_prompts_from_script(classroom, students, script)
         panels_by_index = {panel["index"]: panel for panel in script["panels"]}
         if [prompt["index"] for prompt in prompts] != list(range(1, len(prompts) + 1)):
             raise ValueError("Comic prompt sequence is invalid")
+        if len(prompts) != expected_count:
+            raise ValueError("Comic prompt count is invalid")
 
         ready_panels = []
         previous_url = None
         for prompt in prompts:
             panel = panels_by_index[prompt["index"]]
-            stage = "submit"
-            database.set_generation_stage(run_id, "bfl_submit")
-            polling_url = submit_bfl_generation(
-                prompt["prompt"], prompt["aspect_ratio"], [previous_url] if previous_url else []
-            )
-            stage = "poll"
-            database.set_generation_stage(run_id, "bfl_poll")
-            delivery_url = poll_bfl_generation(polling_url)
-            stage = "download"
-            database.set_generation_stage(run_id, "bfl_download")
-            image = download_bfl_image(delivery_url)
-            stage = "validation"
-            database.set_generation_stage(run_id, "image_validation")
-            validate_image_bytes(image)
+            review_enabled = run["settings_snapshot"]["automatic_panel_review"]
+            attempts = run["settings_snapshot"]["panel_review_attempt_cap"] if review_enabled else 1
+            candidate_prompt = prompt["prompt"]
+            for attempt in range(attempts):
+                stage = "submit"
+                database.set_generation_stage(run_id, "bfl_submit")
+                polling_url = submit_bfl_generation(
+                    candidate_prompt, prompt["aspect_ratio"], [previous_url] if previous_url else []
+                )
+                stage = "poll"
+                database.set_generation_stage(run_id, "bfl_poll")
+                delivery_url = poll_bfl_generation(polling_url)
+                stage = "download"
+                database.set_generation_stage(run_id, "bfl_download")
+                image = download_bfl_image(delivery_url)
+                stage = "validation"
+                database.set_generation_stage(run_id, "image_validation")
+                validate_image_bytes(image)
+                if not review_enabled:
+                    break
+                review = review_panel_image(delivery_url, panel, classroom, students)
+                if review["score"] >= 9 or attempt == attempts - 1:
+                    break
+                candidate_prompt = f"{prompt['prompt']} Correction: {review.get('suggested_fix_prompt', '')}"
             stage = "finalization"
             database.set_generation_stage(run_id, "file_finalization")
             staged = storage.stage_bytes(image, ".png", max_bytes=MAX_IMAGE_BYTES)

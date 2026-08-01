@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,12 @@ const CreateClassroom = () => {
     customTheme: "",
     style: "",
   });
+
+  useEffect(() => {
+    api.settings.get().then(({ settings }) => {
+      setFormData((current) => current.style ? current : { ...current, style: settings.default_design_style });
+    }).catch(() => undefined);
+  }, []);
 
   const handleSubmit = async () => {
     try {

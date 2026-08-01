@@ -19,10 +19,13 @@ from fastapi.responses import JSONResponse, Response
 
 from api_models import (
     ClassroomCreateRequest,
+    ClassroomUpdateRequest,
     CommitStoryRequest,
     LessonPromptRequest,
     StoryChoiceRequest,
     StudentCreateRequest,
+    StudentUpdateRequest,
+    SettingsUpdateRequest,
 )
 from local_runtime import initialize_local_backend, local_readiness_details, resolve_local_paths
 from local_storage import LocalStorage, StorageValidationError
@@ -202,6 +205,27 @@ async def create_classroom_endpoint(request: ClassroomCreateRequest):
         return {"success": True, "classroom": classroom}
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.patch("/classrooms/{classroom_id}")
+async def update_classroom_endpoint(classroom_id: UUID, request: ClassroomUpdateRequest):
+    from database.database import update_classroom
+
+    classroom = update_classroom(str(classroom_id), request.model_dump())
+    if classroom is None:
+        raise HTTPException(status_code=404, detail="Classroom not found")
+    return {"success": True, "classroom": classroom}
+
+
+@app.delete("/classrooms/{classroom_id}")
+async def delete_classroom_endpoint(classroom_id: UUID, confirm: bool = False):
+    from database.database import execute_deletion
+
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Deletion requires explicit confirmation")
+    if not execute_deletion("classroom", str(classroom_id)):
+        raise HTTPException(status_code=409, detail="Local file cleanup is incomplete; retry deletion")
+    return {"success": True, "message": "Classroom deleted"}
 
 
 @app.get("/classrooms")
@@ -431,6 +455,27 @@ async def get_student(student_id: UUID):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@app.patch("/students/{student_id}")
+async def update_student_endpoint(student_id: UUID, request: StudentUpdateRequest):
+    from database.database import update_student
+
+    student = update_student(str(student_id), request.model_dump())
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return {"success": True, "student": student}
+
+
+@app.delete("/students/{student_id}")
+async def erase_student_endpoint(student_id: UUID, confirm: bool = False):
+    from database.database import execute_deletion
+
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Erasure requires explicit confirmation")
+    if not execute_deletion("student", str(student_id)):
+        raise HTTPException(status_code=409, detail="Local file cleanup is incomplete; retry deletion")
+    return {"success": True, "message": "Student profile and personal data erased"}
+
+
 @app.get("/students/{student_id}/classrooms")
 async def get_student_classrooms(student_id: UUID):
     """
@@ -467,10 +512,7 @@ async def leave_classroom(student_id: UUID, classroom_id: UUID):
 
     try:
         success = remove_student_from_classroom(str(student_id), str(classroom_id))
-        if not success:
-            raise HTTPException(status_code=404, detail="Enrollment not found")
-
-        return {"success": True, "message": "Student left classroom successfully"}
+        return {"success": True, "removed": success, "message": "Student removed from classroom"}
     except HTTPException:
         raise
     except Exception:
@@ -703,7 +745,7 @@ async def get_chapter_with_panels_endpoint(chapter_id: UUID):
 
 
 @app.delete("/chapters/{chapter_id}")
-async def delete_chapter_endpoint(chapter_id: UUID):
+async def delete_chapter_endpoint(chapter_id: UUID, confirm: bool = False):
     """
     Delete a chapter and all its panels.
 
@@ -713,38 +755,53 @@ async def delete_chapter_endpoint(chapter_id: UUID):
     Returns:
         Success message
     """
-    from database.database import delete_chapter, get_chapter
+    from database.database import execute_deletion
 
     try:
-        # Verify chapter exists
         chapter_id = str(chapter_id)
-        chapter = get_chapter(chapter_id)
-        if not chapter:
-            raise HTTPException(status_code=404, detail="Chapter not found")
-
-        # Delete the chapter (cascades to panels)
-        object_paths = delete_chapter(chapter_id)
-
-        if object_paths is None:
-            raise HTTPException(status_code=500, detail="Failed to delete chapter")
-
-        if object_paths:
-            try:
-                storage = LocalStorage(resolve_local_paths().root)
-            except Exception:
-                logger.error("Local media deletion failed context=chapter deletion")
-            else:
-                for object_path in object_paths:
-                    try:
-                        storage.delete(object_path)
-                    except Exception:
-                        logger.error("Local media deletion failed context=chapter deletion")
-
-        return {"success": True, "message": "Chapter deleted successfully"}
+        if not confirm:
+            raise HTTPException(status_code=400, detail="Deletion requires explicit confirmation")
+        if not execute_deletion("chapter", chapter_id):
+            raise HTTPException(status_code=409, detail="Local file cleanup is incomplete; retry deletion")
+        return {"success": True, "message": "Chapter deleted"}
     except HTTPException:
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/settings")
+async def get_settings_endpoint():
+    from database.database import get_settings
+
+    settings = get_settings()
+    return {
+        "success": True,
+        "settings": settings,
+        "provider_readiness": {
+            "openai": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+            "bfl": bool(os.getenv("BFL_API_KEY", "").strip()),
+        },
+        "local_data": "Stored only on this device",
+    }
+
+
+@app.patch("/settings")
+async def update_settings_endpoint(request: SettingsUpdateRequest):
+    from database.database import update_settings
+
+    return {"success": True, "settings": update_settings(request.model_dump(exclude_none=True))}
+
+
+@app.post("/settings/reset-local-data")
+async def reset_local_data_endpoint(confirm: bool = False):
+    from database.database import execute_deletion
+
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Reset requires explicit confirmation")
+    if not execute_deletion("reset"):
+        raise HTTPException(status_code=409, detail="Local file cleanup is incomplete; retry reset")
+    return {"success": True, "message": "Local application data reset"}
 
 
 @app.get("/students/{student_id}/chapters")

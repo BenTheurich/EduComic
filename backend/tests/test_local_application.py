@@ -290,15 +290,15 @@ def test_chapter_deletion_removes_committed_panel_media(monkeypatch, tmp_path):
     database.create_panel(chapter["id"], 1, f"/media/{object_path}")
 
     with TestClient(main.app) as client:
-        response = client.delete(f"/chapters/{chapter['id']}")
+        response = client.delete(f"/chapters/{chapter['id']}?confirm=true")
 
     assert response.status_code == 200
     assert database.get_chapter(chapter["id"]) is None
     assert not storage.absolute_path(object_path).exists()
 
 
-def test_chapter_deletion_logs_file_cleanup_failure_after_database_commit(monkeypatch, tmp_path, caplog):
-    """Catches post-commit cleanup failure becoming a false database failure."""
+def test_chapter_deletion_reports_file_cleanup_failure_before_database_commit(monkeypatch, tmp_path):
+    """Catches file cleanup failure becoming false deletion success."""
     monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
     local_runtime = importlib.import_module("local_runtime")
     database = importlib.import_module("database.database")
@@ -320,17 +320,12 @@ def test_chapter_deletion_logs_file_cleanup_failure_after_database_commit(monkey
     database.create_panel(chapter["id"], 1, media_url(object_path))
 
     with TestClient(main.app) as client:
-        monkeypatch.setattr(
-            main,
-            "LocalStorage",
-            lambda *_args: (_ for _ in ()).throw(RuntimeError("disk unavailable")),
-        )
-        response = client.delete(f"/chapters/{chapter['id']}")
+        monkeypatch.setattr(LocalStorage, "delete", lambda *_args: (_ for _ in ()).throw(RuntimeError("disk unavailable")))
+        response = client.delete(f"/chapters/{chapter['id']}?confirm=true")
 
-    assert response.status_code == 200
-    assert database.get_chapter(chapter["id"]) is None
+    assert response.status_code == 409
+    assert database.get_chapter(chapter["id"]) is not None
     assert storage.absolute_path(object_path).exists()
-    assert "Local media deletion failed context=chapter deletion" in caplog.text
 
 
 def test_student_media_update_rejects_raw_object_paths(monkeypatch, tmp_path):

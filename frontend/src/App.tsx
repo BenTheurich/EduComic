@@ -24,6 +24,7 @@ const CreateClassroom = lazy(() => import("./pages/teacher/CreateClassroom"));
 const StoryGenerator = lazy(() => import("./pages/teacher/StoryGenerator"));
 const StoryViewer = lazy(() => import("./pages/teacher/StoryViewer"));
 const TeacherDashboard = lazy(() => import("./pages/teacher/TeacherDashboard"));
+const Settings = lazy(() => import("./pages/teacher/Settings"));
 
 const loadingPage = (
   <div className="flex min-h-screen items-center justify-center" role="status" aria-label="Loading page">
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/" element={<Landing />} />
 
             <Route path="/teacher/dashboard" element={<TeacherLayout><TeacherDashboard /></TeacherLayout>} />
+            <Route path="/teacher/settings" element={<TeacherLayout><Settings /></TeacherLayout>} />
             <Route path="/teacher/classroom/new" element={<TeacherLayout><CreateClassroom /></TeacherLayout>} />
             <Route path="/teacher/classroom/:id" element={<TeacherLayout><ClassroomDetail /></TeacherLayout>} />
             <Route path="/teacher/classroom/:classroomId/story/new" element={<TeacherLayout><StoryGenerator /></TeacherLayout>} />

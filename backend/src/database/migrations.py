@@ -6,7 +6,7 @@ from alembic import command
 from alembic.config import Config
 
 
-MIGRATION_HEAD = "0002_generation_durability"
+MIGRATION_HEAD = "0003_local_mutations"
 
 
 def upgrade_database(database_url: str) -> None:

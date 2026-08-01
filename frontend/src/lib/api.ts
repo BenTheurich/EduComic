@@ -136,6 +136,12 @@ export const api = {
         chapters: Chapter[];
       }>(`/classrooms/${classroomId}/chapters`),
 
+    update: (classroomId: string, data: { name: string; subject: string; grade_level: string; story_theme: string; design_style: string }) =>
+      apiFetch<{ success: boolean }>(`/classrooms/${classroomId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+    delete: (classroomId: string) =>
+      apiFetch<{ success: boolean }>(`/classrooms/${classroomId}?confirm=true`, { method: 'DELETE' }),
+
   },
 
   // Story generation
@@ -293,6 +299,12 @@ export const api = {
         method: 'DELETE',
       }),
 
+    update: (studentId: string, data: { name: string; interests: string }) =>
+      apiFetch<{ success: boolean; student: Student }>(`/students/${studentId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+
+    erase: (studentId: string) =>
+      apiFetch<{ success: boolean }>(`/students/${studentId}?confirm=true`, { method: 'DELETE' }),
+
   },
 
   // Chapters
@@ -307,9 +319,28 @@ export const api = {
       apiFetch<{
         success: boolean;
         message: string;
-      }>(`/chapters/${chapterId}`, {
+      }>(`/chapters/${chapterId}?confirm=true`, {
         method: 'DELETE',
       }),
+  },
+
+  settings: {
+    get: () => apiFetch<{
+      settings: {
+        story_length: 12 | 20;
+        default_design_style: 'manga' | 'comic' | 'cartoon';
+        openai_model: 'gpt-5.1';
+        bfl_model: 'flux-2-pro';
+        automatic_panel_review: boolean;
+        panel_review_attempt_cap: 1 | 2 | 3;
+        reader_preferences: Record<string, boolean>;
+      };
+      provider_readiness: { openai: boolean; bfl: boolean };
+      local_data: string;
+    }>('/settings'),
+    update: (settings: Awaited<ReturnType<typeof api.settings.get>>['settings']) =>
+      apiFetch<{ success: boolean }>('/settings', { method: 'PATCH', body: JSON.stringify(settings) }),
+    reset: () => apiFetch<{ success: boolean }>('/settings/reset-local-data?confirm=true', { method: 'POST' }),
   },
 };
 

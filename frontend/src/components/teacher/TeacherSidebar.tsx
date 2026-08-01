@@ -4,7 +4,8 @@ import {
   LogOut, 
   Users, 
   BookOpen, 
-  ArrowLeft
+  ArrowLeft,
+  Settings
 } from "lucide-react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/animated-sidebar";
 import { motion } from "framer-motion";
@@ -26,6 +27,11 @@ export function TeacherSidebar({ open, setOpen }: TeacherSidebarProps) {
       label: "Dashboard",
       href: "/teacher/dashboard",
       icon: <LayoutDashboard className="text-foreground h-5 w-5 flex-shrink-0" />,
+    },
+    {
+      label: "Settings",
+      href: "/teacher/settings",
+      icon: <Settings className="text-foreground h-5 w-5 flex-shrink-0" />,
     },
     {
       label: "Exit Teacher View",

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Copy, Plus, CheckCircle, Clock, Filter, Loader2, Grid3x3, List, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -53,6 +54,9 @@ const ClassroomDetail = () => {
   const [reloadKey, setReloadKey] = useState(0);
   const [storySortBy, setStorySortBy] = useState<"week" | "date">("week");
   const [studentViewMode, setStudentViewMode] = useState<"grid" | "list">("grid");
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState<Classroom | null>(null);
+  const [editError, setEditError] = useState("");
 
   useEffect(() => {
     const fetchClassroomData = async () => {
@@ -103,6 +107,44 @@ const ClassroomDetail = () => {
     const link = `${window.location.origin}/student/join/${id}`;
     navigator.clipboard.writeText(link);
     toast.success("Invite link copied to clipboard!");
+  };
+
+  const saveClassroom = async () => {
+    if (!id || !editDraft) return;
+    setEditError("");
+    try {
+      await api.classrooms.update(id, editDraft);
+      setClassroom(editDraft);
+      setEditing(false);
+      toast.success("Classroom saved");
+    } catch {
+      setEditError("Classroom could not be saved. Check the fields and retry.");
+    }
+  };
+
+  const removeStudent = async (studentId: string) => {
+    if (!id) return;
+    try {
+      await api.students.leaveClassroom(studentId, id);
+      setStudents((current) => current.filter((student) => student.id !== studentId));
+      toast.success("Student removed from this classroom");
+    } catch { toast.error("Classroom removal failed. Please retry."); }
+  };
+
+  const eraseStudent = async (studentId: string) => {
+    try {
+      await api.students.erase(studentId);
+      setStudents((current) => current.filter((student) => student.id !== studentId));
+      toast.success("Student personal data erased");
+    } catch { toast.error("Erasure is incomplete. Retry to finish local file cleanup."); }
+  };
+
+  const deleteClassroom = async () => {
+    if (!id) return;
+    try {
+      await api.classrooms.delete(id);
+      navigate("/teacher/dashboard");
+    } catch { toast.error("Classroom deletion is incomplete. Retry to finish local file cleanup."); }
   };
 
   // Get calendar week from date
@@ -240,6 +282,17 @@ const ClassroomDetail = () => {
               <h1 className="text-4xl font-bold text-foreground mb-2">
                 {classroom.name}
               </h1>
+              {!editing && <div className="mb-3 flex gap-2"><Button variant="outline" onClick={() => { setEditDraft(classroom); setEditing(true); setEditError(""); }}>Edit classroom</Button>
+                <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive">Delete classroom</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this classroom?</AlertDialogTitle><AlertDialogDescription>This deletes its chapters, materials, and managed story files. Student profiles are not fully erased.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void deleteClassroom()}>Confirm classroom deletion</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+              </div>}
+              {editing && editDraft && <form className="mb-4 grid gap-3 rounded-lg border p-4" onSubmit={(event) => { event.preventDefault(); void saveClassroom(); }}>
+                {([
+                  ["name", "Classroom name"], ["subject", "Subject"], ["grade_level", "Grade level"], ["story_theme", "Story theme"],
+                ] as const).map(([field, label]) => <label key={field}>{label}<Input required maxLength={field === "story_theme" ? 500 : 100} value={editDraft[field]} onChange={(event) => setEditDraft({ ...editDraft, [field]: event.target.value })} /></label>)}
+                <label>Design style<select className="block min-h-11 w-full rounded-md border bg-background px-3" value={editDraft.design_style} onChange={(event) => setEditDraft({ ...editDraft, design_style: event.target.value })}><option value="comic">Comic</option><option value="manga">Manga</option><option value="cartoon">Cartoon</option></select></label>
+                <div className="flex gap-2"><Button type="submit">Save classroom</Button><Button type="button" variant="outline" onClick={() => setEditing(false)}>Cancel edit</Button></div>
+                {editError && <p role="alert" className="text-destructive">{editError}</p>}
+              </form>}
               <div className="flex gap-2 flex-wrap mb-3">
                 <Badge className="bg-blue-500/80 backdrop-blur-sm text-white border-blue-300/30">{classroom.subject}</Badge>
                 <Badge className="backdrop-blur-sm bg-background/60 border-border/50" variant="outline">Grade {classroom.grade_level}</Badge>
@@ -367,6 +420,16 @@ const ClassroomDetail = () => {
                                 </>
                               )}
                             </Badge>
+                            <div className="mt-3 grid gap-2">
+                              <AlertDialog><AlertDialogTrigger asChild><Button variant="outline" aria-label={`Remove ${student.name} from classroom`}>Remove from classroom</Button></AlertDialogTrigger>
+                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove from this classroom?</AlertDialogTitle><AlertDialogDescription>The student profile and personal files are kept.</AlertDialogDescription></AlertDialogHeader>
+                                  <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void removeStudent(student.id)}>Confirm classroom removal</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                              </AlertDialog>
+                              <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" aria-label={`Erase all data for ${student.name}`}>Erase all personal data</Button></AlertDialogTrigger>
+                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Erase all personal data?</AlertDialogTitle><AlertDialogDescription>This removes the profile, files, provider inputs, and affected story revisions.</AlertDialogDescription></AlertDialogHeader>
+                                  <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void eraseStudent(student.id)}>Confirm full erasure</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </CardContent>
                         </Card>
                       </motion.div>

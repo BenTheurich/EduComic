@@ -90,6 +90,12 @@ def local_readiness_details(data_dir: Path | str | None = None) -> dict[str, boo
                     text("SELECT artifact_paths FROM generation_runs")
                 ).scalars()
                 cleanup_ready = all(not json.loads(value or "[]") for value in manifests)
+                deletion_manifests = connection.execute(
+                    text("SELECT object_paths FROM deletion_manifests")
+                ).scalars()
+                cleanup_ready = cleanup_ready and all(
+                    not json.loads(value or "[]") for value in deletion_manifests
+                )
         engine.dispose()
         persistence_ready = True
     except Exception:
