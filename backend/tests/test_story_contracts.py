@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
+from local_storage import LocalStorage, media_url
 from story_contracts import ComicScript, PanelReview, StoryIdeasResponse
 
 
@@ -128,9 +129,11 @@ def test_comic_script_with_no_students_allows_only_teacher_or_narrator():
 def test_panel_review_requires_complete_bounded_scores_and_text():
     valid = {
         "score": 9.0,
+        "visible_text": [
+            {"kind": "narration", "text": "The experiment begins."},
+            {"kind": "dialogue", "text": "Let us test the force."},
+        ],
         "dimensions": {
-            "exact_visible_text": True,
-            "unexpected_visible_text": False,
             "bubble_ownership": True,
             "reference_identity_continuity": True,
             "requested_action": True,
@@ -145,7 +148,8 @@ def test_panel_review_requires_complete_bounded_scores_and_text():
     for invalid in (
         {key: value for key, value in valid.items() if key != "notes"},
         {**valid, "score": 11.0},
-        {**valid, "score": 9.0, "dimensions": {**valid["dimensions"], "exact_visible_text": False}},
+        {**valid, "visible_text": [{"kind": "dialogue", "text": "T" * 241}]},
+        {**valid, "visible_text": valid["visible_text"] * 7},
         {**valid, "issues": ["I" * 401]},
         {**valid, "suggested_fix_prompt": "F" * 1001},
     ):
@@ -238,14 +242,22 @@ def test_comic_service_uses_structured_parse_and_contextual_cast_validation(monk
     assert "Return ONLY a JSON object with this structure" not in prompt
 
 
-def test_panel_review_uses_strict_parse_and_omits_classroom_and_student_profiles(monkeypatch):
+def test_panel_review_uses_inline_validated_local_references(monkeypatch, tmp_path):
     panel_review = importlib.import_module("panel_review")
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    storage = LocalStorage(tmp_path)
+    object_path = storage.new_object_path(
+        "story-images", "00000000-0000-4000-8000-000000000001", ".png"
+    )
+    storage.finalize(storage.stage_bytes(b"reference-bytes", ".png", max_bytes=100), object_path)
     parsed = PanelReview.model_validate(
         {
             "score": 9.0,
+            "visible_text": [
+                {"kind": "narration", "text": "The experiment begins."},
+                {"kind": "dialogue", "text": "Let us test the force."},
+            ],
             "dimensions": {
-                "exact_visible_text": True,
-                "unexpected_visible_text": False,
                 "bubble_ownership": True,
                 "reference_identity_continuity": True,
                 "requested_action": True,
@@ -265,7 +277,7 @@ def test_panel_review_uses_strict_parse_and_omits_classroom_and_student_profiles
         _script()["panels"][0],
         {**_classroom(), "subject": "private subject", "story_theme": "private theme"},
         [{**_students()[0], "interests": "private interest"}],
-        reference_images=[{"role": "previous successful panel", "url": "/media/story-images/fake.png"}],
+        reference_images=[{"role": "previous successful panel", "url": media_url(object_path)}],
     )
 
     assert result["score"] == 9.0
@@ -280,29 +292,81 @@ def test_panel_review_uses_strict_parse_and_omits_classroom_and_student_profiles
     assert "private theme" not in prompt
     assert "previous successful panel" in prompt
     assert "Return ONLY with a single JSON object" not in prompt
+    assert "Transcribe every visible" in prompt
+    assert "/media/" not in prompt
+    assert "data:image/png;base64," in prompt
 
 
-def test_panel_review_retry_ignores_a_false_high_overall_score_for_visible_text():
-    """Catches a misspelling being accepted because an unconstrained score is high."""
+def test_panel_review_retry_derives_text_failures_from_transcription():
+    """Catches provider flags hiding a misspelling or invented lettering."""
     panel_review = importlib.import_module("panel_review")
-    review = PanelReview.model_validate(
-        {
-            "score": 5.0,
-            "dimensions": {
-                "exact_visible_text": False,
-                "unexpected_visible_text": False,
-                "bubble_ownership": True,
-                "reference_identity_continuity": True,
-                "requested_action": True,
-                "layout_readability": True,
-            },
-            "issues": ["The narration is misspelled."],
-            "suggested_fix_prompt": "Use the exact narration.",
-            "notes": "",
-        }
-    )
+    base = {
+        "score": 9.0,
+        "dimensions": {
+            "bubble_ownership": True,
+            "reference_identity_continuity": True,
+            "requested_action": True,
+            "layout_readability": True,
+        },
+        "issues": [],
+        "suggested_fix_prompt": "",
+        "notes": "",
+    }
+    panel = _script()["panels"][0]
+    exact = {**base, "visible_text": [
+        {"kind": "narration", "text": "The experiment begins."},
+        {"kind": "dialogue", "text": "Let us test the force."},
+    ]}
+    misspelled = {**base, "visible_text": [
+        {"kind": "narration", "text": "The experimint begins."},
+        {"kind": "dialogue", "text": "Let us test the force."},
+    ]}
+    invented = {**exact, "visible_text": [*exact["visible_text"], {"kind": "other", "text": "SCIENSE"}]}
 
-    assert panel_review.review_requires_retry(review.model_dump()) is True
+    assert panel_review.review_requires_retry(exact, panel) is False
+    assert panel_review.review_requires_retry(misspelled, panel) is True
+    assert panel_review.review_requires_retry(invented, panel) is True
+
+
+def test_panel_review_rejects_non_image_local_reference_before_provider(monkeypatch, tmp_path):
+    panel_review = importlib.import_module("panel_review")
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(panel_review, "OPENAI_API_KEY", "configured-test-key")
+    storage = LocalStorage(tmp_path)
+    object_path = storage.new_object_path(
+        "materials", "00000000-0000-4000-8000-000000000001", ".pdf"
+    )
+    storage.finalize(storage.stage_bytes(b"pdf", ".pdf", max_bytes=10), object_path)
+
+    with pytest.raises(ValueError, match="validated local image"):
+        panel_review.review_panel_image(
+            "https://provider.test/rendered-panel",
+            _script()["panels"][0],
+            _classroom(),
+            _students(),
+            reference_images=[{"role": "source", "url": media_url(object_path)}],
+        )
+
+
+def test_panel_review_rejects_oversized_local_reference_before_provider(monkeypatch, tmp_path):
+    panel_review = importlib.import_module("panel_review")
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(panel_review, "OPENAI_API_KEY", "configured-test-key")
+    storage = LocalStorage(tmp_path)
+    image = b"x" * (20 * 1024 * 1024 + 1)
+    object_path = storage.new_object_path(
+        "story-images", "00000000-0000-4000-8000-000000000001", ".png"
+    )
+    storage.finalize(storage.stage_bytes(image, ".png", max_bytes=len(image)), object_path)
+
+    with pytest.raises(ValueError, match="validated local image"):
+        panel_review.review_panel_image(
+            "https://provider.test/rendered-panel",
+            _script()["panels"][0],
+            _classroom(),
+            _students(),
+            reference_images=[{"role": "source", "url": media_url(object_path)}],
+        )
 
 
 def test_invalid_script_is_rejected_before_panel_deletion_or_image_provider(monkeypatch):

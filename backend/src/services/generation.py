@@ -48,6 +48,17 @@ def _reference_instructions(references: list[dict[str, str]]) -> str:
     ) + "."
 
 
+def build_panel_attempt_prompt(
+    base_prompt: str,
+    references: list[dict[str, str]],
+    correction: str = "",
+) -> str:
+    prompt = base_prompt + _reference_instructions(references)
+    if correction.strip():
+        prompt += f" Correction: {correction.strip()}"
+    return prompt
+
+
 def _bfl_headers() -> dict[str, str]:
     key = os.getenv("BFL_API_KEY", "").strip()
     if not key or key.startswith("YOUR_"):
@@ -284,7 +295,7 @@ def run_generation(run_id: str) -> None:
             references = ordered_panel_references(previous_url, panel, students)
             review_enabled = run["settings_snapshot"]["automatic_panel_review"]
             attempts = run["settings_snapshot"]["panel_review_attempt_cap"] if review_enabled else 1
-            candidate_prompt = prompt["prompt"] + _reference_instructions(references)
+            candidate_prompt = build_panel_attempt_prompt(prompt["prompt"], references)
             for attempt in range(attempts):
                 stage = "submit"
                 database.set_generation_stage(run_id, "bfl_submit")
@@ -313,9 +324,11 @@ def run_generation(run_id: str) -> None:
                     model=run["settings_snapshot"]["openai_model"],
                     reference_images=references,
                 )
-                if not review_requires_retry(review) or attempt == attempts - 1:
+                if not review_requires_retry(review, panel) or attempt == attempts - 1:
                     break
-                candidate_prompt = f"{prompt['prompt']} Correction: {review.get('suggested_fix_prompt', '')}"
+                candidate_prompt = build_panel_attempt_prompt(
+                    prompt["prompt"], references, review.get("suggested_fix_prompt", "")
+                )
             stage = "finalization"
             database.set_generation_stage(run_id, "file_finalization")
             staged = storage.stage_bytes(image, ".png", max_bytes=MAX_IMAGE_BYTES)

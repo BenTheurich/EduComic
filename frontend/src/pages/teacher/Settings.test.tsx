@@ -57,7 +57,8 @@ it("explains the paid review retry cost and saves the optional Flex model", asyn
   render(<MemoryRouter><Settings /></MemoryRouter>);
   await screen.findByRole("heading", { name: "Settings" });
 
-  expect(screen.getByText(/each retry can add one OpenAI vision review and another BFL image generation/i)).toBeInTheDocument();
+  expect(screen.getByText(/enabling review adds one OpenAI vision review for every initial panel/i)).toBeInTheDocument();
+  expect(screen.getByText(/each retry adds another BFL image generation and another OpenAI vision review/i)).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("BFL model"), { target: { value: "flux-2-flex" } });
   fireEvent.click(screen.getByLabelText("Automatically review generated panels"));
   fireEvent.click(screen.getByRole("button", { name: "Save settings" }));

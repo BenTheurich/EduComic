@@ -84,7 +84,7 @@ export default function Settings() {
         <Checkbox checked={settings.automatic_panel_review} onCheckedChange={(checked) => setSettings({ ...settings, automatic_panel_review: checked === true })} />
         Automatically review generated panels
       </label>
-      <p className="text-sm text-muted-foreground">Off by default. Each retry can add one OpenAI vision review and another BFL image generation, increasing duration and BYOK spend. This applies only to new generations.</p>
+      <p className="text-sm text-muted-foreground">Off by default. Enabling review adds one OpenAI vision review for every initial panel. Each retry adds another BFL image generation and another OpenAI vision review, so generation takes longer and uses more BYOK credits. This applies only to new generations.</p>
       <label className="block">Panel review attempts
         <select className="mt-1 min-h-11 w-full rounded-md border bg-background px-3" value={settings.panel_review_attempt_cap}
           onChange={(event) => setSettings({ ...settings, panel_review_attempt_cap: Number(event.target.value) as 1 | 2 | 3 })}>

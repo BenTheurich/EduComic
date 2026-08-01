@@ -1,6 +1,6 @@
 """Strict schemas for untrusted story-provider output."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationInfo, field_validator, model_validator
 
@@ -85,28 +85,21 @@ class ComicScript(_StrictModel):
 
 
 class ReviewDimensions(_StrictModel):
-    exact_visible_text: bool
-    unexpected_visible_text: bool
     bubble_ownership: bool
     reference_identity_continuity: bool
     requested_action: bool
     layout_readability: bool
 
 
+class VisibleTextObservation(_StrictModel):
+    kind: Literal["narration", "dialogue", "other"]
+    text: _text(240)
+
+
 class PanelReview(_StrictModel):
     score: float = Field(ge=0, le=10)
+    visible_text: list[VisibleTextObservation] = Field(max_length=12)
     dimensions: ReviewDimensions
     issues: list[_text(400)] = Field(max_length=12)
     suggested_fix_prompt: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
     notes: Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
-
-    @model_validator(mode="after")
-    def cap_score_for_text_or_bubble_failures(self) -> "PanelReview":
-        dimensions = self.dimensions
-        if (
-            not dimensions.exact_visible_text
-            or dimensions.unexpected_visible_text
-            or not dimensions.bubble_ownership
-        ) and self.score > 5:
-            raise ValueError("text or bubble failures cap the review score at 5")
-        return self

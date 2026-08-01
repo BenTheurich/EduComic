@@ -144,9 +144,8 @@ def test_panel_review_success_prints_no_provider_url_or_student_name(
     response = panel_review.PanelReview.model_validate(
         {
             "score": 9.0,
+            "visible_text": [{"kind": "dialogue", "text": "private dialogue"}],
             "dimensions": {
-                "exact_visible_text": True,
-                "unexpected_visible_text": False,
                 "bubble_ownership": True,
                 "reference_identity_continuity": True,
                 "requested_action": True,

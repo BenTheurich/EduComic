@@ -173,9 +173,8 @@ def test_snapshotted_panel_review_setting_reviews_each_selected_panel_once(monke
         "review_panel_image",
         lambda *_args, **_kwargs: reviews.append(1) or {
             "score": 10,
+            "visible_text": [{"kind": "dialogue", "text": "Watch the orbit."}],
             "dimensions": {
-                "exact_visible_text": True,
-                "unexpected_visible_text": False,
                 "bubble_ownership": True,
                 "reference_identity_continuity": True,
                 "requested_action": True,
@@ -212,6 +211,24 @@ def test_generation_orders_previous_panel_then_featured_avatar_references():
         {"role": "previous successful panel", "url": "/media/story-images/previous.png"},
         {"role": "current avatar for Ada", "url": "/media/avatars/ada.png"},
     ]
+
+
+def test_every_panel_retry_prompt_keeps_reference_roles():
+    """Catches paid retries retaining images but dropping their semantic roles."""
+    generation = importlib.import_module("services.generation")
+    references = [
+        {"role": "previous successful panel", "url": "/media/story-images/previous.png"},
+        {"role": "current avatar for Ada", "url": "/media/avatars/ada.png"},
+    ]
+
+    retry = generation.build_panel_attempt_prompt(
+        "Base panel prompt.", references, "Correct the misspelling."
+    )
+
+    assert retry == (
+        "Base panel prompt. Reference image order: 1: previous successful panel; "
+        "2: current avatar for Ada. Correction: Correct the misspelling."
+    )
 
 
 def test_successful_swap_does_not_retire_historical_media(monkeypatch, tmp_path):

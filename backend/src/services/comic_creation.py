@@ -297,7 +297,7 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
                 best_review = review
 
             # If we passed the quality threshold, stop retrying
-            if not review_requires_retry(review):
+            if not review_requires_retry(review, panel):
                 print(f"      ✅ Panel passed quality threshold! (score {score:.1f} >= {PANEL_REVIEW_MIN_SCORE})")
                 break
 

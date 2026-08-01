@@ -52,6 +52,6 @@ npm test
 
 ## Optional panel review
 
-Panel review is off by default. When enabled in Settings, a failed panel check can add an OpenAI vision review and another BFL image generation per retry, increasing generation time and BYOK spend. The setting and its one-to-three attempt cap apply only to new generation runs. FLUX.2 Pro remains the default; Flex is an optional higher-cost typography choice.
+Panel review is off by default. When enabled in Settings, every initial panel receives an OpenAI vision review. Each retry adds another BFL image generation and another OpenAI vision review, increasing generation time and BYOK spend. The setting and its one-to-three attempt cap apply only to new generation runs. FLUX.2 Pro remains the default; Flex is an optional higher-cost typography choice.
 
 Future hosted PostgreSQL or Supabase work is separate from the private profile. PostgreSQL migration execution remains a future hosted acceptance gate; Phase 1 verifies portability by schema inspection and tests only. See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for the deny-by-default hosted boundary, not local setup instructions.
