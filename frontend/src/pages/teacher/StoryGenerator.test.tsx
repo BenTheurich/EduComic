@@ -140,6 +140,56 @@ describe("StoryGenerator", () => {
     expect(console.log).not.toHaveBeenCalled();
   });
 
+  it("reuses the idempotency key when the commit response is ambiguous", async () => {
+    const randomUUID = vi.spyOn(globalThis.crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000001")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000002");
+    startChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        story_ideas: [{ id: "idea_1", title: "Orbit", summary: "A lesson", theme: "Space" }],
+      },
+    });
+    commitChapter
+      .mockRejectedValueOnce(new Error("response lost"))
+      .mockResolvedValueOnce({ success: true });
+    getChapter.mockResolvedValue(chapterResponse("generating"));
+
+    renderGenerator();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Newton's laws" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate Story Options" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Select This Story" }));
+    await waitFor(() => expect(commitChapter).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Select This Story" }));
+    await waitFor(() => expect(commitChapter).toHaveBeenCalledTimes(2));
+
+    expect(commitChapter.mock.calls.map((call) => call[2])).toEqual([
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000001",
+    ]);
+    expect(randomUUID).toHaveBeenCalledTimes(1);
+  });
+
+  it("rotates the idempotency key after an observed terminal failure", async () => {
+    const randomUUID = vi.spyOn(globalThis.crypto, "randomUUID")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000001")
+      .mockReturnValueOnce("00000000-0000-4000-8000-000000000002");
+    getChapter.mockResolvedValue(chapterResponse("failed"));
+
+    await startGeneration();
+    fireEvent.click(await screen.findByRole("button", { name: "Try another story" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select This Story" }));
+    await waitFor(() => expect(commitChapter).toHaveBeenCalledTimes(2));
+
+    expect(commitChapter.mock.calls.map((call) => call[2])).toEqual([
+      "00000000-0000-4000-8000-000000000001",
+      "00000000-0000-4000-8000-000000000002",
+    ]);
+    expect(randomUUID).toHaveBeenCalledTimes(2);
+  });
+
   it("resets the consecutive polling failure limit after a successful poll", async () => {
     getChapter.mockRejectedValueOnce(new Error("offline"));
     getChapter.mockResolvedValueOnce(chapterResponse("generating"));

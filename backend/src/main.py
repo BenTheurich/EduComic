@@ -121,6 +121,7 @@ async def readiness_check():
     persistence_ready = local_data["persistence"]
     migrations_ready = local_data["migrations"]
     storage_ready = local_data["storage"]
+    cleanup_ready = local_data["cleanup"]
 
     def configured_secret(name: str) -> bool:
         value = os.getenv(name, "").strip()
@@ -132,25 +133,26 @@ async def readiness_check():
     }
     missing = [name for name, configured in (("OPENAI_API_KEY", providers["openai"]), ("BFL_API_KEY", providers["bfl"])) if not configured]
     content = {
-        "status": "ready" if persistence_ready and migrations_ready and storage_ready else "not_ready",
+        "status": "ready" if persistence_ready and migrations_ready and storage_ready and cleanup_ready else "not_ready",
         "local_data": local_data,
         "provider_capabilities": providers,
-        "generation_capability": persistence_ready and migrations_ready and storage_ready and all(providers.values()),
+        "generation_capability": persistence_ready and migrations_ready and storage_ready and cleanup_ready and all(providers.values()),
     }
     if missing:
         content["missing_configuration"] = missing
-    if not persistence_ready or not migrations_ready or not storage_ready:
+    if not persistence_ready or not migrations_ready or not storage_ready or not cleanup_ready:
         content["blocking_reasons"] = [
             reason
             for ready, reason in (
                 (persistence_ready, "local_persistence_unavailable"),
                 (migrations_ready, "database_migration_required"),
                 (storage_ready, "local_storage_unavailable"),
+                (cleanup_ready, "generation_cleanup_required"),
             )
             if not ready
         ]
     return JSONResponse(
-        status_code=200 if persistence_ready and migrations_ready and storage_ready else 503,
+        status_code=200 if persistence_ready and migrations_ready and storage_ready and cleanup_ready else 503,
         content=content,
     )
 

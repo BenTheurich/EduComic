@@ -161,6 +161,41 @@ def test_success_publishes_one_complete_local_revision_and_retires_old_media(mon
     assert not storage.absolute_path(old_path).exists()
 
 
+def test_successful_swap_persists_failed_old_media_retirement(monkeypatch, tmp_path):
+    """Catches a cleanup fault hiding an unretired old file after successful publication."""
+    database, storage, chapter_id, old_path = _ready_chapter(monkeypatch, tmp_path)
+    generation = importlib.import_module("services.generation")
+    runtime = importlib.import_module("local_runtime")
+    _mock_successful_providers(monkeypatch, generation)
+    original_delete = type(storage).delete
+
+    def fail_old_media(self, object_path):
+        if object_path == old_path:
+            raise PermissionError("locked")
+        return original_delete(self, object_path)
+
+    monkeypatch.setattr(type(storage), "delete", fail_old_media)
+    run, _created = database.begin_generation_run(chapter_id, "idea_1", "retirement-retry")
+
+    generation.run_generation(run["id"])
+
+    current = database.get_chapter_with_panels(chapter_id)
+    assert current["status"] == "ready"
+    assert current["revision"] == 2
+    assert database.get_generation_run(run["id"])["artifact_paths"] == [old_path]
+    assert storage.absolute_path(old_path).is_file()
+    assert runtime.local_readiness_details(tmp_path)["cleanup"] is False
+    with pytest.raises(RuntimeError, match="cleanup"):
+        runtime.initialize_local_backend(tmp_path)
+
+    monkeypatch.setattr(type(storage), "delete", original_delete)
+    runtime.initialize_local_backend(tmp_path)
+
+    assert not storage.absolute_path(old_path).exists()
+    assert database.get_generation_run(run["id"])["artifact_paths"] == []
+    assert database.get_chapter_with_panels(chapter_id)["revision"] == 2
+
+
 def test_finalization_crash_after_replace_cleans_the_unpublished_file(monkeypatch, tmp_path):
     """Catches the replace-to-manifest crash window orphaning unpublished story media."""
     database, storage, chapter_id, old_path = _ready_chapter(monkeypatch, tmp_path)
@@ -223,3 +258,39 @@ def test_startup_fails_interrupted_runs_and_cleans_only_their_new_artifacts(monk
     assert failed["error_code"] == "interrupted"
     assert storage.absolute_path(old_path).is_file()
     assert not storage.absolute_path(abandoned).exists()
+
+
+def test_failed_cleanup_remains_pending_and_retries_on_next_startup(monkeypatch, tmp_path):
+    """Catches a terminal run losing its cleanup manifest after one filesystem failure."""
+    database, storage, chapter_id, old_path = _ready_chapter(monkeypatch, tmp_path)
+    runtime = importlib.import_module("local_runtime")
+    run, _created = database.begin_generation_run(chapter_id, "idea_1", "cleanup-retry")
+    staged = storage.stage_bytes(PNG, ".png", max_bytes=len(PNG))
+    abandoned = storage.new_object_path("story-images", chapter_id, ".png")
+    storage.finalize(staged, abandoned)
+    database.record_generation_artifact(run["id"], abandoned)
+    database.fail_generation_run(run["id"], "interrupted", "safe-reference")
+    original_delete = type(storage).delete
+
+    def fail_abandoned_once(self, object_path):
+        if object_path == abandoned:
+            raise PermissionError("locked")
+        return original_delete(self, object_path)
+
+    monkeypatch.setattr(type(storage), "delete", fail_abandoned_once)
+    with pytest.raises(RuntimeError, match="cleanup"):
+        runtime.initialize_local_backend(tmp_path)
+
+    assert storage.absolute_path(abandoned).is_file()
+    assert database.get_generation_run(run["id"])["artifact_paths"] == [abandoned]
+    assert runtime.local_readiness_details(tmp_path)["cleanup"] is False
+    current = database.get_chapter_with_panels(chapter_id)
+    assert current["revision"] == 1
+    assert storage.absolute_path(old_path).is_file()
+
+    monkeypatch.setattr(type(storage), "delete", original_delete)
+    runtime.initialize_local_backend(tmp_path)
+
+    assert not storage.absolute_path(abandoned).exists()
+    assert database.get_generation_run(run["id"])["artifact_paths"] == []
+    assert runtime.local_readiness_details(tmp_path)["cleanup"] is True

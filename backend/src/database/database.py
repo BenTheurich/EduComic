@@ -476,6 +476,7 @@ def finalize_generation_run(
         chapter.status = "ready"
         run.job_state = "succeeded"
         run.stage = "ready"
+        run.artifact_paths = old_paths
         run.finished_at = datetime.now(timezone.utc)
         session.flush()
         return old_paths
@@ -518,6 +519,23 @@ def fail_interrupted_generation_runs(database_url: str | None = None) -> list[st
             if chapter:
                 chapter.status = "ready" if chapter.revision > 0 else "failed"
     return paths
+
+
+def get_pending_generation_artifacts(
+    database_url: str | None = None,
+) -> list[tuple[str, list[str]]]:
+    with _session(database_url) as session:
+        runs = session.scalars(select(GenerationRun)).all()
+        return [(run.id, list(run.artifact_paths or [])) for run in runs if run.artifact_paths]
+
+
+def replace_generation_artifacts(
+    run_id: str, artifact_paths: list[str], database_url: str | None = None
+) -> None:
+    with _session(database_url) as session:
+        run = session.get(GenerationRun, run_id)
+        if run is not None:
+            run.artifact_paths = list(dict.fromkeys(artifact_paths))
 
 
 def get_chapters_by_classroom(classroom_id: str) -> list[dict[str, Any]]:

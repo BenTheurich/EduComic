@@ -18,6 +18,9 @@ from services import comic_creation
 
 logger = logging.getLogger("educomic.generation")
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
+MAX_PNG_DIMENSION = 4096
+MAX_PNG_PIXELS = 16 * 1024 * 1024
+MAX_PNG_DECODED_BYTES = 64 * 1024 * 1024
 
 
 def _bfl_headers() -> dict[str, str]:
@@ -78,21 +81,34 @@ def poll_bfl_generation(
 
 
 def download_bfl_image(delivery_url: str) -> bytes:
-    response = requests.get(delivery_url, timeout=30)
-    response.raise_for_status()
-    content = response.content
-    if not content or len(content) > MAX_IMAGE_BYTES:
-        raise ValueError("BFL image size is invalid")
-    return content
+    response = requests.get(delivery_url, timeout=30, stream=True)
+    content = bytearray()
+    try:
+        response.raise_for_status()
+        for chunk in response.iter_content(chunk_size=64 * 1024):
+            if not chunk:
+                continue
+            remaining = MAX_IMAGE_BYTES + 1 - len(content)
+            content.extend(chunk[:remaining])
+            if len(content) > MAX_IMAGE_BYTES:
+                raise ValueError("BFL image size is invalid")
+        if not content:
+            raise ValueError("BFL image size is invalid")
+        return bytes(content)
+    finally:
+        response.close()
 
 
 def validate_image_bytes(content: bytes) -> None:
     """Validate and decompress the PNG payload emitted by the current BFL request."""
-    if len(content) < 45 or content[:8] != b"\x89PNG\r\n\x1a\n":
+    if len(content) < 45 or len(content) > MAX_IMAGE_BYTES or content[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("Generated image is not a PNG")
     offset = 8
-    image_data = bytearray()
-    width = height = None
+    decoded = bytearray()
+    decompressor = None
+    expected_decoded = row_bytes = height = None
+    saw_header = saw_data = False
+    data_ended = False
     saw_end = False
     while offset + 12 <= len(content):
         length = struct.unpack(">I", content[offset : offset + 4])[0]
@@ -105,24 +121,81 @@ def validate_image_bytes(content: bytes) -> None:
         if zlib.crc32(chunk_type + data) & 0xFFFFFFFF != expected_crc:
             raise ValueError("Generated PNG checksum is invalid")
         if chunk_type == b"IHDR":
-            if length != 13:
+            if saw_header or offset != 8 or length != 13:
                 raise ValueError("Generated PNG header is invalid")
-            width, height = struct.unpack(">II", data[:8])
+            width, height, bit_depth, color_type, compression, filtering, interlace = struct.unpack(
+                ">IIBBBBB", data
+            )
+            channels = {0: 1, 2: 3, 4: 2, 6: 4}.get(color_type)
+            if (
+                not width
+                or not height
+                or width > MAX_PNG_DIMENSION
+                or height > MAX_PNG_DIMENSION
+                or width * height > MAX_PNG_PIXELS
+                or bit_depth != 8
+                or channels is None
+                or compression != 0
+                or filtering != 0
+                or interlace != 0
+            ):
+                raise ValueError("Generated PNG header is unsupported")
+            row_bytes = width * channels
+            expected_decoded = height * (row_bytes + 1)
+            if expected_decoded > MAX_PNG_DECODED_BYTES:
+                raise ValueError("Generated PNG decoded size is too large")
+            decompressor = zlib.decompressobj()
+            saw_header = True
         elif chunk_type == b"IDAT":
-            image_data.extend(data)
+            if not saw_header or data_ended or decompressor is None or expected_decoded is None:
+                raise ValueError("Generated PNG chunk order is invalid")
+            saw_data = True
+            try:
+                decoded.extend(
+                    decompressor.decompress(data, expected_decoded + 1 - len(decoded))
+                )
+            except zlib.error as exc:
+                raise ValueError("Generated PNG pixels cannot be decoded") from exc
+            if len(decoded) > expected_decoded or decompressor.unconsumed_tail:
+                raise ValueError("Generated PNG decoded size is invalid")
         elif chunk_type == b"IEND":
+            if length != 0 or not saw_data:
+                raise ValueError("Generated PNG end chunk is invalid")
             saw_end = True
+            offset = end
             break
+        elif chunk_type[:1].isupper():
+            raise ValueError("Generated PNG contains an unsupported critical chunk")
+        elif saw_data:
+            data_ended = True
         offset = end
-    if not width or not height or not image_data or not saw_end:
+    if (
+        not saw_header
+        or not saw_end
+        or offset != len(content)
+        or decompressor is None
+        or expected_decoded is None
+        or row_bytes is None
+        or height is None
+    ):
         raise ValueError("Generated PNG structure is incomplete")
     try:
-        zlib.decompress(image_data)
+        decoded.extend(decompressor.decompress(b"", expected_decoded + 1 - len(decoded)))
     except zlib.error as exc:
         raise ValueError("Generated PNG pixels cannot be decoded") from exc
+    if (
+        len(decoded) != expected_decoded
+        or not decompressor.eof
+        or decompressor.unused_data
+        or decompressor.unconsumed_tail
+    ):
+        raise ValueError("Generated PNG decoded size is invalid")
+    if any(decoded[row * (row_bytes + 1)] > 4 for row in range(height)):
+        raise ValueError("Generated PNG contains an invalid row filter")
 
 
-def _delete_artifacts(storage: LocalStorage, paths: list[str]) -> None:
+def _delete_artifacts(storage: LocalStorage, paths: list[str]) -> list[str]:
+    remaining = []
     for path in dict.fromkeys(paths):
         try:
             if path.startswith("staging/"):
@@ -130,7 +203,9 @@ def _delete_artifacts(storage: LocalStorage, paths: list[str]) -> None:
             else:
                 storage.delete(path)
         except Exception:
+            remaining.append(path)
             logger.error("Generation artifact cleanup failed")
+    return remaining
 
 
 def run_generation(run_id: str) -> None:
@@ -202,7 +277,8 @@ def run_generation(run_id: str) -> None:
         stage = "swap"
         database.set_generation_stage(run_id, "database_swap")
         old_paths = database.finalize_generation_run(run_id, script, ready_panels)
-        _delete_artifacts(storage, old_paths)
+        remaining = _delete_artifacts(storage, old_paths)
+        database.replace_generation_artifacts(run_id, remaining)
     except Exception:
         error_codes = {
             "script": "script_invalid",
@@ -215,7 +291,10 @@ def run_generation(run_id: str) -> None:
         }
         reference = uuid4().hex
         persisted = database.fail_generation_run(run_id, error_codes[stage], reference)
-        _delete_artifacts(storage, [*artifacts, *persisted])
+        remaining = _delete_artifacts(storage, [*artifacts, *persisted])
+        database.replace_generation_artifacts(
+            run_id, [path for path in remaining if not path.startswith("staging/")]
+        )
         logger.error(
             "Story generation failed run_id=%s code=%s reference=%s",
             run_id,

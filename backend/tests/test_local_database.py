@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
@@ -28,6 +30,14 @@ from database.session import create_local_engine
 
 def _database_url(path: Path) -> str:
     return f"sqlite:///{path.as_posix()}"
+
+
+def _upgrade_to(database_url: str, revision: str) -> None:
+    backend_root = Path(__file__).resolve().parents[1]
+    config = Config(str(backend_root / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_root / "alembic"))
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    command.upgrade(config, revision)
 
 
 def test_blank_database_upgrades_to_migration_head(tmp_path):
@@ -55,6 +65,82 @@ def test_blank_database_upgrades_to_migration_head(tmp_path):
     assert {"selected_idea_id", "stage", "error_code", "artifact_paths"} <= generation_columns
     indexes = {index["name"] for index in inspect(engine).get_indexes("generation_runs")}
     assert "uq_generation_runs_active_chapter" in indexes
+
+
+def test_populated_0001_database_reconciles_active_runs_before_unique_index(tmp_path):
+    """Catches migration failure or story loss when legacy active rows already collide."""
+    url = _database_url(tmp_path / "educomic.db")
+    _upgrade_to(url, "0001_local_foundation")
+    engine = create_engine(url)
+    owner = "00000000-0000-4000-8000-000000000001"
+    classroom = "00000000-0000-4000-8000-000000000002"
+    readable = "00000000-0000-4000-8000-000000000003"
+    initial = "00000000-0000-4000-8000-000000000004"
+    with engine.begin() as connection:
+        connection.execute(
+            text("INSERT INTO local_profiles (id, display_name, role, display_settings) VALUES (:id, 'Teacher', 'teacher', '{}')"),
+            {"id": owner},
+        )
+        connection.execute(
+            text("""
+                INSERT INTO classrooms
+                    (id, owner_id, name, subject, grade_level, story_theme, design_style)
+                VALUES (:id, :owner, 'Class', 'Science', '6', 'Space', 'comic')
+            """),
+            {"id": classroom, "owner": owner},
+        )
+        connection.execute(
+            text("""
+                INSERT INTO chapters
+                    (id, classroom_id, "index", original_prompt, story_ideas, chosen_idea_id, status, revision)
+                VALUES
+                    (:readable, :classroom, 1, 'Orbits', '[]', 'idea_1', 'generating', 1),
+                    (:initial, :classroom, 2, 'Forces', '[]', 'idea_1', 'generating', 0)
+            """),
+            {"readable": readable, "initial": initial, "classroom": classroom},
+        )
+        connection.execute(
+            text("""
+                INSERT INTO panels
+                    (id, chapter_id, revision, panel_number, dialogue, scene_description, speakers, image_object_path)
+                VALUES
+                    ('00000000-0000-4000-8000-000000000005', :chapter, 1, 1, '', 'Old', '[]',
+                     'story-images/00000000-0000-4000-8000-000000000003/old.png')
+            """),
+            {"chapter": readable},
+        )
+        for suffix, chapter_id in (("6", readable), ("7", readable), ("8", initial)):
+            connection.execute(
+                text("""
+                    INSERT INTO generation_runs
+                        (id, idempotency_key, chapter_id, target_revision, job_state)
+                    VALUES (:id, :key, :chapter, 2, 'running')
+                """),
+                {
+                    "id": f"00000000-0000-4000-8000-00000000000{suffix}",
+                    "key": f"legacy-{suffix}",
+                    "chapter": chapter_id,
+                },
+            )
+
+    upgrade_database(url)
+
+    with engine.connect() as connection:
+        runs = connection.execute(
+            text("SELECT job_state, stage, error_code, error_reference FROM generation_runs")
+        ).mappings().all()
+        statuses = dict(connection.execute(text("SELECT id, status FROM chapters")).all())
+    assert all(
+        run["job_state"] == "failed"
+        and run["stage"] == "failed"
+        and run["error_code"] == "interrupted"
+        and run["error_reference"]
+        for run in runs
+    )
+    assert statuses[readable] == "ready"
+    assert statuses[initial] == "failed"
+    index = next(index for index in GenerationRun.__table__.indexes if index.name == "uq_generation_runs_active_chapter")
+    assert str(index.dialect_options["sqlite"]["where"]) == str(index.dialect_options["postgresql"]["where"])
 
 
 def test_database_records_survive_engine_restart(tmp_path):

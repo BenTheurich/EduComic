@@ -186,6 +186,7 @@ def test_readiness_inspects_local_data_and_provider_configuration_without_networ
             "migrations": True,
             "data_directory_writable": True,
             "storage": True,
+            "cleanup": True,
         },
         "provider_capabilities": {"openai": False, "bfl": False},
         "generation_capability": False,

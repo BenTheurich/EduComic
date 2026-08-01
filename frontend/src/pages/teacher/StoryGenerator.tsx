@@ -32,6 +32,7 @@ const StoryGenerator = () => {
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const generationRequestRef = useRef<{ chapterId: string; storyId: string; idempotencyKey: string } | null>(null);
   const pollAttempts = useRef(0);
   const consecutivePollingErrors = useRef(0);
   const maxPollAttempts = 300; // 10 minutes at 2-second intervals
@@ -80,6 +81,7 @@ const StoryGenerator = () => {
 
         // Check if generation is complete
         if (response.chapter.status === 'ready') {
+          generationRequestRef.current = null;
           setIsPolling(false);
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
@@ -92,6 +94,7 @@ const StoryGenerator = () => {
         }
 
         if (response.chapter.status === 'failed') {
+          generationRequestRef.current = null;
           setIsPolling(false);
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
@@ -154,6 +157,7 @@ const StoryGenerator = () => {
       const response = await api.story.startChapter(classroomId, lessonInput);
 
       setChapterId(response.chapter.id);
+      generationRequestRef.current = null;
       const options = response.chapter.story_ideas || [];
       setStoryOptions(options);
       setStep(2);
@@ -177,12 +181,17 @@ const StoryGenerator = () => {
     setSelectedStory(storyId);
     setGenerationError(null);
     setStep(3);
+    const previousRequest = generationRequestRef.current;
+    const request = previousRequest?.chapterId === chapterId && previousRequest.storyId === storyId
+      ? previousRequest
+      : { chapterId, storyId, idempotencyKey: crypto.randomUUID() };
+    generationRequestRef.current = request;
 
     try {
       await api.story.chooseIdea(chapterId, storyId);
 
       // Start the comic generation in the background
-      await api.story.commitChapter(chapterId, storyId, crypto.randomUUID());
+      await api.story.commitChapter(chapterId, storyId, request.idempotencyKey);
 
       // Start polling for panels
       startPolling();

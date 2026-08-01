@@ -1,5 +1,6 @@
 """First-run local data initialization."""
 
+import json
 import os
 from dataclasses import dataclass
 from datetime import timedelta
@@ -38,15 +39,28 @@ def initialize_local_backend(data_dir: Path | str | None = None) -> LocalPaths:
     database_url = local_database_url(paths)
     storage = LocalStorage(paths.root)
     upgrade_database(database_url)
-    from database.database import ensure_local_teacher, fail_interrupted_generation_runs
+    from database.database import (
+        ensure_local_teacher,
+        fail_interrupted_generation_runs,
+        get_pending_generation_artifacts,
+        replace_generation_artifacts,
+    )
 
     ensure_local_teacher(database_url)
-    for object_path in fail_interrupted_generation_runs(database_url):
-        try:
-            storage.delete(object_path)
-        except Exception:
-            pass
+    fail_interrupted_generation_runs(database_url)
+    unresolved = []
+    for run_id, artifact_paths in get_pending_generation_artifacts(database_url):
+        remaining = []
+        for object_path in artifact_paths:
+            try:
+                storage.delete(object_path)
+            except Exception:
+                remaining.append(object_path)
+        replace_generation_artifacts(run_id, remaining, database_url)
+        unresolved.extend(remaining)
     storage.cleanup_staging(older_than=timedelta(0))
+    if unresolved:
+        raise RuntimeError("Generation cleanup remains unresolved")
     return paths
 
 
@@ -61,6 +75,7 @@ def local_readiness_details(data_dir: Path | str | None = None) -> dict[str, boo
     paths = resolve_local_paths(data_dir)
     persistence_ready = False
     migrations_ready = False
+    cleanup_ready = True
     storage_ready = False
     try:
         engine = create_local_engine(local_database_url(paths))
@@ -70,6 +85,11 @@ def local_readiness_details(data_dir: Path | str | None = None) -> dict[str, boo
                 connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
                 == MIGRATION_HEAD
             )
+            if migrations_ready:
+                manifests = connection.execute(
+                    text("SELECT artifact_paths FROM generation_runs")
+                ).scalars()
+                cleanup_ready = all(not json.loads(value or "[]") for value in manifests)
         engine.dispose()
         persistence_ready = True
     except Exception:
@@ -87,4 +107,5 @@ def local_readiness_details(data_dir: Path | str | None = None) -> dict[str, boo
         "migrations": migrations_ready,
         "data_directory_writable": storage_ready,
         "storage": storage_ready,
+        "cleanup": cleanup_ready,
     }
