@@ -30,6 +30,7 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
 
     monkeypatch.setattr(database, "get_classroom", lambda _id: {"id": str(classroom_id), "story_theme": "space"})
     monkeypatch.setattr(database, "get_students_by_classroom", lambda _id: [])
+    monkeypatch.setattr(database, "get_students_by_ids", lambda _ids: [])
     monkeypatch.setattr(database, "get_chapters_by_classroom", lambda _id: [])
     monkeypatch.setattr(database, "get_chapter", lambda chapter: chapters.get(chapter))
     monkeypatch.setattr(
@@ -39,6 +40,31 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     )
     monkeypatch.setattr(database, "create_chapter", create_chapter)
     monkeypatch.setattr(database, "update_chapter", update_chapter)
+    monkeypatch.setattr(
+        database,
+        "begin_story_options",
+        lambda classroom, index, prompt: create_chapter(
+            {
+                "classroom_id": classroom,
+                "index": index,
+                "original_prompt": prompt,
+                "story_ideas": [],
+                "option_student_ids": [],
+                "option_settings_snapshot": {"openai_model": "gpt-5.1"},
+                "status": "draft",
+            }
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        database,
+        "complete_story_options",
+        lambda chapter, ideas: update_chapter(
+            chapter, {"story_ideas": ideas, "status": "options_generated"}
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(database, "fail_story_options", lambda _chapter: None, raising=False)
     monkeypatch.setattr(
         database,
         "choose_chapter_idea",
@@ -59,7 +85,9 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     monkeypatch.setattr(
         story_idea,
         "generate_story_ideas",
-        lambda *_args: [{"title": f"Idea {index}", "summary": "Summary"} for index in range(1, 4)],
+        lambda *_args, **_kwargs: [
+            {"title": f"Idea {index}", "summary": "Summary"} for index in range(1, 4)
+        ],
     )
     monkeypatch.setattr(main, "run_generation", lambda run: committed.append(run), raising=False)
 
@@ -217,6 +245,7 @@ async def test_invalid_story_ideas_do_not_insert_a_chapter(monkeypatch):
 
     monkeypatch.setattr(database, "get_classroom", lambda _id: {"id": str(classroom_id), "story_theme": "space"})
     monkeypatch.setattr(database, "get_students_by_classroom", lambda _id: [])
+    monkeypatch.setattr(database, "get_students_by_ids", lambda _ids: [], raising=False)
     monkeypatch.setattr(database, "get_chapters_by_classroom", lambda _id: [])
     monkeypatch.setattr(database, "create_chapter", lambda data: inserts.append(data))
     monkeypatch.setattr(

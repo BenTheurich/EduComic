@@ -48,6 +48,7 @@ def test_blank_database_upgrades_to_migration_head(tmp_path):
 
     engine = create_engine(url)
     assert set(inspect(engine).get_table_names()) == {
+        "active_work",
         "alembic_version",
             "chapter_materials",
             "chapters",
@@ -61,7 +62,7 @@ def test_blank_database_upgrades_to_migration_head(tmp_path):
         "student_classrooms",
         "students",
     }
-    assert engine.connect().execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0003_local_mutations"
+    assert engine.connect().execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0004_review_fixes"
     generation_columns = {column["name"] for column in inspect(engine).get_columns("generation_runs")}
     assert {"selected_idea_id", "stage", "error_code", "artifact_paths"} <= generation_columns
     indexes = {index["name"] for index in inspect(engine).get_indexes("generation_runs")}
@@ -343,4 +344,4 @@ def test_schema_compiles_for_postgresql_dialect():
     """Catches SQLite-only column definitions entering the portable model contract."""
     statements = [str(CreateTable(table).compile(dialect=postgresql.dialect())) for table in Base.metadata.sorted_tables]
 
-    assert len(statements) == 11
+    assert len(statements) == 12

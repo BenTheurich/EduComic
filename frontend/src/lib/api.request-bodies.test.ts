@@ -69,3 +69,18 @@ describe("active POST request bodies", () => {
     );
   });
 });
+
+it("sends explicit confirmation for classroom-only student removal", async () => {
+  const fetchMock = vi.fn().mockResolvedValue(new Response("{}", {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  }));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await api.students.leaveClassroom("student-1", "classroom-1");
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "http://127.0.0.1:8000/students/student-1/leave-classroom/classroom-1?confirm=true",
+    expect.objectContaining({ method: "DELETE" }),
+  );
+});

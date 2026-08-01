@@ -14,6 +14,7 @@ from database import database
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
 from panel_review import review_panel_image
+from provider_config import SUPPORTED_BFL_MODELS, require_supported_model
 from services import comic_creation
 
 
@@ -32,8 +33,13 @@ def _bfl_headers() -> dict[str, str]:
 
 
 def submit_bfl_generation(
-    prompt: str, aspect_ratio: str = "3:2", reference_images: list[str] | None = None
+    prompt: str,
+    aspect_ratio: str = "3:2",
+    reference_images: list[str] | None = None,
+    *,
+    model: str = "flux-2-pro",
 ) -> str:
+    model = require_supported_model(model, SUPPORTED_BFL_MODELS, "BFL")
     width, height = comic_creation._dims_from_aspect(aspect_ratio)
     body = {
         "prompt": prompt,
@@ -51,9 +57,8 @@ def submit_bfl_generation(
         body[key] = base64.b64encode(storage.read_bytes(object_path, max_bytes=MAX_IMAGE_BYTES)).decode()
 
     headers = {**_bfl_headers(), "Content-Type": "application/json"}
-    endpoint = os.getenv("BFL_MODEL_ENDPOINT", "flux-2-pro")
     response = requests.post(
-        f"https://api.bfl.ai/v1/{endpoint}", headers=headers, json=body, timeout=30
+        f"https://api.bfl.ai/v1/{model}", headers=headers, json=body, timeout=30
     )
     response.raise_for_status()
     polling_url = response.json().get("polling_url")
@@ -227,13 +232,14 @@ def run_generation(run_id: str) -> None:
         chosen = ideas.get(run["selected_idea_id"])
         if chosen is None or chapter.get("chosen_idea_id") != run["selected_idea_id"]:
             raise ValueError("Chosen idea is invalid")
-        students = database.get_students_by_classroom(chapter["classroom_id"])
+        students = database.get_students_by_ids(run["settings_snapshot"]["student_ids"])
         script = comic_creation.generate_full_script_and_panels(
             classroom=classroom,
             students=students,
             teacher_outline=chapter["original_prompt"],
             chosen_idea=chosen,
             panel_count=run["settings_snapshot"]["story_length"],
+            model=run["settings_snapshot"]["openai_model"],
         )
         expected_count = run["settings_snapshot"]["story_length"]
         if len(script["panels"]) != expected_count:
@@ -256,7 +262,10 @@ def run_generation(run_id: str) -> None:
                 stage = "submit"
                 database.set_generation_stage(run_id, "bfl_submit")
                 polling_url = submit_bfl_generation(
-                    candidate_prompt, prompt["aspect_ratio"], [previous_url] if previous_url else []
+                    candidate_prompt,
+                    prompt["aspect_ratio"],
+                    [previous_url] if previous_url else [],
+                    model=run["settings_snapshot"]["bfl_model"],
                 )
                 stage = "poll"
                 database.set_generation_stage(run_id, "bfl_poll")
@@ -269,7 +278,13 @@ def run_generation(run_id: str) -> None:
                 validate_image_bytes(image)
                 if not review_enabled:
                     break
-                review = review_panel_image(delivery_url, panel, classroom, students)
+                review = review_panel_image(
+                    delivery_url,
+                    panel,
+                    classroom,
+                    students,
+                    model=run["settings_snapshot"]["openai_model"],
+                )
                 if review["score"] >= 9 or attempt == attempts - 1:
                     break
                 candidate_prompt = f"{prompt['prompt']} Correction: {review.get('suggested_fix_prompt', '')}"

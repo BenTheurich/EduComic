@@ -20,15 +20,13 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from openai import OpenAI
 from provider_clients import LazyClient
+from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
 
 from story_contracts import PanelReview
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
-# Separate model for QA so you can tweak independently
-OPENAI_QA_MODEL = os.getenv("OPENAI_QA_MODEL", "gpt-4o")
-
 openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
 
@@ -65,6 +63,8 @@ def review_panel_image(
     classroom: Dict[str, Any],
     students: List[Dict[str, Any]],
     min_score: float = 8.0,
+    *,
+    model: str = "gpt-5.1",
 ) -> Dict[str, Any]:
     """
     Ask a multimodal OpenAI model to review a single comic panel image.
@@ -96,6 +96,7 @@ def review_panel_image(
     setting = (panel.get("setting") or "").strip()
     description = (panel.get("description") or "").strip()
 
+    model = require_supported_model(model, SUPPORTED_OPENAI_MODELS, "OpenAI")
     review_payload = {
         "panel_index": panel.get("index"),
         "expected_setting": setting,
@@ -195,7 +196,7 @@ def review_panel_image(
 
     try:
         resp = openai_client.chat.completions.parse(
-            model=OPENAI_QA_MODEL,
+            model=model,
             response_format=PanelReview,
             max_completion_tokens=2048,
             messages=[

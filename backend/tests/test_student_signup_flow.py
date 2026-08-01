@@ -43,7 +43,11 @@ async def test_avatar_lookup_failure_propagates_before_provider_call(monkeypatch
     avatar = importlib.import_module("services.avatar")
     provider = AsyncMock(return_value="provider-image")
     storage = AsyncMock(return_value="stored-avatar")
-    monkeypatch.setattr(avatar, "get_student", lambda _student_id: {"id": "student-1", "interests": "robots"})
+    monkeypatch.setattr(
+        avatar,
+        "begin_avatar_work",
+        lambda _student_id: ({"id": "student-1", "interests": "robots"}, "flux-2-pro"),
+    )
     monkeypatch.setattr(
         avatar,
         "get_classrooms_by_student",
@@ -51,6 +55,7 @@ async def test_avatar_lookup_failure_propagates_before_provider_call(monkeypatch
     )
     monkeypatch.setattr(avatar, "_call_black_forest_api", provider)
     monkeypatch.setattr(avatar, "_upload_avatar_to_storage", storage)
+    monkeypatch.setattr(avatar, "finish_avatar_work", lambda _student_id: None)
     monkeypatch.setenv("BFL_API_KEY", "test-key")
 
     with pytest.raises(RuntimeError, match="classroom lookup failed"):
@@ -66,12 +71,17 @@ async def test_explicit_avatar_generation_uses_the_enrolled_classroom_style(monk
     student = {"id": "student-1", "name": "Ada Lovelace", "interests": "robots"}
     classroom = {"id": "classroom-1", "name": "Science", "design_style": "cartoon"}
     prompts = []
-    monkeypatch.setattr(avatar, "get_student", lambda _student_id: student)
+    monkeypatch.setattr(avatar, "begin_avatar_work", lambda _student_id: (student, "flux-2-pro"))
     monkeypatch.setattr(avatar, "get_classrooms_by_student", lambda _student_id: [classroom])
-    monkeypatch.setattr(avatar, "update_student", lambda _student_id, updates: {**student, **updates})
+    monkeypatch.setattr(
+        avatar,
+        "replace_student_avatar",
+        lambda _student_id, avatar_url: ({**student, "avatar_url": avatar_url}, None),
+    )
+    monkeypatch.setattr(avatar, "finish_avatar_work", lambda _student_id: None)
     monkeypatch.setenv("BFL_API_KEY", "test-key")
 
-    async def capture_prompt(prompt, _api_key):
+    async def capture_prompt(prompt, _api_key, **_kwargs):
         prompts.append(prompt)
         return "provider-image"
 
@@ -99,13 +109,21 @@ async def test_avatar_update_failure_deletes_new_file_and_preserves_old(monkeypa
         storage.finalize(storage.stage_bytes(value, ".png", max_bytes=10), path)
     monkeypatch.setattr(
         avatar,
-        "get_student",
-        lambda _student_id: {"id": student_id, "interests": "robots", "avatar_url": media_url(old_path)},
+        "begin_avatar_work",
+        lambda _student_id: (
+            {"id": student_id, "interests": "robots", "avatar_url": media_url(old_path)},
+            "flux-2-pro",
+        ),
     )
     monkeypatch.setattr(avatar, "get_classrooms_by_student", lambda _student_id: [])
     monkeypatch.setattr(avatar, "_call_black_forest_api", AsyncMock(return_value="provider"))
     monkeypatch.setattr(avatar, "_upload_avatar_to_storage", AsyncMock(return_value=media_url(new_path)))
-    monkeypatch.setattr(avatar, "update_student", lambda *_args: (_ for _ in ()).throw(RuntimeError("db failed")))
+    monkeypatch.setattr(
+        avatar,
+        "replace_student_avatar",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("db failed")),
+    )
+    monkeypatch.setattr(avatar, "finish_avatar_work", lambda _student_id: None)
 
     with pytest.raises(RuntimeError, match="db failed"):
         await avatar.generate_avatar(student_id)
@@ -126,11 +144,17 @@ async def test_successful_avatar_replacement_deletes_superseded_file(monkeypatch
     for path, value in ((old_path, b"old"), (new_path, b"new")):
         storage.finalize(storage.stage_bytes(value, ".png", max_bytes=10), path)
     student = {"id": student_id, "interests": "robots", "avatar_url": media_url(old_path)}
-    monkeypatch.setattr(avatar, "get_student", lambda _student_id: student)
+    monkeypatch.setattr(avatar, "begin_avatar_work", lambda _student_id: (student, "flux-2-pro"))
     monkeypatch.setattr(avatar, "get_classrooms_by_student", lambda _student_id: [])
     monkeypatch.setattr(avatar, "_call_black_forest_api", AsyncMock(return_value="provider"))
     monkeypatch.setattr(avatar, "_upload_avatar_to_storage", AsyncMock(return_value=media_url(new_path)))
-    monkeypatch.setattr(avatar, "update_student", lambda _student_id, updates: {**student, **updates})
+    monkeypatch.setattr(
+        avatar,
+        "replace_student_avatar",
+        lambda _student_id, avatar_url: ({**student, "avatar_url": avatar_url}, old_path),
+    )
+    monkeypatch.setattr(avatar, "finish_superseded_avatar_cleanup", lambda *_args: None)
+    monkeypatch.setattr(avatar, "finish_avatar_work", lambda _student_id: None)
 
     result = await avatar.generate_avatar(student_id)
 
@@ -144,7 +168,6 @@ async def test_missing_bfl_key_is_service_unavailable_not_student_missing(monkey
     avatar = importlib.import_module("services.avatar")
     main = importlib.import_module("main")
     monkeypatch.delenv("BFL_API_KEY", raising=False)
-    monkeypatch.setattr(avatar, "get_student", lambda _student_id: {"id": "student", "interests": "robots"})
     monkeypatch.setattr(main, "generate_avatar", avatar.generate_avatar)
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://test") as client:

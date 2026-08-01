@@ -268,6 +268,13 @@ Exit criterion: synthetic fixture tests cover upload validation, consent require
 
 Exit criterion: model/default choices are backed by recorded fictional eval results, not “latest” branding; provider delivery URLs never reach persisted ready records; prompt/model changes require eval comparison.
 
+Non-blocking carry-forward ledger from the Phase 4 review:
+
+- Clear the erased student profile from frontend memory immediately after successful full erasure, before navigation completes.
+- Add the same destructive actions to the compact student/classroom list views as the detail views.
+- Install and run the configured Ruff gate in the checked-in backend development environment before final release.
+- Refresh the frontend Browserslist database during the final dependency-maintenance pass.
+
 ### Phase 9: Complete story correction and export workflows
 
 1. Add local selective panel regeneration using the same revision, atomic swap, and file-cleanup rules as full generation. Hosted authorization comes later.

@@ -7,14 +7,13 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from openai import OpenAI
 from provider_clients import LazyClient
+from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
 
 from story_contracts import StoryIdeasResponse
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.1")
-
 openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
 if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_API_KEY_HERE":
@@ -51,6 +50,8 @@ def generate_story_ideas(
     classroom: Dict[str, Any],
     students: List[Dict[str, Any]],
     teacher_outline: str,
+    *,
+    model: str = "gpt-5.1",
 ) -> List[Dict[str, Any]]:
     """
     Ask OpenAI for 3 story ideas for this classroom + outline.
@@ -62,6 +63,7 @@ def generate_story_ideas(
         {"id": "idea_3", ...}
       ]
     """
+    model = require_supported_model(model, SUPPORTED_OPENAI_MODELS, "OpenAI")
     payload = _classroom_context_dict(classroom, students, teacher_outline)
 
     system_prompt = (
@@ -87,7 +89,7 @@ def generate_story_ideas(
     )
 
     resp = openai_client.chat.completions.parse(
-        model=OPENAI_MODEL,
+        model=model,
         response_format=StoryIdeasResponse,
         max_completion_tokens=2048,
         messages=[

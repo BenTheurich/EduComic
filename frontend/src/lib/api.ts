@@ -295,7 +295,7 @@ export const api = {
       apiFetch<{
         success: boolean;
         message: string;
-      }>(`/students/${studentId}/leave-classroom/${classroomId}`, {
+      }>(`/students/${studentId}/leave-classroom/${classroomId}?confirm=true`, {
         method: 'DELETE',
       }),
 

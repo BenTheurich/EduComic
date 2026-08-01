@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from database.models import (
+    ActiveWork,
     Chapter,
     Classroom,
     DeletionManifest,
@@ -27,6 +28,7 @@ from database.models import (
 from database.session import create_session_factory
 from local_runtime import local_database_url, resolve_local_paths
 from local_storage import LocalStorage, media_url
+from provider_config import SUPPORTED_BFL_MODELS, SUPPORTED_OPENAI_MODELS, require_supported_model
 
 LOCAL_TEACHER_ID = "00000000-0000-0000-0000-000000000001"
 DEFAULT_SETTINGS = {
@@ -94,6 +96,9 @@ def _chapter(chapter: Chapter) -> dict[str, Any]:
         "index": chapter.index,
         "original_prompt": chapter.original_prompt,
         "story_ideas": chapter.story_ideas or [],
+        "option_student_ids": list(chapter.option_student_ids or []),
+        "option_provenance_complete": chapter.option_provenance_complete,
+        "option_settings_snapshot": dict(chapter.option_settings_snapshot or {}),
         "chosen_idea_id": chapter.chosen_idea_id,
         "status": chapter.status,
         "revision": chapter.revision,
@@ -331,6 +336,15 @@ def get_students_by_classroom(classroom_id: str) -> list[dict[str, Any]]:
         return [_student(row) for row in rows]
 
 
+def get_students_by_ids(student_ids: list[str]) -> list[dict[str, Any]]:
+    """Load an immutable participant snapshot in its original order."""
+    with _session() as session:
+        students = {student.id: student for student in session.scalars(select(Student).where(Student.id.in_(student_ids)))}
+        if set(students) != set(student_ids):
+            raise GenerationConflict("Generation participant is unavailable")
+        return [_student(students[student_id]) for student_id in student_ids]
+
+
 def update_student(student_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
     allowed = {"name", "interests", "avatar_url"}
     if set(updates) - allowed:
@@ -348,6 +362,32 @@ def update_student(student_id: str, updates: dict[str, Any]) -> dict[str, Any] |
         return _student(student)
 
 
+def replace_student_avatar(student_id: str, avatar_url: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Swap the visible avatar while durably retaining superseded cleanup work."""
+    new_path = _media_object_path(avatar_url)
+    with _session() as session:
+        student = session.get(Student, student_id)
+        if student is None:
+            return None, None
+        old_path = student.avatar_object_path
+        if old_path and old_path != new_path:
+            student.superseded_avatar_paths = list(
+                dict.fromkeys([*(student.superseded_avatar_paths or []), old_path])
+            )
+        student.avatar_object_path = new_path
+        session.flush()
+        return _student(student), old_path
+
+
+def finish_superseded_avatar_cleanup(student_id: str, object_path: str) -> None:
+    with _session() as session:
+        student = session.get(Student, student_id)
+        if student:
+            student.superseded_avatar_paths = [
+                path for path in student.superseded_avatar_paths or [] if path != object_path
+            ]
+
+
 def get_chapter(chapter_id: str) -> dict[str, Any] | None:
     with _session() as session:
         chapter = session.get(Chapter, chapter_id)
@@ -355,7 +395,18 @@ def get_chapter(chapter_id: str) -> dict[str, Any] | None:
 
 
 def create_chapter(data: dict[str, Any]) -> dict[str, Any]:
-    allowed = {"classroom_id", "index", "original_prompt", "story_ideas", "chosen_idea_id", "title", "status"}
+    allowed = {
+        "classroom_id",
+        "index",
+        "original_prompt",
+        "story_ideas",
+        "option_student_ids",
+        "option_provenance_complete",
+        "option_settings_snapshot",
+        "chosen_idea_id",
+        "title",
+        "status",
+    }
     if set(data) - allowed:
         raise ValueError("Unsupported chapter field")
     with _session() as session:
@@ -366,7 +417,17 @@ def create_chapter(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def update_chapter(chapter_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
-    allowed = {"story_ideas", "chosen_idea_id", "title", "status", "revision", "story_script"}
+    allowed = {
+        "story_ideas",
+        "option_student_ids",
+        "option_provenance_complete",
+        "option_settings_snapshot",
+        "chosen_idea_id",
+        "title",
+        "status",
+        "revision",
+        "story_script",
+    }
     if set(updates) - allowed:
         raise ValueError("Unsupported chapter update")
     with _session() as session:
@@ -377,6 +438,126 @@ def update_chapter(chapter_id: str, updates: dict[str, Any]) -> dict[str, Any] |
             setattr(chapter, key, value)
         session.flush()
         return _chapter(chapter)
+
+
+def _deletion_started(session: Session, target_kind: str, target_id: str) -> bool:
+    if session.scalar(select(DeletionManifest.id).where(DeletionManifest.target_kind == "reset")):
+        return True
+    if session.scalar(
+        select(DeletionManifest.id).where(
+            DeletionManifest.target_kind == target_kind,
+            DeletionManifest.target_id == target_id,
+        )
+    ):
+        return True
+    if target_kind == "chapter":
+        classroom_id = session.scalar(select(Chapter.classroom_id).where(Chapter.id == target_id))
+        return bool(
+            classroom_id
+            and session.scalar(
+                select(DeletionManifest.id).where(
+                    DeletionManifest.target_kind == "classroom",
+                    DeletionManifest.target_id == classroom_id,
+                )
+            )
+        )
+    return False
+
+
+def begin_story_options(classroom_id: str, index: int, original_prompt: str) -> dict[str, Any]:
+    """Create an option shell and durable provider-work lease in one transaction."""
+    with _session() as session:
+        if session.get(Classroom, classroom_id) is None:
+            raise ValueError("Classroom not found")
+        if _deletion_started(session, "classroom", classroom_id):
+            raise GenerationConflict("Classroom deletion is active")
+        snapshot = _generation_snapshot(session, classroom_id)
+        chapter = Chapter(
+            classroom_id=classroom_id,
+            index=index,
+            original_prompt=original_prompt,
+            story_ideas=[],
+            option_student_ids=list(snapshot["student_ids"]),
+            option_provenance_complete=True,
+            option_settings_snapshot=snapshot,
+            status="draft",
+        )
+        session.add(chapter)
+        session.flush()
+        session.add(ActiveWork(work_kind="story_options", target_kind="chapter", target_id=chapter.id))
+        session.flush()
+        return _chapter(chapter)
+
+
+def complete_story_options(chapter_id: str, story_ideas: list[dict[str, Any]]) -> dict[str, Any]:
+    with _session() as session:
+        work = session.scalar(
+            select(ActiveWork).where(
+                ActiveWork.work_kind == "story_options",
+                ActiveWork.target_kind == "chapter",
+                ActiveWork.target_id == chapter_id,
+            )
+        )
+        chapter = session.get(Chapter, chapter_id)
+        if work is None or chapter is None:
+            raise GenerationConflict("Story option work is not active")
+        chapter.story_ideas = story_ideas
+        chapter.status = "options_generated"
+        session.delete(work)
+        session.flush()
+        return _chapter(chapter)
+
+
+def fail_story_options(chapter_id: str) -> None:
+    with _session() as session:
+        work = session.scalar(
+            select(ActiveWork).where(
+                ActiveWork.work_kind == "story_options",
+                ActiveWork.target_id == chapter_id,
+            )
+        )
+        if work:
+            session.delete(work)
+        chapter = session.get(Chapter, chapter_id)
+        if chapter and chapter.status == "draft":
+            chapter.status = "failed"
+
+
+def begin_avatar_work(student_id: str) -> tuple[dict[str, Any], str]:
+    with _session() as session:
+        student = session.get(Student, student_id)
+        if student is None:
+            raise ValueError("Student not found")
+        if _deletion_started(session, "student", student_id):
+            raise GenerationConflict("Student erasure is active")
+        if session.scalar(
+            select(ActiveWork.id).where(
+                ActiveWork.work_kind == "avatar",
+                ActiveWork.target_kind == "student",
+                ActiveWork.target_id == student_id,
+            )
+        ):
+            raise GenerationConflict("Avatar generation is already active")
+        setting = session.scalar(select(Setting).where(Setting.profile_id == LOCAL_TEACHER_ID))
+        model = require_supported_model(
+            setting.bfl_endpoint if setting else "flux-2-pro",
+            SUPPORTED_BFL_MODELS,
+            "BFL",
+        )
+        session.add(ActiveWork(work_kind="avatar", target_kind="student", target_id=student_id))
+        session.flush()
+        return _student(student), model
+
+
+def finish_avatar_work(student_id: str) -> None:
+    with _session() as session:
+        session.execute(
+            delete(ActiveWork).where(
+                ActiveWork.work_kind == "avatar",
+                ActiveWork.target_kind == "student",
+                ActiveWork.target_id == student_id,
+            )
+        )
 
 
 def choose_chapter_idea(chapter_id: str, idea_id: str) -> dict[str, Any] | None:
@@ -450,6 +631,15 @@ def begin_generation_run(
             if chapter.status not in ("idea_chosen", "failed", "ready"):
                 raise GenerationConflict("Chapter cannot generate in its current state")
 
+            snapshot = _generation_snapshot(session, chapter.classroom_id)
+            if _deletion_started(session, "chapter", chapter_id) or session.scalar(
+                select(DeletionManifest.id).where(
+                    DeletionManifest.target_kind == "student",
+                    DeletionManifest.target_id.in_(snapshot["student_ids"]),
+                )
+            ):
+                raise GenerationConflict("Related deletion is active")
+
             run = GenerationRun(
                 idempotency_key=scoped_key,
                 chapter_id=chapter_id,
@@ -458,7 +648,7 @@ def begin_generation_run(
                 job_state="queued",
                 stage="queued",
                 artifact_paths=[],
-                settings_snapshot=_generation_snapshot(session, chapter.classroom_id),
+                settings_snapshot=snapshot,
             )
             session.add(run)
             if chapter.revision == 0:
@@ -490,14 +680,24 @@ def _generation_snapshot(session: Session, classroom_id: str) -> dict[str, Any]:
             .order_by(StudentClassroom.created_at, StudentClassroom.student_id)
         ).all()
     )
+    story_length = int((setting.generation_defaults or {}).get("story_length", 12)) if setting else 12
+    if story_length not in (12, 20):
+        raise ValueError("Unsupported story length")
+    openai_model = require_supported_model(
+        setting.openai_model if setting else "gpt-5.1", SUPPORTED_OPENAI_MODELS, "OpenAI"
+    )
+    bfl_model = require_supported_model(
+        setting.bfl_endpoint if setting else "flux-2-pro", SUPPORTED_BFL_MODELS, "BFL"
+    )
     return {
-        "story_length": int((setting.generation_defaults or {}).get("story_length", 12)) if setting else 12,
+        "story_length": story_length,
         "default_design_style": setting.default_design_style if setting else "comic",
-        "openai_model": setting.openai_model if setting else "gpt-5.1",
-        "bfl_model": setting.bfl_endpoint if setting else "flux-2-pro",
+        "openai_model": openai_model,
+        "bfl_model": bfl_model,
         "automatic_panel_review": setting.automatic_panel_review if setting else False,
         "panel_review_attempt_cap": setting.panel_review_attempt_cap if setting else 3,
         "student_ids": student_ids,
+        "provenance_complete": True,
     }
 
 
@@ -538,9 +738,18 @@ def record_generation_artifact(run_id: str, object_path: str) -> None:
 def finalize_generation_run(
     run_id: str, script: dict[str, Any], panels: list[dict[str, Any]]
 ) -> list[str]:
+    with _session() as session:
+        active = session.get(GenerationRun, run_id)
+        if active is None or active.job_state != "running":
+            raise GenerationConflict("Generation run is not active")
+        expected_count = (active.settings_snapshot or {}).get("story_length")
+    if expected_count not in (12, 20):
+        raise ValueError("Generation run has an invalid story length snapshot")
     numbers = [panel["index"] for panel in panels]
-    if not numbers or numbers != list(range(1, len(numbers) + 1)):
-        raise ValueError("Ready panel sequence must be complete")
+    script_numbers = [panel.get("index") for panel in script.get("panels") or []]
+    expected_numbers = list(range(1, expected_count + 1))
+    if numbers != expected_numbers or script_numbers != expected_numbers:
+        raise ValueError("Ready revision must match the exact snapshotted panel contract")
     storage = LocalStorage(resolve_local_paths().root)
     try:
         for panel in panels:
@@ -624,6 +833,12 @@ def fail_interrupted_generation_runs(database_url: str | None = None) -> list[st
             if chapter:
                 chapter.status = "ready" if chapter.revision > 0 else "failed"
     return paths
+
+
+def clear_interrupted_active_work(database_url: str | None = None) -> None:
+    """Provider calls do not survive a local process restart."""
+    with _session(database_url) as session:
+        session.execute(delete(ActiveWork))
 
 
 def get_pending_generation_artifacts(
@@ -786,9 +1001,18 @@ def execute_deletion(target_kind: str, target_id: str | None = None) -> bool:
     """Delete managed files first, then rows; return false while cleanup is incomplete."""
     operation = f"{target_kind}:{target_id or 'all'}"
     with _session() as session:
+        if target_kind != "reset" and session.scalar(
+            select(DeletionManifest.id).where(DeletionManifest.target_kind == "reset")
+        ):
+            return False
+        if _deletion_blocked(session, target_kind, target_id):
+            return False
         manifest = session.scalar(select(DeletionManifest).where(DeletionManifest.operation == operation))
         if manifest is None:
             paths = _deletion_paths(session, target_kind, target_id)
+            if target_kind == "reset":
+                for outstanding in session.scalars(select(DeletionManifest)).all():
+                    paths.extend(outstanding.object_paths or [])
             manifest = DeletionManifest(
                 operation=operation,
                 target_kind=target_kind,
@@ -798,6 +1022,12 @@ def execute_deletion(target_kind: str, target_id: str | None = None) -> bool:
             )
             session.add(manifest)
             session.flush()
+        elif target_kind == "reset":
+            accumulated = list(manifest.object_paths or [])
+            for outstanding in session.scalars(select(DeletionManifest)).all():
+                accumulated.extend(outstanding.object_paths or [])
+            accumulated.extend(_deletion_paths(session, target_kind, target_id))
+            manifest.object_paths = list(dict.fromkeys(accumulated))
         paths = list(manifest.object_paths or [])
 
     storage = LocalStorage(resolve_local_paths().root)
@@ -818,10 +1048,50 @@ def execute_deletion(target_kind: str, target_id: str | None = None) -> bool:
 
     with _session() as session:
         _apply_deletion(session, target_kind, target_id)
-        manifest = session.scalar(select(DeletionManifest).where(DeletionManifest.operation == operation))
-        if manifest:
-            session.delete(manifest)
+        if target_kind == "reset":
+            session.execute(delete(DeletionManifest))
+        else:
+            manifest = session.scalar(select(DeletionManifest).where(DeletionManifest.operation == operation))
+            if manifest:
+                session.delete(manifest)
     return True
+
+
+def _deletion_blocked(session: Session, target_kind: str, target_id: str | None) -> bool:
+    active_runs = session.scalars(
+        select(GenerationRun).where(GenerationRun.job_state.in_(("queued", "running")))
+    ).all()
+    if target_kind == "reset" and (active_runs or session.scalar(select(ActiveWork.id))):
+        return True
+    if target_kind == "chapter" and any(run.chapter_id == target_id for run in active_runs):
+        return True
+    if target_kind == "classroom":
+        chapter_ids = set(
+            session.scalars(select(Chapter.id).where(Chapter.classroom_id == target_id)).all()
+        )
+        if any(run.chapter_id in chapter_ids for run in active_runs):
+            return True
+    if target_kind == "student" and any(run in _affected_runs(session, target_id) for run in active_runs):
+        return True
+
+    for work in session.scalars(select(ActiveWork)).all():
+        if target_kind == "chapter" and work.target_kind == "chapter" and work.target_id == target_id:
+            return True
+        if target_kind == "student" and work.target_kind == "student" and work.target_id == target_id:
+            return True
+        if work.target_kind != "chapter":
+            continue
+        chapter = session.get(Chapter, work.target_id)
+        if chapter is None:
+            continue
+        if target_kind == "classroom" and chapter.classroom_id == target_id:
+            return True
+        if target_kind == "student" and (
+            not chapter.option_provenance_complete
+            or target_id in (chapter.option_student_ids or [])
+        ):
+            return True
+    return False
 
 
 def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -> list[str]:
@@ -840,6 +1110,7 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
         student = session.get(Student, target_id)
         if student:
             paths.extend((student.photo_object_path, student.avatar_object_path))
+            paths.extend(student.superseded_avatar_paths or [])
         for run in _affected_runs(session, target_id):
             paths.extend(run.artifact_paths or [])
             paths.extend(
@@ -854,6 +1125,7 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
         paths.extend(session.scalars(select(Material.object_path)).all())
         for student in session.scalars(select(Student)).all():
             paths.extend((student.photo_object_path, student.avatar_object_path))
+            paths.extend(student.superseded_avatar_paths or [])
         for run in session.scalars(select(GenerationRun)).all():
             paths.extend(run.artifact_paths or [])
     else:
@@ -865,7 +1137,8 @@ def _affected_runs(session: Session, student_id: str | None) -> list[GenerationR
     return [
         run
         for run in session.scalars(select(GenerationRun)).all()
-        if student_id in (run.settings_snapshot or {}).get("student_ids", [])
+        if not (run.settings_snapshot or {}).get("provenance_complete", False)
+        or student_id in (run.settings_snapshot or {}).get("student_ids", [])
     ]
 
 
@@ -883,6 +1156,7 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
     if target_kind == "reset":
         session.execute(delete(Classroom))
         session.execute(delete(Student))
+        session.execute(delete(ActiveWork))
         setting = session.scalar(select(Setting).where(Setting.profile_id == LOCAL_TEACHER_ID))
         if setting:
             setting.default_design_style = "comic"
@@ -896,7 +1170,16 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
     if target_kind != "student":
         raise ValueError("Unsupported deletion target")
     affected = _affected_runs(session, target_id)
-    chapter_ids = {run.chapter_id for run in affected}
+    option_chapters = [
+        chapter
+        for chapter in session.scalars(select(Chapter)).all()
+        if chapter.story_ideas
+        and (
+            not chapter.option_provenance_complete
+            or target_id in (chapter.option_student_ids or [])
+        )
+    ]
+    chapter_ids = {run.chapter_id for run in affected} | {chapter.id for chapter in option_chapters}
     for run in affected:
         session.execute(
             delete(Panel).where(Panel.chapter_id == run.chapter_id, Panel.revision == run.target_revision)
@@ -910,11 +1193,18 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
         chapter = session.get(Chapter, chapter_id)
         if chapter is None:
             continue
-        latest = session.scalar(
+        option_affected = chapter in option_chapters
+        if option_affected:
+            chapter.story_ideas = []
+            chapter.option_student_ids = []
+            chapter.option_settings_snapshot = {}
+            chapter.option_provenance_complete = True
+        candidates = session.scalars(
             select(GenerationRun)
             .where(GenerationRun.chapter_id == chapter_id, GenerationRun.job_state == "succeeded")
             .order_by(GenerationRun.target_revision.desc())
-        )
+        ).all()
+        latest = next((run for run in candidates if _valid_script_snapshot(run)), None)
         if latest:
             chapter.revision = latest.target_revision
             chapter.story_script = latest.script_snapshot
@@ -924,7 +1214,18 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
             chapter.revision = 0
             chapter.story_script = None
             chapter.title = None
-            chapter.status = "idea_chosen" if chapter.chosen_idea_id else "options_generated"
+            if option_affected:
+                chapter.status = "draft"
+            else:
+                chapter.status = "idea_chosen" if chapter.chosen_idea_id else "options_generated"
+
+
+def _valid_script_snapshot(run: GenerationRun) -> bool:
+    expected = (run.settings_snapshot or {}).get("story_length")
+    panels = (run.script_snapshot or {}).get("panels") or []
+    return expected in (12, 20) and [panel.get("index") for panel in panels] == list(
+        range(1, expected + 1)
+    )
 
 
 def get_classroom_with_students(classroom_id: str) -> dict[str, Any] | None:

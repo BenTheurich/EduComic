@@ -37,6 +37,7 @@ from database.database import (
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
 from provider_clients import LazyClient
+from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
 
 # NEW: quality review helper
 from panel_review import review_panel_image
@@ -51,8 +52,6 @@ logger = logging.getLogger("educomic.comic_creation")
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.1")
-
 openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
 BFL_API_KEY = os.getenv("BFL_API_KEY", "YOUR_BFL_API_KEY_HERE")
@@ -499,11 +498,13 @@ def generate_full_script_and_panels(
     teacher_outline: str,
     chosen_idea: Dict[str, Any],
     panel_count: int = 12,
+    model: str = "gpt-5.1",
 ) -> Dict[str, Any]:
     """
     Ask OpenAI for a full script + panel breakdown.
     """
 
+    model = require_supported_model(model, SUPPORTED_OPENAI_MODELS, "OpenAI")
     payload = _classroom_context_dict(classroom, students, teacher_outline)
     payload["chosen_idea"] = chosen_idea
 
@@ -552,7 +553,7 @@ def generate_full_script_and_panels(
     )
 
     resp = openai_client.chat.completions.parse(
-        model=OPENAI_MODEL,
+        model=model,
         response_format=ComicScript,
         max_completion_tokens=8192,
         messages=[

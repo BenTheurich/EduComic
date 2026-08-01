@@ -9,9 +9,16 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-from database.database import get_classrooms_by_student, get_student, update_student
+from database.database import (
+    begin_avatar_work,
+    finish_avatar_work,
+    finish_superseded_avatar_cleanup,
+    get_classrooms_by_student,
+    replace_student_avatar,
+)
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
+from provider_config import SUPPORTED_BFL_MODELS, require_supported_model
 
 
 logger = logging.getLogger("educomic.avatar")
@@ -36,49 +43,48 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
         ProviderConfigurationError: If BFL is not configured
         httpx.HTTPError: If API request fails
     """
-    # Get student from database
-    student = get_student(student_id)
-    if not student:
-        raise ValueError("Student not found")
-
     api_key = os.getenv("BFL_API_KEY")
     if not api_key or api_key == "YOUR_BFL_API_KEY_HERE":
         raise ProviderConfigurationError("BFL_API_KEY is not configured")
-
-    # Get classroom to retrieve design_style (student can be in multiple classrooms)
-    # For avatar generation, we'll use the first classroom or None if not in any
-    classrooms = get_classrooms_by_student(student_id)
-    classroom = classrooms[0] if classrooms else None
-
-    # Build prompt for avatar generation
-    prompt = _build_avatar_prompt(student, classroom)
-    # Call Black Forest Labs API to generate avatar
-    bfl_avatar_url = await _call_black_forest_api(prompt, api_key)
-
-    avatar_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
-
+    student, model = begin_avatar_work(student_id)
     try:
-        updated_student = update_student(student_id, {"avatar_url": avatar_url})
-    except Exception:
-        _delete_media_url(avatar_url, context="avatar update compensation")
-        raise
-    if updated_student is None:
-        _delete_media_url(avatar_url, context="missing student compensation")
-        raise ValueError("Student not found")
+        classrooms = get_classrooms_by_student(student_id)
+        classroom = classrooms[0] if classrooms else None
+        prompt = _build_avatar_prompt(student, classroom)
+        bfl_avatar_url = await _call_black_forest_api(prompt, api_key, model=model)
+        avatar_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
+        try:
+            updated_student, previous_path = replace_student_avatar(student_id, avatar_url)
+        except Exception:
+            _delete_media_url(avatar_url, context="avatar update compensation")
+            raise
+        if updated_student is None:
+            _delete_media_url(avatar_url, context="missing student compensation")
+            raise ValueError("Student not found")
+        if previous_path and _delete_object_path(previous_path, context="superseded avatar cleanup"):
+            finish_superseded_avatar_cleanup(student_id, previous_path)
+        return updated_student
+    finally:
+        finish_avatar_work(student_id)
 
-    previous_avatar_url = student.get("avatar_url")
-    if previous_avatar_url and previous_avatar_url != avatar_url:
-        _delete_media_url(previous_avatar_url, context="superseded avatar cleanup")
 
-    return updated_student
-
-
-def _delete_media_url(url: str, *, context: str) -> None:
+def _delete_media_url(url: str, *, context: str) -> bool:
     try:
         storage = LocalStorage(resolve_local_paths().root)
         storage.delete(storage.object_path_from_url(url))
+        return True
     except Exception:
         logger.error("Local media deletion failed context=%s", context)
+        return False
+
+
+def _delete_object_path(object_path: str, *, context: str) -> bool:
+    try:
+        LocalStorage(resolve_local_paths().root).delete(object_path)
+        return True
+    except Exception:
+        logger.error("Local media deletion failed context=%s", context)
+        return False
 
 
 def _build_avatar_prompt(student: Dict[str, Any], classroom: Optional[Dict[str, Any]] = None) -> str:
@@ -108,7 +114,7 @@ def _build_avatar_prompt(student: Dict[str, Any], classroom: Optional[Dict[str, 
     return prompt
 
 
-async def _call_black_forest_api(prompt: str, api_key: str) -> str:
+async def _call_black_forest_api(prompt: str, api_key: str, *, model: str = "flux-2-pro") -> str:
     """
     Call Black Forest Labs API to generate an image.
 
@@ -121,7 +127,8 @@ async def _call_black_forest_api(prompt: str, api_key: str) -> str:
     Raises:
         httpx.HTTPError: If API request fails
     """
-    url = "https://api.bfl.ai/v1/flux-2-pro"
+    model = require_supported_model(model, SUPPORTED_BFL_MODELS, "BFL")
+    url = f"https://api.bfl.ai/v1/{model}"
 
     headers = {"accept": "application/json", "x-key": api_key, "Content-Type": "application/json"}
 

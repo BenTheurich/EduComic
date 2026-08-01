@@ -237,13 +237,14 @@ def test_database_swap_rejects_missing_or_traversing_media(monkeypatch, tmp_path
     with pytest.raises(ValueError, match="durable local story media"):
         database.finalize_generation_run(
             run["id"],
-            {"episode_title": "Unsafe"},
+            _script(),
             [
                 {
-                    "index": 1,
+                    "index": index,
                     "description": "Unsafe",
                     "image_object_path": f"story-images/{chapter_id}/../outside.png",
                 }
+                for index in range(1, 13)
             ],
         )
 

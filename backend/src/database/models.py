@@ -97,6 +97,7 @@ class Student(TimestampMixin, Base):
     interests: Mapped[str] = mapped_column(Text, nullable=False)
     avatar_object_path: Mapped[str | None] = mapped_column(String(500))
     photo_object_path: Mapped[str | None] = mapped_column(String(500))
+    superseded_avatar_paths: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 
 
 class StudentClassroom(TimestampMixin, Base):
@@ -150,6 +151,9 @@ class Chapter(TimestampMixin, Base):
     index: Mapped[int] = mapped_column(Integer, nullable=False)
     original_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     story_ideas: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+    option_student_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    option_provenance_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    option_settings_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     chosen_idea_id: Mapped[str | None] = mapped_column(String(80))
     title: Mapped[str | None] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
@@ -253,3 +257,15 @@ class DeletionManifest(TimestampMixin, Base):
     object_paths: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     error_reference: Mapped[str | None] = mapped_column(String(64))
+
+
+class ActiveWork(TimestampMixin, Base):
+    __tablename__ = "active_work"
+    __table_args__ = (
+        UniqueConstraint("work_kind", "target_kind", "target_id", name="uq_active_work_target"),
+    )
+
+    id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=_uuid)
+    work_kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    target_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    target_id: Mapped[str] = mapped_column(String(80), nullable=False)

@@ -137,15 +137,30 @@ def test_full_student_erasure_removes_affected_revision_and_preserves_chapter_sh
         run, _ = database.begin_generation_run(chapter["id"], "idea_1", "student-run")
         database.start_generation_run(run["id"])
         storage = LocalStorage(tmp_path)
-        object_path = storage.new_object_path("story-images", chapter["id"], ".png")
-        storage.finalize(storage.stage_bytes(b"fictional", ".png", max_bytes=20), object_path)
+        object_paths = []
+        for _index in range(12):
+            object_path = storage.new_object_path("story-images", chapter["id"], ".png")
+            storage.finalize(storage.stage_bytes(b"fictional", ".png", max_bytes=20), object_path)
+            object_paths.append(object_path)
         script = {
             "episode_title": "Bridge Story",
             "learning_objectives": ["Forces"],
-            "panels": [{"index": 1, "featured_students": ["Mina"]}],
+            "panels": [
+                {"index": index, "featured_students": ["Mina"]}
+                for index in range(1, 13)
+            ],
         }
         database.finalize_generation_run(
-            run["id"], script, [{"index": 1, "description": "Mina builds", "image_object_path": object_path}]
+            run["id"],
+            script,
+            [
+                {
+                    "index": index,
+                    "description": "Mina builds",
+                    "image_object_path": object_path,
+                }
+                for index, object_path in enumerate(object_paths, 1)
+            ],
         )
 
         erased = client.delete(f"/students/{student['id']}?confirm=true")
@@ -157,7 +172,7 @@ def test_full_student_erasure_removes_affected_revision_and_preserves_chapter_sh
         assert shell["chosen_idea_id"] == "idea_1"
         assert shell["story_script"] is None
         assert database.get_panels_by_chapter(chapter["id"]) == []
-        assert not storage.absolute_path(object_path).exists()
+        assert all(not storage.absolute_path(path).exists() for path in object_paths)
 
 
 def test_migration_backfills_old_runs_conservatively(monkeypatch, tmp_path):
@@ -172,7 +187,7 @@ def test_migration_backfills_old_runs_conservatively(monkeypatch, tmp_path):
     engine = create_engine(f"sqlite:///{(tmp_path / 'educomic.db').as_posix()}")
     with engine.connect() as connection:
         head = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert head == "0003_local_mutations"
+        assert head == "0004_review_fixes"
         defaults = connection.execute(text("SELECT generation_defaults FROM settings")).scalar_one()
         assert '"story_length": 12' in defaults
         assert student["id"]

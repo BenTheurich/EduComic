@@ -29,6 +29,7 @@ from api_models import (
 )
 from local_runtime import initialize_local_backend, local_readiness_details, resolve_local_paths
 from local_storage import LocalStorage, StorageValidationError
+from provider_config import configured_secret
 from services.avatar import ProviderConfigurationError, generate_avatar
 from services.generation import run_generation
 
@@ -125,10 +126,6 @@ async def readiness_check():
     migrations_ready = local_data["migrations"]
     storage_ready = local_data["storage"]
     cleanup_ready = local_data["cleanup"]
-
-    def configured_secret(name: str) -> bool:
-        value = os.getenv(name, "").strip()
-        return bool(value and not value.startswith("<") and not value.startswith("YOUR_"))
 
     providers = {
         "openai": configured_secret("OPENAI_API_KEY"),
@@ -497,7 +494,7 @@ async def get_student_classrooms(student_id: UUID):
 
 
 @app.delete("/students/{student_id}/leave-classroom/{classroom_id}")
-async def leave_classroom(student_id: UUID, classroom_id: UUID):
+async def leave_classroom(student_id: UUID, classroom_id: UUID, confirm: bool = False):
     """
     Remove a student from a classroom.
 
@@ -511,6 +508,8 @@ async def leave_classroom(student_id: UUID, classroom_id: UUID):
     from database.database import remove_student_from_classroom
 
     try:
+        if not confirm:
+            raise HTTPException(status_code=400, detail="Classroom removal requires explicit confirmation")
         success = remove_student_from_classroom(str(student_id), str(classroom_id))
         return {"success": True, "removed": success, "message": "Student removed from classroom"}
     except HTTPException:
@@ -530,6 +529,8 @@ async def create_avatar_endpoint(student_id: UUID):
     Returns:
         Updated student record with avatar_url
     """
+    from database.database import GenerationConflict
+
     try:
         student = await generate_avatar(str(student_id))
         return {"success": True, "student": student}
@@ -537,6 +538,8 @@ async def create_avatar_endpoint(student_id: UUID):
         raise HTTPException(status_code=503, detail="Avatar generation is unavailable")
     except ValueError:
         raise HTTPException(status_code=404, detail="Student not found")
+    except GenerationConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -624,10 +627,12 @@ async def start_chapter_endpoint(
         Created chapter with story options
     """
     from database.database import (
+        begin_story_options,
+        complete_story_options,
+        fail_story_options,
         get_chapters_by_classroom,
         get_classroom,
-        get_students_by_classroom,
-        create_chapter,
+        get_students_by_ids,
     )
     from services.story_idea import generate_story_ideas
 
@@ -639,8 +644,6 @@ async def start_chapter_endpoint(
         if not classroom:
             raise HTTPException(status_code=404, detail="Classroom not found")
 
-        students = get_students_by_classroom(classroom_id)
-
         # Get next chapter index - use max index + 1 to handle gaps
         existing_chapters = get_chapters_by_classroom(classroom_id)
         if existing_chapters:
@@ -648,8 +651,18 @@ async def start_chapter_endpoint(
         else:
             next_index = 1
 
-        # Generate story ideas
-        story_ideas = generate_story_ideas(classroom, students, lesson_prompt)
+        chapter = begin_story_options(classroom_id, next_index, lesson_prompt)
+        try:
+            students = get_students_by_ids(chapter["option_student_ids"])
+            story_ideas = generate_story_ideas(
+                classroom,
+                students,
+                lesson_prompt,
+                model=chapter["option_settings_snapshot"]["openai_model"],
+            )
+        except Exception:
+            fail_story_options(chapter["id"])
+            raise
 
         # Format story ideas with IDs
         formatted_ideas = []
@@ -663,16 +676,7 @@ async def start_chapter_endpoint(
                 }
             )
 
-        # Create chapter directly with correct schema
-        data = {
-            "classroom_id": classroom_id,
-            "index": next_index,
-            "original_prompt": lesson_prompt,
-            "story_ideas": formatted_ideas,
-            "status": "options_generated",
-        }
-
-        chapter = create_chapter(data)
+        chapter = complete_story_options(chapter["id"], formatted_ideas)
 
         return {"success": True, "chapter": chapter}
 
@@ -779,8 +783,8 @@ async def get_settings_endpoint():
         "success": True,
         "settings": settings,
         "provider_readiness": {
-            "openai": bool(os.getenv("OPENAI_API_KEY", "").strip()),
-            "bfl": bool(os.getenv("BFL_API_KEY", "").strip()),
+            "openai": configured_secret("OPENAI_API_KEY"),
+            "bfl": configured_secret("BFL_API_KEY"),
         },
         "local_data": "Stored only on this device",
     }

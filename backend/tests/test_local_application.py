@@ -24,7 +24,7 @@ def test_local_workflows_persist_across_backend_restarts(monkeypatch, tmp_path):
     monkeypatch.setattr(
         story_idea,
         "generate_story_ideas",
-        lambda *_args: [
+        lambda *_args, **_kwargs: [
             {"title": "Orbit One", "summary": "A fictional force lesson."},
             {"title": "Orbit Two", "summary": "A fictional motion lesson."},
             {"title": "Orbit Three", "summary": "A fictional gravity lesson."},

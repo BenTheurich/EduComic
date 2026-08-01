@@ -40,6 +40,7 @@ def initialize_local_backend(data_dir: Path | str | None = None) -> LocalPaths:
     storage = LocalStorage(paths.root)
     upgrade_database(database_url)
     from database.database import (
+        clear_interrupted_active_work,
         ensure_local_teacher,
         fail_interrupted_generation_runs,
         get_pending_generation_artifacts,
@@ -48,6 +49,7 @@ def initialize_local_backend(data_dir: Path | str | None = None) -> LocalPaths:
 
     ensure_local_teacher(database_url)
     fail_interrupted_generation_runs(database_url)
+    clear_interrupted_active_work(database_url)
     unresolved = []
     for run_id, artifact_paths in get_pending_generation_artifacts(database_url):
         remaining = []
