@@ -3,6 +3,7 @@ Avatar generation service using Black Forest Labs API.
 """
 
 import asyncio
+import logging
 import os
 from typing import Any, Dict, Optional
 
@@ -11,6 +12,13 @@ import httpx
 from database.database import get_classrooms_by_student, get_student, update_student
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
+
+
+logger = logging.getLogger("educomic.avatar")
+
+
+class ProviderConfigurationError(RuntimeError):
+    """A requested provider capability is not configured locally."""
 
 
 async def generate_avatar(student_id: str) -> Dict[str, Any]:
@@ -24,7 +32,8 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
         Dict containing the student data with updated avatar_url
 
     Raises:
-        ValueError: If student not found or API key not configured
+        ValueError: If the student is not found
+        ProviderConfigurationError: If BFL is not configured
         httpx.HTTPError: If API request fails
     """
     # Get student from database
@@ -32,15 +41,14 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
     if not student:
         raise ValueError("Student not found")
 
+    api_key = os.getenv("BFL_API_KEY")
+    if not api_key or api_key == "YOUR_BFL_API_KEY_HERE":
+        raise ProviderConfigurationError("BFL_API_KEY is not configured")
+
     # Get classroom to retrieve design_style (student can be in multiple classrooms)
     # For avatar generation, we'll use the first classroom or None if not in any
     classrooms = get_classrooms_by_student(student_id)
     classroom = classrooms[0] if classrooms else None
-
-    # Get API key
-    api_key = os.getenv("BFL_API_KEY")
-    if not api_key:
-        raise ValueError("BFL_API_KEY not configured in environment")
 
     # Build prompt for avatar generation
     prompt = _build_avatar_prompt(student, classroom)
@@ -49,9 +57,28 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
 
     avatar_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
 
-    updated_student = update_student(student_id, {"avatar_url": avatar_url})
+    try:
+        updated_student = update_student(student_id, {"avatar_url": avatar_url})
+    except Exception:
+        _delete_media_url(avatar_url, context="avatar update compensation")
+        raise
+    if updated_student is None:
+        _delete_media_url(avatar_url, context="missing student compensation")
+        raise ValueError("Student not found")
+
+    previous_avatar_url = student.get("avatar_url")
+    if previous_avatar_url and previous_avatar_url != avatar_url:
+        _delete_media_url(previous_avatar_url, context="superseded avatar cleanup")
 
     return updated_student
+
+
+def _delete_media_url(url: str, *, context: str) -> None:
+    try:
+        storage = LocalStorage(resolve_local_paths().root)
+        storage.delete(storage.object_path_from_url(url))
+    except Exception:
+        logger.error("Local media deletion failed context=%s", context)
 
 
 def _build_avatar_prompt(student: Dict[str, Any], classroom: Optional[Dict[str, Any]] = None) -> str:

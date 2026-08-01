@@ -26,7 +26,7 @@ from api_models import (
 )
 from local_runtime import initialize_local_backend, local_readiness, resolve_local_paths
 from local_storage import LocalStorage, StorageValidationError
-from services.avatar import generate_avatar
+from services.avatar import ProviderConfigurationError, generate_avatar
 from services.comic_creation import commit_story_choice
 
 # Load environment variables
@@ -481,6 +481,8 @@ async def create_avatar_endpoint(student_id: UUID):
     try:
         student = await generate_avatar(str(student_id))
         return {"success": True, "student": student}
+    except ProviderConfigurationError:
+        raise HTTPException(status_code=503, detail="Avatar generation is unavailable")
     except ValueError:
         raise HTTPException(status_code=404, detail="Student not found")
     except Exception:
@@ -527,7 +529,7 @@ async def commit_chapter_endpoint(
     Returns:
         Immediate success response - use polling to track progress
     """
-    from database.database import get_chapter, update_chapter
+    from database.database import claim_chapter_generation, get_chapter
 
     try:
         # Verify chapter exists
@@ -536,8 +538,12 @@ async def commit_chapter_endpoint(
         if not chapter:
             raise HTTPException(status_code=404, detail="Chapter not found")
 
-        # Update status to indicate generation has started
-        update_chapter(chapter_id, {"status": "generating"})
+        ideas = {idea.get("id") for idea in chapter.get("story_ideas") or []}
+        if request.chosen_idea_id not in ideas or chapter.get("chosen_idea_id") != request.chosen_idea_id:
+            raise HTTPException(status_code=400, detail="Story choice is invalid")
+        claimed = claim_chapter_generation(chapter_id, request.chosen_idea_id)
+        if claimed is None:
+            raise HTTPException(status_code=409, detail="Chapter generation is already active")
 
         # Start the actual comic generation in the background
         background_tasks.add_task(
@@ -713,10 +719,22 @@ async def delete_chapter_endpoint(chapter_id: UUID):
             raise HTTPException(status_code=404, detail="Chapter not found")
 
         # Delete the chapter (cascades to panels)
-        success = delete_chapter(chapter_id)
+        object_paths = delete_chapter(chapter_id)
 
-        if not success:
+        if object_paths is None:
             raise HTTPException(status_code=500, detail="Failed to delete chapter")
+
+        if object_paths:
+            try:
+                storage = LocalStorage(resolve_local_paths().root)
+            except Exception:
+                logger.error("Local media deletion failed context=chapter deletion")
+            else:
+                for object_path in object_paths:
+                    try:
+                        storage.delete(object_path)
+                    except Exception:
+                        logger.error("Local media deletion failed context=chapter deletion")
 
         return {"success": True, "message": "Chapter deleted successfully"}
     except HTTPException:

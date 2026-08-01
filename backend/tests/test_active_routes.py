@@ -40,6 +40,12 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     monkeypatch.setattr(database, "create_chapter", create_chapter)
     monkeypatch.setattr(database, "update_chapter", update_chapter)
     monkeypatch.setattr(
+        database,
+        "claim_chapter_generation",
+        lambda chapter, idea: {**chapters[chapter], "status": "generating", "target_revision": 1},
+        raising=False,
+    )
+    monkeypatch.setattr(
         story_idea,
         "generate_story_ideas",
         lambda *_args: [{"title": f"Idea {index}", "summary": "Summary"} for index in range(1, 4)],
@@ -72,6 +78,37 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     assert committed_response.json()["status"] == "generating"
     assert read.json()["chapter"] == {**chapters[str(chapter_id)], "panels": []}
     assert committed == [(str(chapter_id), "idea_1")]
+
+
+@pytest.mark.asyncio
+async def test_repeated_commit_is_atomically_rejected(monkeypatch, tmp_path):
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    database = importlib.import_module("database.database")
+    main = importlib.import_module("main")
+    importlib.import_module("local_runtime").initialize_local_backend(tmp_path)
+    classroom = database.create_classroom("Class", "Math", "6", "Space", "cartoon")
+    chapter = database.create_chapter(
+        {
+            "classroom_id": classroom["id"],
+            "index": 1,
+            "original_prompt": "Teach forces",
+            "story_ideas": [{"id": "idea_1", "title": "Rocket", "summary": "Learn"}],
+            "chosen_idea_id": "idea_1",
+            "status": "idea_chosen",
+        }
+    )
+    monkeypatch.setattr(main, "commit_story_choice", lambda *_args: None)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://test") as client:
+        first = await client.post(
+            "/chapters/commit", json={"chapter_id": chapter["id"], "chosen_idea_id": "idea_1"}
+        )
+        second = await client.post(
+            "/chapters/commit", json={"chapter_id": chapter["id"], "chosen_idea_id": "idea_1"}
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
 
 
 @pytest.mark.asyncio

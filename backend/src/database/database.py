@@ -5,10 +5,10 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Any, Iterator
-from urllib.parse import unquote
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from database.models import Chapter, Classroom, LocalProfile, Panel, Student, StudentClassroom
@@ -95,11 +95,7 @@ def _panel(panel: Panel) -> dict[str, Any]:
 
 
 def _media_object_path(url: str) -> str:
-    if not isinstance(url, str) or not url.startswith("/media/"):
-        raise ValueError("generated media must use local storage")
-    object_path = unquote(url.removeprefix("/media/"))
-    LocalStorage(resolve_local_paths().root).absolute_path(object_path)
-    return object_path
+    return LocalStorage(resolve_local_paths().root).object_path_from_url(url)
 
 
 def ensure_local_teacher(database_url: str | None = None) -> dict[str, Any]:
@@ -161,28 +157,48 @@ def create_student(
 ) -> dict[str, Any]:
     """Create a profile and optional enrollment in one retry-safe transaction."""
     student_id = student_id or str(uuid4())
-    with _session() as session:
-        existing = session.get(Student, student_id)
-        if existing:
-            if existing.name != name or existing.interests != interests:
-                raise ValueError("Student identifier already exists")
-            if classroom_id and not session.scalar(
-                select(StudentClassroom.id).where(
-                    StudentClassroom.student_id == student_id,
-                    StudentClassroom.classroom_id == classroom_id,
-                )
-            ):
-                raise ValueError("Student retry does not match the original enrollment")
-            return _student(existing)
+    try:
+        with _session() as session:
+            existing = session.get(Student, student_id)
+            if existing:
+                return _matching_student_retry(session, existing, name, interests, classroom_id)
 
-        if classroom_id and session.get(Classroom, classroom_id) is None:
-            raise ValueError("Classroom not found")
-        student = Student(id=student_id, name=name, interests=interests)
-        session.add(student)
-        if classroom_id:
-            session.add(StudentClassroom(student_id=student_id, classroom_id=classroom_id))
-        session.flush()
-        return _student(student)
+            if classroom_id and session.get(Classroom, classroom_id) is None:
+                raise ValueError("Classroom not found")
+            student = Student(id=student_id, name=name, interests=interests)
+            session.add(student)
+            if classroom_id:
+                session.add(StudentClassroom(student_id=student_id, classroom_id=classroom_id))
+            session.flush()
+            return _student(student)
+    except IntegrityError:
+        # A concurrent request with the same client UUID may have committed first.
+        # The failed transaction has rolled back before this new session reloads it.
+        with _session() as session:
+            winner = session.get(Student, student_id)
+            if winner is None:
+                raise
+            return _matching_student_retry(session, winner, name, interests, classroom_id)
+
+
+def _matching_student_retry(
+    session: Session,
+    student: Student,
+    name: str,
+    interests: str,
+    classroom_id: str | None,
+) -> dict[str, Any]:
+    if student.name != name or student.interests != interests:
+        raise ValueError("Student identifier already exists")
+    enrollments = set(
+        session.scalars(
+            select(StudentClassroom.classroom_id).where(StudentClassroom.student_id == student.id)
+        ).all()
+    )
+    expected = {classroom_id} if classroom_id else set()
+    if enrollments != expected:
+        raise ValueError("Student retry does not match the original enrollment")
+    return _student(student)
 
 
 def get_student(student_id: str) -> dict[str, Any] | None:
@@ -256,6 +272,26 @@ def update_chapter(chapter_id: str, updates: dict[str, Any]) -> dict[str, Any] |
         return _chapter(chapter)
 
 
+def claim_chapter_generation(chapter_id: str, chosen_idea_id: str) -> dict[str, Any] | None:
+    """Atomically reserve the next revision for one generation request."""
+    with _session() as session:
+        result = session.execute(
+            update(Chapter)
+            .where(
+                Chapter.id == chapter_id,
+                Chapter.chosen_idea_id == chosen_idea_id,
+                Chapter.status.in_(("idea_chosen", "failed")),
+            )
+            .values(status="generating")
+        )
+        if result.rowcount != 1:
+            return None
+        chapter = session.get(Chapter, chapter_id)
+        claimed = _chapter(chapter)
+        claimed["target_revision"] = chapter.revision + 1
+        return claimed
+
+
 def get_chapters_by_classroom(classroom_id: str) -> list[dict[str, Any]]:
     with _session() as session:
         rows = session.scalars(
@@ -314,12 +350,23 @@ def get_panels_by_chapter(chapter_id: str) -> list[dict[str, Any]]:
         return [_panel(row) for row in rows]
 
 
-def delete_panels_by_chapter(chapter_id: str, *, revision: int | None = None) -> int:
+def delete_panels_by_chapter(
+    chapter_id: str,
+    *,
+    revision: int | None = None,
+    except_revision: int | None = None,
+) -> list[str]:
+    if revision is not None and except_revision is not None:
+        raise ValueError("Specify revision or except_revision, not both")
     with _session() as session:
-        statement = delete(Panel).where(Panel.chapter_id == chapter_id)
+        filters = [Panel.chapter_id == chapter_id]
         if revision is not None:
-            statement = statement.where(Panel.revision == revision)
-        return session.execute(statement).rowcount
+            filters.append(Panel.revision == revision)
+        if except_revision is not None:
+            filters.append(Panel.revision != except_revision)
+        object_paths = list(session.scalars(select(Panel.image_object_path).where(*filters)).all())
+        session.execute(delete(Panel).where(*filters))
+        return object_paths
 
 
 def add_student_to_classroom(student_id: str, classroom_id: str) -> dict[str, Any]:
@@ -372,13 +419,16 @@ def is_student_in_classroom(student_id: str, classroom_id: str) -> bool:
         ) is not None
 
 
-def delete_chapter(chapter_id: str) -> bool:
+def delete_chapter(chapter_id: str) -> list[str] | None:
     with _session() as session:
         chapter = session.get(Chapter, chapter_id)
         if chapter is None:
-            return False
+            return None
+        object_paths = list(
+            session.scalars(select(Panel.image_object_path).where(Panel.chapter_id == chapter_id)).all()
+        )
         session.delete(chapter)
-        return True
+        return object_paths
 
 
 def get_classroom_with_students(classroom_id: str) -> dict[str, Any] | None:

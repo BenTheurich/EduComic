@@ -112,7 +112,7 @@ The frontend never reads the database file, filesystem paths, or provider keys. 
 - SQLAlchemy 2 provides database sessions, transactions, models, and queries.
 - Alembic provides checked-in migrations.
 - SQLite uses Python's built-in driver. An async database dependency is not required for the first release.
-- `DATABASE_URL` defaults to the SQLite database inside the local data directory.
+- `DATABASE_URL` defaults to the SQLite database inside the local data directory. The local/private runtime accepts SQLite URLs only and rejects hosted or other non-SQLite URLs before creating storage or an engine.
 - The database layer avoids SQLite-only query syntax where SQLAlchemy provides a dialect-neutral equivalent.
 
 SQLAlchemy is preferred over raw `sqlite3` because the application needs foreign keys, transactional replacement of panels, schema migrations, and a later PostgreSQL path. A local PostgreSQL or Supabase stack was rejected because it adds account, CLI, container, and schema-provisioning work to the first-run path.
@@ -195,7 +195,7 @@ The local ignored environment file contains:
 - `BFL_API_KEY`;
 - the selected BFL endpoint;
 - bounded review and generation settings;
-- optional `EDUCOMIC_DATA_DIR` and `DATABASE_URL` overrides.
+- optional `EDUCOMIC_DATA_DIR` and SQLite-only `DATABASE_URL` overrides.
 
 The frontend receives only provider readiness states and selected non-secret model labels. It never receives key values.
 

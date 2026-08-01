@@ -1,10 +1,13 @@
 """Thumbnail removal and story-choice URL boundary regressions."""
 
+import base64
 import importlib
 from uuid import uuid4
 
 import httpx
 import pytest
+
+from local_storage import LocalStorage, media_url
 
 
 @pytest.mark.asyncio
@@ -138,3 +141,86 @@ def test_comic_generation_uses_canonical_submit_and_provider_polling_urls(
         polling_url,
         sample_url,
     ]
+
+
+def test_flux_inlines_validated_local_reference_bytes(monkeypatch, tmp_path):
+    """Catches application-only /media URLs being sent to BFL or localhost."""
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    comic_creation = importlib.reload(importlib.import_module("services.comic_creation"))
+    storage = LocalStorage(tmp_path)
+    owner = str(uuid4())
+    object_path = storage.new_object_path("avatars", owner, ".png")
+    storage.finalize(storage.stage_bytes(b"avatar-bytes", ".png", max_bytes=100), object_path)
+    submitted = {}
+
+    class Response:
+        content = b"generated"
+
+        def __init__(self, payload=None):
+            self.payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.payload
+
+    def post(_url, **kwargs):
+        submitted.update(kwargs["json"])
+        return Response({"polling_url": "https://provider.test/poll"})
+
+    def get(url, **_kwargs):
+        if url.endswith("/poll"):
+            return Response({"status": "Ready", "result": {"sample": "https://provider.test/image.png"}})
+        return Response()
+
+    monkeypatch.setattr(comic_creation, "BFL_API_KEY", "test-key")
+    monkeypatch.setattr(comic_creation.requests, "post", post)
+    monkeypatch.setattr(comic_creation.requests, "get", get)
+    monkeypatch.setattr(comic_creation.time, "sleep", lambda _seconds: None)
+
+    comic_creation.call_flux_and_download("safe", reference_images=[media_url(object_path)])
+
+    assert submitted["input_image"] == base64.b64encode(b"avatar-bytes").decode("ascii")
+    assert "/media/" not in submitted["input_image"]
+    assert "localhost" not in submitted["input_image"]
+
+
+@pytest.mark.parametrize("reference", ["http://localhost:8000/media/avatar.png", "/media/../secret.png"])
+def test_flux_rejects_unvalidated_reference_paths(monkeypatch, tmp_path, reference):
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    comic_creation = importlib.reload(importlib.import_module("services.comic_creation"))
+    monkeypatch.setattr(comic_creation, "BFL_API_KEY", "test-key")
+    monkeypatch.setattr(
+        comic_creation.requests,
+        "post",
+        lambda *_args, **_kwargs: pytest.fail("invalid reference reached provider"),
+    )
+
+    with pytest.raises(ValueError, match="local|reference"):
+        comic_creation.call_flux_and_download("safe", reference_images=[reference])
+
+
+def test_flux_rejects_non_image_and_oversized_local_references(monkeypatch, tmp_path):
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    comic_creation = importlib.reload(importlib.import_module("services.comic_creation"))
+    storage = LocalStorage(tmp_path)
+    owner = str(uuid4())
+    pdf_path = storage.new_object_path("avatars", owner, ".pdf")
+    storage.finalize(storage.stage_bytes(b"pdf", ".pdf", max_bytes=10), pdf_path)
+    large_path = storage.new_object_path("avatars", owner, ".png")
+    large_bytes = b"x" * (20 * 1024 * 1024 + 1)
+    storage.finalize(
+        storage.stage_bytes(large_bytes, ".png", max_bytes=len(large_bytes)),
+        large_path,
+    )
+    monkeypatch.setattr(comic_creation, "BFL_API_KEY", "test-key")
+    monkeypatch.setattr(
+        comic_creation.requests,
+        "post",
+        lambda *_args, **_kwargs: pytest.fail("invalid reference reached provider"),
+    )
+
+    for reference in (media_url(pdf_path), media_url(large_path)):
+        with pytest.raises(ValueError, match="local|reference"):
+            comic_creation.call_flux_and_download("safe", reference_images=[reference])

@@ -3,12 +3,14 @@
 import importlib
 import sys
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect
 from sqlalchemy import select
 
 from database.models import LocalProfile
 from database.session import create_session_factory
+import local_runtime
 from local_runtime import initialize_local_backend
 from local_storage import LocalStorage, media_url
 
@@ -42,6 +44,27 @@ def test_local_startup_creates_exactly_one_non_authenticated_teacher_profile(tmp
         profiles = session.scalars(select(LocalProfile)).all()
 
     assert [(profile.display_name, profile.role) for profile in profiles] == [("Local Teacher", "teacher")]
+
+
+def test_local_runtime_rejects_non_sqlite_database_url_before_engine_or_storage(monkeypatch, tmp_path):
+    """Catches local mode contacting a configured hosted database."""
+    data_dir = tmp_path / "local-data"
+    monkeypatch.setenv("DATABASE_URL", "postgresql://hosted.example/educomic")
+    monkeypatch.setattr(
+        local_runtime,
+        "upgrade_database",
+        lambda *_args: pytest.fail("migration engine contacted"),
+    )
+    monkeypatch.setattr(
+        local_runtime,
+        "create_local_engine",
+        lambda *_args: pytest.fail("readiness engine contacted"),
+    )
+
+    with pytest.raises(ValueError, match="SQLite"):
+        initialize_local_backend(data_dir)
+    assert not data_dir.exists()
+    assert local_runtime.local_readiness(data_dir) == (False, True)
 
 
 def test_backend_imports_without_supabase_package_or_variables(monkeypatch, tmp_path):

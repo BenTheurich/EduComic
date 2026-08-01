@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 
 from database.migrations import upgrade_database
 from database.session import create_local_engine
@@ -25,16 +26,20 @@ def resolve_local_paths(data_dir: Path | str | None = None) -> LocalPaths:
 
 
 def local_database_url(paths: LocalPaths) -> str:
-    return os.getenv("DATABASE_URL") or f"sqlite:///{paths.database.as_posix()}"
+    database_url = os.getenv("DATABASE_URL") or f"sqlite:///{paths.database.as_posix()}"
+    if make_url(database_url).get_backend_name() != "sqlite":
+        raise ValueError("Local mode requires a SQLite DATABASE_URL")
+    return database_url
 
 
 def initialize_local_backend(data_dir: Path | str | None = None) -> LocalPaths:
     paths = resolve_local_paths(data_dir)
+    database_url = local_database_url(paths)
     LocalStorage(paths.root)
-    upgrade_database(local_database_url(paths))
+    upgrade_database(database_url)
     from database.database import ensure_local_teacher
 
-    ensure_local_teacher(local_database_url(paths))
+    ensure_local_teacher(database_url)
     return paths
 
 

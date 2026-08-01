@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from provider_clients import LazyClient
 
 from story_contracts import StoryIdeasResponse
 
@@ -14,7 +15,7 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.1")
 
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
 if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_API_KEY_HERE":
     print("[WARN] OPENAI_API_KEY not set; OpenAI calls will fail until you configure it.")

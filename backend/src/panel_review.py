@@ -19,6 +19,7 @@ from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from provider_clients import LazyClient
 
 from story_contracts import PanelReview
 
@@ -28,7 +29,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
 # Separate model for QA so you can tweak independently
 OPENAI_QA_MODEL = os.getenv("OPENAI_QA_MODEL", "gpt-4o")
 
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
 
 def _expected_text_from_panel(panel: Dict[str, Any]) -> List[Dict[str, str]]:

@@ -20,7 +20,7 @@ EduComic is a local/private educational comic application built with React and F
    uv run python src/run_local.py --reload
    ```
 
-   First startup creates `backend/data/`, applies the checked-in Alembic migrations, and serves local media through `/media/...` URLs.
+   First startup creates `backend/data/`, applies the checked-in Alembic migrations, and serves local media through `/media/...` URLs. An optional `DATABASE_URL` override must still be SQLite; the local application refuses hosted database URLs.
 
 4. Start the frontend:
 

@@ -6,6 +6,8 @@ Base: `32cb4d3951520845b89dfc16af738924affde60f`
 
 Implementation commits:
 
+The post-review persistence, provider-boundary, lifecycle, and claim fixes are included in the current review-fix commit in addition to the commits listed below.
+
 - `af277ca` — `feat: use local persistence for application workflows`
 - `cf595de` — `feat: make local profile flows truthful`
 
@@ -20,6 +22,12 @@ Implementation commits:
 - Converted avatar classroom lookup and final avatar persistence to local queries and validated `/media/...` storage. Provider responses are downloaded with a content-type and size boundary before atomic local finalization.
 - Converted generated panel images to durable local media. A generated revision is written separately, and the chapter switches to that revision only after all panels succeed. Readers expose only the current ready revision; provider or cleanup failure is marked `failed` by the background wrapper.
 - Removed raw `avatar_object_path` updates from the public persistence helper during Ponytail full self-review. Only validated local-media URLs may cross that boundary.
+- Local startup and readiness now accept SQLite URLs only. A configured PostgreSQL, Supabase, or other non-SQLite `DATABASE_URL` is rejected before a storage directory or database engine is opened.
+- Simultaneous identical student create/enroll requests now reload and compare the committed winner after an integrity race; conflicting profile or enrollment payloads still fail truthfully.
+- BFL reference images are resolved only from validated `/media/...` local objects, restricted to supported image types, read with a 20 MiB bound, and base64-encoded into the existing `input_image` through `input_image_8` fields. Localhost and relative application URLs never cross the provider boundary.
+- Avatar replacement compensates a failed database update by deleting the new file, and removes the superseded avatar only after the new row commits. Panel insert failures delete their new image; retries clear interrupted target-revision rows/files; successful revision changes remove superseded rows/files; chapter deletion removes all recorded panel files after the database commit. Cleanup failures are sanitized and logged without rolling back an already-correct database state.
+- Provider clients are constructed lazily on the first provider operation. Import, liveness, and readiness do not construct OpenAI, HTTPX, or Requests transports.
+- Chapter commit now uses one conditional SQL update to claim only `idea_chosen` or `failed` chapters with the selected idea. A repeated/in-flight commit receives HTTP 409 rather than starting a second generation.
 - Preserved UUID validation, extra-field rejection, UTC serialization, database cascades, traversal/redirect protection, bounded media reads/writes, generic API errors, ready-only readers, and fail-closed PDF behavior. The pending panel-count decision was not changed.
 
 ### Readiness and startup
@@ -83,6 +91,10 @@ Additional small RED/GREEN cycles caught:
 - copied placeholder provider keys incorrectly reported as configured: 1 RED, then the readiness regression set passed;
 - the browser-discovered `Logout` labels: 2 RED, then 5/5 focused sidebar/layout tests passed;
 - raw avatar object paths bypassing the local-media URL boundary: 1 RED, then 2/2 focused media tests passed.
+- a non-SQLite local configuration reaching migration/storage and a simultaneous client-UUID insert raising `IntegrityError`: 2 RED, then the 15-test focused persistence set passed;
+- `/media/...` references being sent verbatim to BFL, invalid references reaching the provider, missing-key/avatar error conflation, orphaned avatar replacement files, and repeated chapter commit: focused tests failed first and then passed;
+- eager OpenAI construction during application import: the constructor-level sentinel failed first, then passed after lazy construction;
+- panel-insert compensation, successful avatar replacement cleanup, and chapter-delete cleanup passed with the concrete local filesystem and database.
 
 ## Fresh verification
 
@@ -90,10 +102,10 @@ All successful commands ran in the isolated recovery worktree. No provider netwo
 
 ```text
 backend\.venv\Scripts\python.exe -m pytest -q
-89 passed in 3.31s
+103 passed in 4.50s
 
 npm.cmd test -- --run
-18 test files passed; 45 tests passed; duration 4.28s
+18 test files passed; 45 tests passed; duration 5.85s
 
 npm.cmd run typecheck
 exit 0
@@ -102,7 +114,7 @@ npm.cmd run lint
 exit 0
 
 VITE_API_URL=http://127.0.0.1:8000 npm.cmd run build
-2487 modules transformed; built in 4.52s
+2487 modules transformed; built in 3.65s
 
 backend\.venv\Scripts\python.exe -m compileall -q src tests
 exit 0
@@ -137,7 +149,11 @@ Uvicorn running on http://127.0.0.1:8000
 }
 ```
 
-The readiness network sentinel test proves this inspection does not create a client or make a paid call. Unit coverage proves placeholder keys remain false and local persistence/storage failures return precise 503 reasons. `validate_bind("0.0.0.0", false)` is rejected; only the explicit unsupported override permits it.
+The readiness network sentinel patches the actual OpenAI constructor plus HTTPX and Requests transports before application import. It proves this inspection neither constructs a provider client nor makes a paid call. Unit coverage proves placeholder keys remain false and local persistence/storage failures return precise 503 reasons. `validate_bind("0.0.0.0", false)` is rejected; only the explicit unsupported override permits it.
+
+## Provider request verification
+
+The BFL request shape was checked against the official current FLUX.2 `[pro]` API reference: `POST /v1/flux-2-pro` accepts `input_image`, `input_image_2`, through `input_image_8`, with reference content supplied as a URL or base64 data. The existing endpoint, model, polling URL handling, and field names were retained; only validated local files are converted to bounded base64 before submission. Source: [FLUX.2 `[pro]` API reference](https://docs.bfl.ai/api-reference/models/generate-or-edit-an-image-with-flux2-%5Bpro%5D).
 
 ## Real-browser journey and restart
 
@@ -195,4 +211,4 @@ No reset, stash, clean, checkout, live Supabase project access, OpenAI/BFL call,
 
 Ponytail full review confirmed that the conversion reuses the existing models, session factory, `LocalStorage`, FastAPI routes, and browser pages. It adds no abstraction layer and no dependency. It also removed the one raw storage-field bypass described above. Validation, data-loss prevention, accessibility, and explicit security boundaries were not simplified.
 
-No Task 2 acceptance blocker remains. Phase 3 should own controlled real-provider acceptance, provider-key lifecycle/log hardening, cleanup of superseded local avatar/panel objects, and any future hosted/remote security design. The panel-count policy remains explicitly unresolved and unchanged.
+No Task 2 acceptance blocker remains. This review follow-up adds atomic status claiming, target-revision isolation, and concrete compensation/post-commit file cleanup. It does **not** claim the full Phase 3 generation protocol: durable `generation_runs`, all-images staging followed by one database replacement transaction, restart-time detection/resume of crashed work, and retryable durable cleanup records remain Phase 3 work. Controlled real-provider acceptance, provider-key lifecycle/log hardening, and any future hosted/remote security design also remain later work. The panel-count policy remains explicitly unresolved and unchanged.

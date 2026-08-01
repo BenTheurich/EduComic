@@ -5,6 +5,7 @@ import socket
 import sys
 import httpx
 import pytest
+import requests
 
 
 def _load_application():
@@ -22,6 +23,33 @@ async def test_liveness_loads_offline_without_credentials(monkeypatch):
     app = _load_application().app
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
         assert (await client.get("/health")).json() == {"status": "healthy"}
+
+
+@pytest.mark.asyncio
+async def test_readiness_does_not_construct_provider_clients(monkeypatch, tmp_path):
+    """Catches provider constructors or transports running during app import/readiness."""
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        sys.modules["openai"],
+        "OpenAI",
+        lambda *_args, **_kwargs: pytest.fail("OpenAI client constructed"),
+    )
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda *_args, **_kwargs: pytest.fail("HTTPX transport constructed"),
+    )
+    monkeypatch.setattr(
+        requests.sessions.Session,
+        "request",
+        lambda *_args, **_kwargs: pytest.fail("requests transport called"),
+    )
+
+    main = _load_application()
+    main.initialize_local_backend(tmp_path)
+    response = await main.readiness_check()
+
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio

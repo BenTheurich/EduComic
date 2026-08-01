@@ -3,7 +3,7 @@
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from uuid import UUID, uuid4
 
 
@@ -71,6 +71,14 @@ class LocalStorage:
         except FileNotFoundError:
             return False
         return True
+
+    def object_path_from_url(self, url: str) -> str:
+        """Resolve an application media URL through the same path boundary as reads."""
+        if not isinstance(url, str) or not url.startswith("/media/"):
+            raise StorageValidationError("media reference must be a local /media URL")
+        object_path = unquote(url.removeprefix("/media/"))
+        self.absolute_path(object_path)
+        return object_path
 
     def cleanup_staging(self, *, older_than: timedelta, now: datetime | None = None) -> int:
         if older_than.total_seconds() < 0:

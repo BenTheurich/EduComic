@@ -13,7 +13,9 @@ Step 2 of the pipeline:
 - Update chapter JSON state and return full chapter payload
 """
 
+import base64
 import json
+import logging
 import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -34,9 +36,13 @@ from database.database import (
 )
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
+from provider_clients import LazyClient
 
 # NEW: quality review helper
 from panel_review import review_panel_image
+
+
+logger = logging.getLogger("educomic.comic_creation")
 
 # ─────────────────────────────────────────────────────────────
 # Environment + client setup
@@ -47,7 +53,7 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.1")
 
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
 BFL_API_KEY = os.getenv("BFL_API_KEY", "YOUR_BFL_API_KEY_HERE")
 
@@ -150,7 +156,10 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
 
     print("\n🧹 Clearing any interrupted target revision...")
     target_revision = int(chapter.get("revision", 0)) + 1
-    delete_panels_by_chapter(chapter_id, revision=target_revision)
+    _delete_local_objects(
+        delete_panels_by_chapter(chapter_id, revision=target_revision) or [],
+        context="interrupted revision cleanup",
+    )
     print("✓ Interrupted target revision cleared")
 
     # Build FLUX prompts
@@ -232,16 +241,11 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
                 aspect_ratio=aspect_ratio,
                 reference_images=reference_images,
             )
-            image_url = upload_image_and_get_url(
+            image_url = _persist_panel(
+                chapter_id=chapter_id,
                 img_bytes=image_bytes,
-                chapter_id=chapter_id,
-                panel_index=idx,
                 fallback_url=source_url,
-            )
-            create_panel(
-                chapter_id=chapter_id,
                 index=idx,
-                image=image_url,
                 revision=target_revision,
                 dialogue=panel.get("dialogue") or [],
                 scene_description=panel.get("description") or "",
@@ -385,23 +389,18 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
 
         print(f"\n      📦 Using best attempt (score={best_score:.1f})")
         print("      → Uploading to storage...")
-        image_url = upload_image_and_get_url(
+        image_url = _persist_panel(
+            chapter_id=chapter_id,
             img_bytes=best_image_bytes,
-            chapter_id=chapter_id,
-            panel_index=idx,
             fallback_url=best_source_url,
-        )
-        print("      ✓ Image uploaded")
-
-        create_panel(
-            chapter_id=chapter_id,
             index=idx,
-            image=image_url,
             revision=target_revision,
             dialogue=panel.get("dialogue") or [],
             scene_description=panel.get("description") or "",
             speakers=[line["speaker"] for line in dialogue if line.get("speaker")],
         )
+        print("      ✓ Image uploaded")
+
         print(f"      ✓ Panel {idx} complete!\n")
 
         panel_index_to_url[idx] = image_url
@@ -426,6 +425,11 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
         },
     )
     print("✓ Chapter updated to 'ready' status")
+
+    _delete_local_objects(
+        delete_panels_by_chapter(chapter_id, except_revision=target_revision) or [],
+        context="superseded revision cleanup",
+    )
 
     # Build structured payload for frontend
     print("\n📦 Step 9: Building response payload...")
@@ -761,11 +765,19 @@ def call_flux_and_download(
 
     # Attach reference images as input_image..input_image_8
     refs = reference_images or []
+    storage = LocalStorage(resolve_local_paths().root)
     for i, ref in enumerate(refs):
         if i >= 8:
             break
         key = "input_image" if i == 0 else f"input_image_{i + 1}"
-        body[key] = ref
+        try:
+            object_path = storage.object_path_from_url(ref)
+            if not storage.content_type(object_path).startswith("image/"):
+                raise ValueError("FLUX reference must be an image")
+            reference_bytes = storage.read_bytes(object_path, max_bytes=20 * 1024 * 1024)
+        except ValueError as exc:
+            raise ValueError("FLUX reference must be validated local media") from exc
+        body[key] = base64.b64encode(reference_bytes).decode("ascii")
 
     submit_resp = requests.post(submit_url, headers=headers, json=body, timeout=30)
     submit_resp.raise_for_status()
@@ -835,6 +847,58 @@ def upload_image_and_get_url(
         return media_url(object_path)
     except Exception:
         raise RuntimeError("Panel image storage failed") from None
+
+
+def _persist_panel(
+    *,
+    chapter_id: str,
+    img_bytes: bytes,
+    fallback_url: str,
+    index: int,
+    revision: int,
+    dialogue: Any,
+    scene_description: str,
+    speakers: list[str],
+) -> str:
+    image_url = upload_image_and_get_url(
+        img_bytes=img_bytes,
+        chapter_id=chapter_id,
+        panel_index=index,
+        fallback_url=fallback_url,
+    )
+    try:
+        create_panel(
+            chapter_id=chapter_id,
+            index=index,
+            image=image_url,
+            revision=revision,
+            dialogue=dialogue,
+            scene_description=scene_description,
+            speakers=speakers,
+        )
+    except Exception:
+        try:
+            storage = LocalStorage(resolve_local_paths().root)
+            storage.delete(storage.object_path_from_url(image_url))
+        except Exception:
+            logger.error("Local media deletion failed context=panel insert compensation")
+        raise
+    return image_url
+
+
+def _delete_local_objects(object_paths: list[str], *, context: str) -> None:
+    if not object_paths:
+        return
+    try:
+        storage = LocalStorage(resolve_local_paths().root)
+    except Exception:
+        logger.error("Local media deletion failed context=%s", context)
+        return
+    for object_path in object_paths:
+        try:
+            storage.delete(object_path)
+        except Exception:
+            logger.error("Local media deletion failed context=%s", context)
 
 
 
