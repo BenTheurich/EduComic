@@ -176,3 +176,14 @@ def test_wildcard_origin_is_rejected_when_credentials_are_enabled(monkeypatch):
 
     with pytest.raises(RuntimeError, match="explicit origins"):
         main._allowed_origins()
+
+
+def test_default_origins_match_the_vite_development_server(monkeypatch):
+    """Catches the backend rejecting requests from Vite's default local server."""
+    main = importlib.import_module("main")
+    monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
+
+    assert main._allowed_origins() == [
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ]

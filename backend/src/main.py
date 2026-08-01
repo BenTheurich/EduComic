@@ -41,7 +41,7 @@ logger = logging.getLogger("educomic.api")
 
 def _allowed_origins() -> list[str]:
     configured = os.getenv(
-        "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+        "ALLOWED_ORIGINS", "http://localhost:8080,http://127.0.0.1:8080"
     )
     origins = [origin.strip() for origin in configured.split(",") if origin.strip()]
     if not origins or "*" in origins:

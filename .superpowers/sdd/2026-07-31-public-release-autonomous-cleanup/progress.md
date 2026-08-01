@@ -109,3 +109,5 @@ Task 18B: fix round 1/5 (2 addressed, 0 open - truthful retryable ClassroomDetai
 Task 18 browser checkpoint: one 40px-wide shared small icon control found and fixed with a 44px minimum plus regression test. Headed Chromium desktop/mobile keyboard, retry, reader, reduced-motion, overflow, console, request, and visual checks pass; frontend suite now has 42 tests.
 
 Task 18 browser fix round 1/5: invite-copy control named and restored to 44px height; reduced-motion assertion made unconditional. Headed Chromium passes again; frontend suite now has 43 tests.
+
+Task 20A: complete. Backend defaults and the environment example now match Vite on port 8080; Lovable's tagger and metadata are gone. Backend 33 tests/compileall and frontend typecheck/lint/43 tests/build pass; the scoped stale-identity search and diff check are clean. Production audit remains at the known 3 high React Router advisories with no current-major fix and 0 critical.
