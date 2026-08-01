@@ -225,6 +225,7 @@ Exit criterion: local mode is truthful, persistent, and localhost-only; the publ
 3. Atomically swap panel rows only after the replacement files are complete; mark every top-level failure `failed`; clean new partial files on failure and old files after success.
 4. Prevent concurrent commit/provider-spend races. Persist generation-run state in SQLite. Use a durable worker/queue only in the later hosted deployment.
 5. Extend readiness to the migration head, data-directory writability, provider config, and recoverable generation-run state.
+6. Persist immutable generation-cast IDs separately from provider-input provenance (the cast plus selected-option participants). Use provider-input provenance for deletion blocking and erasure, and treat incomplete legacy provenance conservatively.
 
 Exit criterion: fault-injection tests at OpenAI, BFL submit/poll/download, storage, database insert/swap, and process restart preserve the previous story and end in a truthful recoverable state.
 

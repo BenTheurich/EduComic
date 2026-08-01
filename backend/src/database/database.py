@@ -632,10 +632,14 @@ def begin_generation_run(
                 raise GenerationConflict("Chapter cannot generate in its current state")
 
             snapshot = _generation_snapshot(session, chapter.classroom_id)
+            snapshot["provider_input_student_ids"] = list(
+                dict.fromkeys([*(chapter.option_student_ids or []), *snapshot["student_ids"]])
+            )
+            snapshot["provenance_complete"] = bool(chapter.option_provenance_complete)
             if _deletion_started(session, "chapter", chapter_id) or session.scalar(
                 select(DeletionManifest.id).where(
                     DeletionManifest.target_kind == "student",
-                    DeletionManifest.target_id.in_(snapshot["student_ids"]),
+                    DeletionManifest.target_id.in_(snapshot["provider_input_student_ids"]),
                 )
             ):
                 raise GenerationConflict("Related deletion is active")
@@ -1138,7 +1142,7 @@ def _affected_runs(session: Session, student_id: str | None) -> list[GenerationR
         run
         for run in session.scalars(select(GenerationRun)).all()
         if not (run.settings_snapshot or {}).get("provenance_complete", False)
-        or student_id in (run.settings_snapshot or {}).get("student_ids", [])
+        or student_id in (run.settings_snapshot or {}).get("provider_input_student_ids", [])
     ]
 
 
@@ -1173,8 +1177,7 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
     option_chapters = [
         chapter
         for chapter in session.scalars(select(Chapter)).all()
-        if chapter.story_ideas
-        and (
+        if (
             not chapter.option_provenance_complete
             or target_id in (chapter.option_student_ids or [])
         )
@@ -1195,7 +1198,17 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
             continue
         option_affected = chapter in option_chapters
         if option_affected:
-            chapter.story_ideas = []
+            chapter.story_ideas = (
+                [
+                    {
+                        "id": chapter.chosen_idea_id,
+                        "title": "Classroom story",
+                        "summary": "Create a new story with the current classroom.",
+                    }
+                ]
+                if chapter.chosen_idea_id
+                else []
+            )
             chapter.option_student_ids = []
             chapter.option_settings_snapshot = {}
             chapter.option_provenance_complete = True
@@ -1215,7 +1228,7 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
             chapter.story_script = None
             chapter.title = None
             if option_affected:
-                chapter.status = "draft"
+                chapter.status = "idea_chosen" if chapter.chosen_idea_id else "draft"
             else:
                 chapter.status = "idea_chosen" if chapter.chosen_idea_id else "options_generated"
 

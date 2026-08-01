@@ -180,9 +180,15 @@ def test_student_erasure_blocks_active_run_then_clears_affected_option_output(mo
 
     assert erased.status_code == 200
     shell = database.get_chapter(chapter["id"])
-    assert shell["story_ideas"] == []
+    assert shell["story_ideas"] == [
+        {
+            "id": "idea_1",
+            "title": "Classroom story",
+            "summary": "Create a new story with the current classroom.",
+        }
+    ]
     assert shell["chosen_idea_id"] == "idea_1"
-    assert shell["status"] == "draft"
+    assert shell["status"] == "idea_chosen"
     assert shell["revision"] == 0
 
 
@@ -383,7 +389,7 @@ def test_review_migration_marks_legacy_provenance_incomplete_and_repairs_current
     upgrade_database(url)
 
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0004_review_fixes"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_provider_provenance"
         defaults = json.loads(connection.execute(text("SELECT generation_defaults FROM settings")).scalar_one())
         run = connection.execute(
             text("SELECT settings_snapshot, script_snapshot FROM generation_runs WHERE id = :id"),
