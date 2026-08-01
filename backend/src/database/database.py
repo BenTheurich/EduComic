@@ -1539,6 +1539,8 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
         chapter = session.get(Chapter, chapter_id)
         if chapter is None:
             continue
+        if chapter.status == "ready":
+            continue
         option_affected = chapter in option_chapters
         if option_affected:
             chapter.story_ideas = (

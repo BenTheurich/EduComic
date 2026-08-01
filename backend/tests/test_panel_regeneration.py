@@ -5,6 +5,9 @@ import importlib
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+
+from database.models import Chapter, Panel
 
 
 PNG = base64.b64decode(
@@ -12,7 +15,7 @@ PNG = base64.b64decode(
 )
 
 
-def _ready_story(monkeypatch, tmp_path):
+def _ready_story(monkeypatch, tmp_path, panel_count=3):
     monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
     runtime = importlib.import_module("local_runtime")
     database = importlib.import_module("database.database")
@@ -35,7 +38,7 @@ def _ready_story(monkeypatch, tmp_path):
                 "dialogue": [{"speaker": "Ada Fiction", "text": "I can see the orbit."}],
                 "featured_students": ["Ada Fiction"],
             }
-            for index in range(1, 4)
+            for index in range(1, panel_count + 1)
         ],
     }
     chapter = database.create_chapter(
@@ -49,7 +52,7 @@ def _ready_story(monkeypatch, tmp_path):
         }
     )
     paths = []
-    for index in range(1, 4):
+    for index in range(1, panel_count + 1):
         path = storage.new_object_path("story-images", chapter["id"], ".png")
         storage.finalize(storage.stage_bytes(PNG, ".png", max_bytes=len(PNG)), path)
         database.create_panel(
@@ -139,6 +142,79 @@ def test_successful_panel_correction_changes_only_one_panel_and_survives_reload(
     assert [panel["image"] for panel in reloaded["panels"]] == [
         panel["image"] for panel in current["panels"]
     ]
+
+
+def test_student_erasure_never_reconstructs_a_ready_corrected_chapter(monkeypatch, tmp_path):
+    """Catches failed-run cleanup rewriting an already-readable corrected chapter."""
+    database, storage, chapter_id, _old_paths = _ready_story(monkeypatch, tmp_path, panel_count=12)
+    regeneration = importlib.import_module("services.panel_regeneration")
+    student = database.get_all_students()[0]
+    avatar_path = student["avatar_url"].removeprefix("/media/")
+    database.update_settings({"story_length": 20})
+    monkeypatch.setattr(regeneration, "submit_bfl_generation", lambda *_args, **_kwargs: "poll://success")
+    monkeypatch.setattr(regeneration, "poll_bfl_generation", lambda _url: "delivery://success")
+    monkeypatch.setattr(regeneration, "download_bfl_image", lambda _url: PNG)
+    corrected, _created = database.begin_panel_regeneration(
+        chapter_id, 2, 1, "Make the orbit arrow clockwise.", "ready-revision-2"
+    )
+    regeneration.run_panel_regeneration(corrected["id"])
+    database.update_chapter(
+        chapter_id,
+        {
+            "option_student_ids": [student["id"]],
+            "option_provenance_complete": True,
+            "option_settings_snapshot": {"story_length": 12, "student_ids": [student["id"]]},
+        },
+    )
+    failed, _created = database.begin_panel_regeneration(
+        chapter_id, 3, 2, "Make the orbit trail clearer.", "failed-revision-3"
+    )
+    monkeypatch.setattr(
+        regeneration,
+        "submit_bfl_generation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("fictional failure")),
+    )
+    regeneration.run_panel_regeneration(failed["id"])
+
+    def ready_state():
+        with database._session() as session:
+            chapter = session.get(Chapter, chapter_id)
+            panels = session.scalars(
+                select(Panel).where(Panel.chapter_id == chapter_id).order_by(Panel.panel_number)
+            ).all()
+            return (
+                {column.name: getattr(chapter, column.name) for column in Chapter.__table__.columns},
+                [
+                    {column.name: getattr(panel, column.name) for column in Panel.__table__.columns}
+                    for panel in panels
+                ],
+            )
+
+    chapter_before, panels_before = ready_state()
+    corrected_run_before = database.get_generation_run(corrected["id"])
+    referenced_paths = [panel["image_object_path"] for panel in panels_before]
+    referenced_files_before = {
+        path: storage.absolute_path(path).read_bytes() for path in referenced_paths
+    }
+    assert chapter_before["status"] == "ready"
+    assert chapter_before["revision"] == 2
+    assert len(panels_before) == 12
+    assert storage.absolute_path(avatar_path).is_file()
+    assert all(storage.absolute_path(path).is_file() for path in referenced_paths)
+
+    assert database.execute_deletion("student", student["id"]) is True
+
+    chapter_after, panels_after = ready_state()
+    assert database.get_student(student["id"]) is None
+    assert database.get_students_by_classroom(database.get_chapter(chapter_id)["classroom_id"]) == []
+    assert not storage.absolute_path(avatar_path).exists()
+    assert chapter_after == chapter_before
+    assert panels_after == panels_before
+    assert database.get_generation_run(corrected["id"]) == corrected_run_before
+    assert database.get_generation_run(failed["id"]) is None
+    assert {
+        path: storage.absolute_path(path).read_bytes() for path in referenced_paths
+    } == referenced_files_before
 
 
 @pytest.mark.parametrize(
