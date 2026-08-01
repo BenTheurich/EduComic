@@ -78,7 +78,7 @@ DONE
 
 ## Commit
 
-Recorded after commit below.
+Implementation and initial report: `d169914` (`feat: modernize local provider defaults`).
 
 ## Concerns
 
