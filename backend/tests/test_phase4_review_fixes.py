@@ -389,7 +389,7 @@ def test_review_migration_marks_legacy_provenance_incomplete_and_repairs_current
     upgrade_database(url)
 
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_provider_defaults"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_panel_regeneration"
         defaults = json.loads(connection.execute(text("SELECT generation_defaults FROM settings")).scalar_one())
         run = connection.execute(
             text("SELECT settings_snapshot, script_snapshot FROM generation_runs WHERE id = :id"),

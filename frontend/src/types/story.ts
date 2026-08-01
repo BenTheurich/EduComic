@@ -19,6 +19,7 @@ export interface Chapter {
   id: string;
   classroom_id: string;
   index: number;
+  revision: number;
   chapter_outline: string | null;
   original_prompt: string;
   thumbnail_url: string | null;

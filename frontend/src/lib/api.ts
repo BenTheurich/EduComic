@@ -14,6 +14,16 @@ export interface Material {
   text_char_count: number;
 }
 
+export interface PanelRegenerationStatus {
+  run_id: string;
+  chapter_id: string;
+  panel_number: number;
+  status: "regenerating" | "ready" | "failed";
+  error_code: string | null;
+  error_reference: string | null;
+  cleanup_pending: boolean;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || (
   import.meta.env.DEV || import.meta.env.MODE === 'test'
     ? 'http://127.0.0.1:8000'
@@ -338,6 +348,27 @@ export const api = {
         success: boolean;
         chapter: ChapterWithPanels;
       }>(`/chapters/${chapterId}`),
+
+    regeneratePanel: (
+      chapterId: string,
+      panelNumber: number,
+      expectedRevision: number,
+      correction: string,
+      idempotencyKey: string,
+    ) => apiFetch<PanelRegenerationStatus>(
+      `/chapters/${chapterId}/panels/${panelNumber}/regenerate`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: expectedRevision,
+          correction,
+          idempotency_key: idempotencyKey,
+        }),
+      },
+    ),
+
+    getPanelRegeneration: (runId: string) =>
+      apiFetch<PanelRegenerationStatus>(`/panel-regenerations/${runId}`),
 
     delete: (chapterId: string) =>
       apiFetch<{

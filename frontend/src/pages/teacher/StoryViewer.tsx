@@ -15,6 +15,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { exportStoryPdf } from "@/lib/exportStoryPdf";
@@ -30,6 +31,10 @@ const StoryViewer = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [allChapters, setAllChapters] = useState<Chapter[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(-1);
+  const [correctionPanel, setCorrectionPanel] = useState<number | null>(null);
+  const [correction, setCorrection] = useState("");
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [correctionError, setCorrectionError] = useState<string | null>(null);
   const [exportSettings, setExportSettings] = useState({
     pageSize: "a4",
     layout: "2"
@@ -123,6 +128,98 @@ const StoryViewer = () => {
       toast.error("Failed to generate PDF. Please try again.");
     }
   };
+
+  const handlePanelRegeneration = async (panel: Panel) => {
+    if (!chapter || !correction.trim()) return;
+    setIsRegenerating(true);
+    setCorrectionError(null);
+    try {
+      let run = await api.chapters.regeneratePanel(
+        chapter.id,
+        panel.index,
+        chapter.revision,
+        correction,
+        crypto.randomUUID(),
+      );
+      for (let poll = 0; run.status === "regenerating" && poll < 300; poll += 1) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        run = await api.chapters.getPanelRegeneration(run.run_id);
+      }
+      if (run.status !== "ready") throw new Error(run.error_reference || "panel regeneration failed");
+      const refreshed = await api.chapters.getById(chapter.id);
+      setChapter(refreshed.chapter);
+      setPanels(refreshed.chapter.panels || []);
+      setCorrectionPanel(null);
+      setCorrection("");
+      toast.success(`Panel ${panel.index} regenerated`);
+    } catch {
+      setCorrectionError(
+        `Panel ${panel.index} could not be regenerated. The previous panel is still available.`,
+      );
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const renderPanel = (panel: Panel, grid: boolean) => (
+    <div key={panel.id} className={grid ? "overflow-hidden rounded-lg bg-white shadow-sm" : "w-full bg-white"}>
+      <img
+        src={panel.image}
+        alt={`Panel ${panel.index}`}
+        className="block h-auto w-full"
+        loading="lazy"
+      />
+      <div className="space-y-3 p-3 text-left leading-normal">
+        {correctionPanel !== panel.index ? (
+          <Button
+            aria-label={`Correct panel ${panel.index}`}
+            variant="outline"
+            size="sm"
+            disabled={isRegenerating}
+            onClick={() => {
+              setCorrectionPanel(panel.index);
+              setCorrection("");
+              setCorrectionError(null);
+            }}
+          >
+            Correct panel {panel.index}
+          </Button>
+        ) : (
+          <>
+            <Label htmlFor={`panel-correction-${panel.index}`}>Correction for panel {panel.index}</Label>
+            <Textarea
+              id={`panel-correction-${panel.index}`}
+              value={correction}
+              maxLength={500}
+              disabled={isRegenerating}
+              onChange={event => setCorrection(event.target.value)}
+              placeholder="Describe the visual correction for this panel"
+            />
+            {isRegenerating && <p role="status">Regenerating panel {panel.index}...</p>}
+            {correctionError && <p role="alert" className="text-sm text-destructive">{correctionError}</p>}
+            <div className="flex gap-2">
+              <Button
+                aria-label={`${correctionError ? "Retry" : "Regenerate"} panel ${panel.index}`}
+                size="sm"
+                disabled={isRegenerating || !correction.trim()}
+                onClick={() => handlePanelRegeneration(panel)}
+              >
+                {isRegenerating ? "Regenerating..." : correctionError ? "Retry" : "Regenerate"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isRegenerating}
+                onClick={() => setCorrectionPanel(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 
   if (isLoading) {
     return (
@@ -249,11 +346,7 @@ const StoryViewer = () => {
               <p className="text-muted-foreground text-lg">No panels yet</p>
             </div>
           ) : (
-            panels.sort((a, b) => a.index - b.index).map((panel) => (
-              <div key={panel.id} className="w-full" style={{ display: 'block', lineHeight: 0, margin: 0, padding: 0 }}>
-                <img src={panel.image} alt={`Panel ${panel.index}`} className="w-full h-auto block" loading="lazy" style={{ margin: 0, padding: 0, display: 'block' }} />
-              </div>
-            ))
+            [...panels].sort((a, b) => a.index - b.index).map((panel) => renderPanel(panel, false))
           )}
         </div>
       ) : (
@@ -265,9 +358,7 @@ const StoryViewer = () => {
             </div>
           ) : (
             <div className={`grid gap-4 ${imageScale <= 30 ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : imageScale <= 50 ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : imageScale <= 80 ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : imageScale <= 120 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-              {panels.sort((a, b) => a.index - b.index).map((panel) => (
-                <img key={panel.id} src={panel.image} alt={`Panel ${panel.index}`} className="w-full h-auto" loading="lazy" />
-              ))}
+              {[...panels].sort((a, b) => a.index - b.index).map((panel) => renderPanel(panel, true))}
             </div>
           )}
         </div>

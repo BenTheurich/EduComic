@@ -84,3 +84,13 @@ class CommitStoryRequest(BaseModel):
     chapter_id: UUID
     chosen_idea_id: IdeaId
     idempotency_key: IdempotencyKey | None = None
+
+
+class PanelRegenerationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    expected_revision: int = Field(ge=1)
+    correction: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
+    ]
+    idempotency_key: IdempotencyKey

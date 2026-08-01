@@ -22,6 +22,7 @@ from api_models import (
     ClassroomUpdateRequest,
     CommitStoryRequest,
     LessonPromptRequest,
+    PanelRegenerationRequest,
     StoryChoiceRequest,
     StudentCreateRequest,
     StudentUpdateRequest,
@@ -33,6 +34,7 @@ from materials import MAX_PDF_BYTES, MaterialRejected, extract_pdf
 from provider_config import configured_secret
 from services.avatar import PortraitRejected, ProviderConfigurationError, generate_avatar, normalize_portrait
 from services.generation import run_generation
+from services.panel_regeneration import run_panel_regeneration
 
 # Load environment variables
 load_dotenv()
@@ -640,6 +642,10 @@ def _run_story_generation(run_id: str) -> None:
     run_generation(run_id)
 
 
+def _run_panel_regeneration(run_id: str) -> None:
+    run_panel_regeneration(run_id)
+
+
 @app.post("/chapters/commit")
 async def commit_chapter_endpoint(
     request: CommitStoryRequest, background_tasks: BackgroundTasks
@@ -864,6 +870,65 @@ async def delete_chapter_endpoint(chapter_id: UUID, confirm: bool = False):
         raise
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post("/chapters/{chapter_id}/panels/{panel_number}/regenerate", status_code=202)
+async def regenerate_panel_endpoint(
+    chapter_id: UUID,
+    panel_number: int,
+    request: PanelRegenerationRequest,
+    background_tasks: BackgroundTasks,
+):
+    from database.database import GenerationConflict, begin_panel_regeneration
+
+    try:
+        run, created = begin_panel_regeneration(
+            str(chapter_id),
+            panel_number,
+            request.expected_revision,
+            request.correction,
+            request.idempotency_key,
+        )
+        if created:
+            background_tasks.add_task(_run_panel_regeneration, run["id"])
+        return {
+            "run_id": run["id"],
+            "chapter_id": run["chapter_id"],
+            "panel_number": run["panel_number"],
+            "status": {"succeeded": "ready", "failed": "failed"}.get(
+                run["job_state"], "regenerating"
+            ),
+            "error_code": run["error_code"],
+            "error_reference": run["error_reference"],
+            "cleanup_pending": run["cleanup_pending"],
+        }
+    except GenerationConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        status_code = 404 if str(exc) in {"Chapter not found", "Panel not found"} else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.get("/panel-regenerations/{run_id}")
+async def get_panel_regeneration_endpoint(run_id: UUID):
+    from database.database import get_generation_run
+
+    run = get_generation_run(str(run_id))
+    if run is None or run["run_kind"] != "panel":
+        raise HTTPException(status_code=404, detail="Panel regeneration not found")
+    return {
+        "run_id": run["id"],
+        "chapter_id": run["chapter_id"],
+        "panel_number": run["panel_number"],
+        "status": {"succeeded": "ready", "failed": "failed"}.get(
+            run["job_state"], "regenerating"
+        ),
+        "error_code": run["error_code"],
+        "error_reference": run["error_reference"],
+        "cleanup_pending": run["cleanup_pending"],
+    }
 
 
 @app.get("/settings")

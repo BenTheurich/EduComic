@@ -6,7 +6,7 @@ from alembic import command
 from alembic.config import Config
 
 
-MIGRATION_HEAD = "0007_provider_defaults"
+MIGRATION_HEAD = "0008_panel_regeneration"
 
 
 def upgrade_database(database_url: str) -> None:

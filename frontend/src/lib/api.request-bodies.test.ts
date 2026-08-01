@@ -54,6 +54,21 @@ describe("active POST request bodies", () => {
         idempotency_key: "generation-request-1",
       },
     },
+    {
+      send: () => api.chapters.regeneratePanel(
+        "00000000-0000-4000-8000-000000000002",
+        4,
+        2,
+        "Make the arrow clockwise.",
+        "panel-request-1",
+      ),
+      path: "/chapters/00000000-0000-4000-8000-000000000002/panels/4/regenerate",
+      body: {
+        expected_revision: 2,
+        correction: "Make the arrow clockwise.",
+        idempotency_key: "panel-request-1",
+      },
+    },
   ])("sends $path values as JSON", async ({ send, path, body }) => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", {
       status: 200,

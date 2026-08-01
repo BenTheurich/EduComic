@@ -205,7 +205,10 @@ def _generation_run(run: GenerationRun) -> dict[str, Any]:
     return {
         "id": run.id,
         "chapter_id": run.chapter_id,
+        "run_kind": run.run_kind,
         "selected_idea_id": run.selected_idea_id,
+        "base_revision": run.base_revision,
+        "panel_number": run.panel_number,
         "target_revision": run.target_revision,
         "job_state": run.job_state,
         "stage": run.stage,
@@ -215,6 +218,7 @@ def _generation_run(run: GenerationRun) -> dict[str, Any]:
         "settings_snapshot": dict(run.settings_snapshot or {}),
         "started_at": _iso(run.started_at) if run.started_at else None,
         "finished_at": _iso(run.finished_at) if run.finished_at else None,
+        "cleanup_pending": bool(run.artifact_paths),
     }
 
 
@@ -789,6 +793,132 @@ def begin_generation_run(
         raise GenerationConflict("Chapter generation is already active") from None
 
 
+def begin_panel_regeneration(
+    chapter_id: str,
+    panel_number: int,
+    base_revision: int,
+    correction: str,
+    idempotency_key: str,
+) -> tuple[dict[str, Any], bool]:
+    """Reserve one corrected panel while returning identical retries unchanged."""
+    if not isinstance(idempotency_key, str) or not 1 <= len(idempotency_key) <= 80:
+        raise ValueError("Invalid idempotency key")
+    if not isinstance(panel_number, int) or not 1 <= panel_number <= 20:
+        raise ValueError("Invalid panel number")
+    correction = correction.strip() if isinstance(correction, str) else ""
+    if not 1 <= len(correction) <= 500:
+        raise ValueError("Invalid panel correction")
+    scoped_key = hashlib.sha256(f"panel:{chapter_id}:{idempotency_key}".encode()).hexdigest()
+    try:
+        with _session() as session:
+            existing = session.scalar(
+                select(GenerationRun).where(GenerationRun.idempotency_key == scoped_key)
+            )
+            if existing:
+                if (
+                    existing.run_kind != "panel"
+                    or existing.chapter_id != chapter_id
+                    or existing.panel_number != panel_number
+                    or existing.base_revision != base_revision
+                    or existing.correction != correction
+                ):
+                    raise GenerationConflict("Idempotency key does not match the original request")
+                return _generation_run(existing), False
+
+            active = session.scalar(
+                select(GenerationRun).where(
+                    GenerationRun.chapter_id == chapter_id,
+                    GenerationRun.job_state.in_(("queued", "running")),
+                )
+            )
+            if active:
+                raise GenerationConflict("Chapter generation is already active")
+
+            chapter = session.get(Chapter, chapter_id)
+            if chapter is None:
+                raise ValueError("Chapter not found")
+            if chapter.status != "ready":
+                raise GenerationConflict("Only a ready chapter can be corrected")
+            if chapter.revision != base_revision:
+                raise GenerationConflict("Panel correction is stale")
+            if session.scalar(
+                select(Panel.id).where(
+                    Panel.chapter_id == chapter_id,
+                    Panel.revision == base_revision,
+                    Panel.panel_number == panel_number,
+                )
+            ) is None:
+                raise ValueError("Panel not found")
+            if _deletion_started(session, "chapter", chapter_id):
+                raise GenerationConflict("Related deletion is active")
+
+            snapshot = _generation_snapshot(session, chapter.classroom_id)
+            script_panel = next(
+                (
+                    panel
+                    for panel in (chapter.story_script or {}).get("panels") or []
+                    if panel.get("index") == panel_number
+                ),
+                {},
+            )
+            relevant_names = set(script_panel.get("featured_students") or [])
+            relevant_names.update(
+                line.get("speaker") for line in script_panel.get("dialogue") or [] if line.get("speaker")
+            )
+            relevant_ids = list(
+                session.scalars(
+                    select(Student.id)
+                    .join(StudentClassroom, StudentClassroom.student_id == Student.id)
+                    .where(
+                        StudentClassroom.classroom_id == chapter.classroom_id,
+                        Student.name.in_(relevant_names),
+                    )
+                    .order_by(StudentClassroom.created_at, Student.id)
+                ).all()
+            ) if relevant_names else []
+            snapshot["student_ids"] = relevant_ids
+            snapshot["provider_input_student_ids"] = relevant_ids
+            snapshot["provenance_complete"] = True
+            if relevant_ids and session.scalar(
+                select(DeletionManifest.id).where(
+                    DeletionManifest.target_kind == "student",
+                    DeletionManifest.target_id.in_(relevant_ids),
+                )
+            ):
+                raise GenerationConflict("Related deletion is active")
+
+            run = GenerationRun(
+                idempotency_key=scoped_key,
+                chapter_id=chapter_id,
+                run_kind="panel",
+                base_revision=base_revision,
+                panel_number=panel_number,
+                correction=correction,
+                target_revision=base_revision + 1,
+                job_state="queued",
+                stage="queued",
+                artifact_paths=[],
+                settings_snapshot=snapshot,
+            )
+            session.add(run)
+            session.flush()
+            return _generation_run(run), True
+    except IntegrityError:
+        with _session() as session:
+            winner = session.scalar(
+                select(GenerationRun).where(GenerationRun.idempotency_key == scoped_key)
+            )
+            if winner and winner.run_kind == "panel" and winner.chapter_id == chapter_id:
+                if (
+                    winner.panel_number == panel_number
+                    and winner.base_revision == base_revision
+                    and winner.correction == correction
+                ):
+                    return _generation_run(winner), False
+                raise GenerationConflict("Idempotency key does not match the original request")
+        raise GenerationConflict("Chapter generation is already active") from None
+
+
 def get_generation_run(run_id: str) -> dict[str, Any] | None:
     with _session() as session:
         run = session.get(GenerationRun, run_id)
@@ -830,12 +960,40 @@ def start_generation_run(run_id: str) -> dict[str, Any] | None:
     with _session() as session:
         result = session.execute(
             update(GenerationRun)
-            .where(GenerationRun.id == run_id, GenerationRun.job_state == "queued")
+            .where(
+                GenerationRun.id == run_id,
+                GenerationRun.run_kind == "story",
+                GenerationRun.job_state == "queued",
+            )
             .values(job_state="running", stage="script", started_at=now)
         )
         if result.rowcount != 1:
             return None
         return _generation_run(session.get(GenerationRun, run_id))
+
+
+def start_panel_regeneration_run(run_id: str) -> dict[str, Any] | None:
+    """Start only a still-current one-panel correction lease."""
+    now = datetime.now(timezone.utc)
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "panel" or run.job_state != "queued":
+            return None
+        chapter = session.get(Chapter, run.chapter_id)
+        if chapter is None or chapter.status != "ready" or chapter.revision != run.base_revision:
+            run.job_state = "failed"
+            run.stage = "failed"
+            run.error_code = "stale"
+            run.error_reference = uuid4().hex
+            run.finished_at = now
+            return None
+        run.job_state = "running"
+        run.stage = "context"
+        run.started_at = now
+        session.flush()
+        data = _generation_run(run)
+        data["correction"] = run.correction
+        return data
 
 
 def set_generation_stage(run_id: str, stage: str) -> None:
@@ -917,6 +1075,57 @@ def finalize_generation_run(
         run.script_snapshot = script
         run.finished_at = datetime.now(timezone.utc)
         session.flush()
+        return old_paths
+
+
+def finalize_panel_regeneration(run_id: str, image_object_path: str) -> list[str]:
+    """Atomically advance the complete row set while swapping one image reference."""
+    storage = LocalStorage(resolve_local_paths().root)
+    try:
+        if not image_object_path.startswith("story-images/") or not storage.absolute_path(image_object_path).is_file():
+            raise ValueError
+    except (AttributeError, ValueError):
+        raise ValueError("Corrected panel requires durable local story media") from None
+
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "panel" or run.job_state != "running":
+            raise GenerationConflict("Panel regeneration run is not active")
+        chapter = session.get(Chapter, run.chapter_id)
+        if (
+            chapter is None
+            or chapter.status != "ready"
+            or chapter.revision != run.base_revision
+            or run.target_revision != run.base_revision + 1
+        ):
+            raise GenerationConflict("Panel regeneration target revision is stale")
+        panels = list(
+            session.scalars(
+                select(Panel)
+                .where(Panel.chapter_id == chapter.id, Panel.revision == run.base_revision)
+                .order_by(Panel.panel_number)
+            ).all()
+        )
+        selected = next((panel for panel in panels if panel.panel_number == run.panel_number), None)
+        if selected is None:
+            raise GenerationConflict("Panel regeneration target is missing")
+        old_path = selected.image_object_path
+        for panel in panels:
+            panel.revision = run.target_revision
+        selected.image_object_path = image_object_path
+        chapter.revision = run.target_revision
+        chapter.status = "ready"
+        run.job_state = "succeeded"
+        run.stage = "ready"
+        run.script_snapshot = chapter.story_script
+        run.artifact_paths = [old_path]
+        run.finished_at = datetime.now(timezone.utc)
+        session.flush()
+        still_referenced = session.scalar(
+            select(Panel.id).where(Panel.image_object_path == old_path)
+        )
+        old_paths = [] if still_referenced else [old_path]
+        run.artifact_paths = old_paths
         return old_paths
 
 
