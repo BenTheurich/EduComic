@@ -3,7 +3,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 ShortText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
@@ -66,7 +66,10 @@ class SettingsUpdateRequest(BaseModel):
 
 
 class LessonPromptRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     lesson_prompt: LongText
+    material_ids: list[UUID] = Field(default_factory=list, max_length=10)
 
 
 class StoryChoiceRequest(BaseModel):

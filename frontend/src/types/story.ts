@@ -25,6 +25,12 @@ export interface Chapter {
   story_title?: string;
   status: ChapterStatus;
   created_at: string;
+  grounded_sources?: Array<{
+    material_id: string;
+    content_hash: string;
+    source_label: string;
+    excerpts: Array<{ page: number; text: string }>;
+  }>;
 }
 
 export interface ChapterWithPanels extends Chapter {

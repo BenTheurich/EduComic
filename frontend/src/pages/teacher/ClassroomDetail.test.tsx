@@ -4,10 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TeacherSidebar } from "@/components/teacher/TeacherSidebar";
 import ClassroomDetail from "./ClassroomDetail";
 
-const { getById, getChapters, updateClassroom, leaveClassroom, eraseStudent } = vi.hoisted(() => ({
+const { deleteMaterial, getById, getChapters, getMaterials, updateClassroom, uploadMaterial, leaveClassroom, eraseStudent } = vi.hoisted(() => ({
+  deleteMaterial: vi.fn(),
   getById: vi.fn(),
   getChapters: vi.fn(),
+  getMaterials: vi.fn(),
   updateClassroom: vi.fn(),
+  uploadMaterial: vi.fn(),
   leaveClassroom: vi.fn(),
   eraseStudent: vi.fn(),
 }));
@@ -15,6 +18,7 @@ const { getById, getChapters, updateClassroom, leaveClassroom, eraseStudent } = 
 vi.mock("@/lib/api", () => ({
   api: {
     classrooms: { getById, getChapters, update: updateClassroom },
+    materials: { getAll: getMaterials, upload: uploadMaterial, delete: deleteMaterial },
     students: { leaveClassroom, erase: eraseStudent },
     chapters: { getById: vi.fn(), delete: vi.fn() },
   },
@@ -25,7 +29,7 @@ const routerOptions = {
   v7_relativeSplatPath: true,
 } as const;
 
-describe("removed classroom materials feature", () => {
+describe("classroom materials", () => {
   beforeEach(() => {
     getById.mockReset().mockResolvedValue({
       success: true,
@@ -41,14 +45,21 @@ describe("removed classroom materials feature", () => {
       },
     });
     getChapters.mockReset().mockResolvedValue({ success: true, chapters: [] });
+    getMaterials.mockReset().mockResolvedValue({ success: true, materials: [] });
+    uploadMaterial.mockReset();
+    deleteMaterial.mockReset().mockResolvedValue({ success: true });
     updateClassroom.mockReset().mockRejectedValue(new Error("offline"));
     leaveClassroom.mockReset().mockResolvedValue({ success: true });
     eraseStudent.mockReset().mockResolvedValue({ success: true });
   });
 
-  it("does not offer a Materials tab in the real classroom detail", async () => {
+  it("uploads, displays, cancels, and confirms deletion of a ready PDF", async () => {
+    uploadMaterial.mockResolvedValue({ success: true, material: {
+      id: "material-1", classroom_id: "classroom-1", source_filename: "luma.pdf",
+      extraction_state: "ready", content_hash: "a".repeat(64), page_count: 1, text_char_count: 14,
+    }});
     render(
-      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1"]}>
+      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}>
         <Routes>
           <Route path="/teacher/classroom/:id" element={<ClassroomDetail />} />
         </Routes>
@@ -56,7 +67,29 @@ describe("removed classroom materials feature", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Science" })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Materials" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Materials" })).toBeInTheDocument();
+    const file = new File(["%PDF-fictional"], "luma.pdf", { type: "application/pdf" });
+    fireEvent.change(await screen.findByLabelText("Upload lesson PDF"), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole("button", { name: "Upload and extract" }));
+
+    expect(await screen.findByText("luma.pdf")).toBeInTheDocument();
+    expect(screen.getByText("Ready · 1 page · 14 characters")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete luma.pdf" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(deleteMaterial).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Delete luma.pdf" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm material deletion" }));
+    await waitFor(() => expect(deleteMaterial).toHaveBeenCalledWith("material-1"));
+    expect(screen.queryByText("luma.pdf")).not.toBeInTheDocument();
+  });
+
+  it("shows the truthful textless rejection from extraction", async () => {
+    uploadMaterial.mockRejectedValue(new Error("No extractable text was found. Scanned PDFs are not supported yet."));
+    render(<MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
+    await screen.findByRole("heading", { name: "Science" });
+    fireEvent.change(screen.getByLabelText("Upload lesson PDF"), { target: { files: [new File(["scan"], "scan.pdf")] } });
+    fireEvent.click(screen.getByRole("button", { name: "Upload and extract" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Scanned PDFs are not supported yet");
   });
 
   it("keeps a failed load visible and retries the classroom", async () => {
@@ -125,7 +158,7 @@ describe("removed classroom materials feature", () => {
 
   it("preserves classroom edit values after a recoverable save failure", async () => {
     render(
-      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1"]}>
+      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}>
         <Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes>
       </MemoryRouter>,
     );

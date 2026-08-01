@@ -36,6 +36,7 @@ from database.database import (
 )
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
+from materials import grounding_prompt
 from provider_clients import LazyClient
 from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
 
@@ -499,6 +500,7 @@ def generate_full_script_and_panels(
     chosen_idea: Dict[str, Any],
     panel_count: int = 12,
     model: str = "gpt-5.1",
+    materials: list[dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     """
     Ask OpenAI for a full script + panel breakdown.
@@ -550,6 +552,7 @@ def generate_full_script_and_panels(
         "  ]\n"
         "}\n\n"
         f"INPUT:\n{json.dumps(payload, ensure_ascii=False)}"
+        f"\n\n{grounding_prompt(materials or [])}"
     )
 
     resp = openai_client.chat.completions.parse(

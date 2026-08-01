@@ -280,18 +280,22 @@ def test_stale_story_paths_are_not_registered_for_any_method():
     assert registered_paths.isdisjoint(stale_paths)
 
 
-def test_material_paths_are_not_registered_for_any_method():
-    """Catches the removed material-storage feature returning under any HTTP method."""
+def test_material_workflow_uses_one_upload_list_path_and_one_delete_path():
+    """Catches duplicate or missing material APIs drifting from the approved contract."""
     app = importlib.import_module("main").app
 
-    registered_paths = {route.path for route in app.routes}
-    material_paths = {
-        "/classrooms/{classroom_id}/materials",
-        "/classrooms/{classroom_id}/materials/upload",
-        "/materials/{material_id}",
+    methods = {
+        (route.path, method)
+        for route in app.routes
+        for method in getattr(route, "methods", set())
+        if "material" in route.path
     }
 
-    assert registered_paths.isdisjoint(material_paths)
+    assert methods == {
+        ("/classrooms/{classroom_id}/materials", "GET"),
+        ("/classrooms/{classroom_id}/materials", "POST"),
+        ("/materials/{material_id}", "DELETE"),
+    }
 
 
 def test_student_photo_upload_is_not_registered_for_any_method():

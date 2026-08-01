@@ -233,14 +233,17 @@ def run_generation(run_id: str) -> None:
         if chosen is None or chapter.get("chosen_idea_id") != run["selected_idea_id"]:
             raise ValueError("Chosen idea is invalid")
         students = database.get_students_by_ids(run["settings_snapshot"]["student_ids"])
-        script = comic_creation.generate_full_script_and_panels(
-            classroom=classroom,
-            students=students,
-            teacher_outline=chapter["original_prompt"],
-            chosen_idea=chosen,
-            panel_count=run["settings_snapshot"]["story_length"],
-            model=run["settings_snapshot"]["openai_model"],
-        )
+        script_args = {
+            "classroom": classroom,
+            "students": students,
+            "teacher_outline": chapter["original_prompt"],
+            "chosen_idea": chosen,
+            "panel_count": run["settings_snapshot"]["story_length"],
+            "model": run["settings_snapshot"]["openai_model"],
+        }
+        if chapter.get("grounded_sources"):
+            script_args["materials"] = chapter["grounded_sources"]
+        script = comic_creation.generate_full_script_and_panels(**script_args)
         expected_count = run["settings_snapshot"]["story_length"]
         if len(script["panels"]) != expected_count:
             raise ValueError("Comic script panel count is invalid")

@@ -167,8 +167,10 @@ class ChapterMaterial(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=_uuid)
     chapter_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False)
-    material_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("materials.id", ondelete="CASCADE"), nullable=False)
+    material_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_label: Mapped[str] = mapped_column(String(255), nullable=False)
+    excerpts: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
 
 
 class Panel(TimestampMixin, Base):

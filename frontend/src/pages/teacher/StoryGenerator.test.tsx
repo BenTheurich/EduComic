@@ -3,11 +3,12 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StoryGenerator from "./StoryGenerator";
 
-const { chooseIdea, commitChapter, getChapter, getClassroom, startChapter } = vi.hoisted(() => ({
+const { chooseIdea, commitChapter, getChapter, getClassroom, getMaterials, startChapter } = vi.hoisted(() => ({
   chooseIdea: vi.fn(),
   commitChapter: vi.fn(),
   getChapter: vi.fn(),
   getClassroom: vi.fn(),
+  getMaterials: vi.fn(),
   startChapter: vi.fn(),
 }));
 
@@ -16,6 +17,7 @@ vi.mock("@/lib/api", () => ({
     classrooms: {
       getById: getClassroom,
     },
+    materials: { getAll: getMaterials },
     story: {
       startChapter,
       chooseIdea,
@@ -74,6 +76,7 @@ describe("StoryGenerator", () => {
       success: true,
       classroom: { name: "Science", subject: "Physics", grade_level: "8" },
     });
+    getMaterials.mockReset().mockResolvedValue({ success: true, materials: [] });
     vi.stubGlobal("fetch", vi.fn());
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -97,6 +100,25 @@ describe("StoryGenerator", () => {
     expect(screen.queryByText("Newton's Space Race")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Select This Story" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Generate Story Options" })).toBeEnabled());
+  });
+
+  it("sends only explicitly selected ready materials and shows grounded metadata", async () => {
+    getMaterials.mockResolvedValue({ success: true, materials: [{
+      id: "material-1", classroom_id: "classroom-1", source_filename: "luma.pdf",
+      extraction_state: "ready", content_hash: "a".repeat(64), page_count: 1, text_char_count: 14,
+    }] });
+    startChapter.mockResolvedValue({ success: true, chapter: {
+      id: "chapter-1", story_ideas: [{ id: "idea_1", title: "Luma", summary: "A lesson", theme: "Space" }],
+      grounded_sources: [{ material_id: "material-1", content_hash: "a".repeat(64), source_label: "luma.pdf", excerpts: [{ page: 1, text: "Luma is blue." }] }],
+    }});
+
+    renderGenerator();
+    fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Teach moons" } });
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Use luma.pdf" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate Story Options" }));
+
+    await waitFor(() => expect(startChapter).toHaveBeenCalledWith("classroom-1", "Teach moons", ["material-1"]));
+    expect(await screen.findByText("Grounded in luma.pdf")).toBeInTheDocument();
   });
 
   it("keeps a failed classroom metadata load visible and retries it", async () => {

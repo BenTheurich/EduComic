@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from provider_clients import LazyClient
 from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
+from materials import grounding_prompt
 
 from story_contracts import StoryIdeasResponse
 
@@ -52,6 +53,7 @@ def generate_story_ideas(
     teacher_outline: str,
     *,
     model: str = "gpt-5.1",
+    materials: list[dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Ask OpenAI for 3 story ideas for this classroom + outline.
@@ -86,6 +88,7 @@ def generate_story_ideas(
         "  ]\n"
         "}\n\n"
         f"INPUT:\n{json.dumps(payload, ensure_ascii=False)}"
+        f"\n\n{grounding_prompt(materials or [])}"
     )
 
     resp = openai_client.chat.completions.parse(

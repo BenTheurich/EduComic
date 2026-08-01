@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import type { Material } from "@/lib/api";
 import type { Panel } from "@/types/story";
 
 interface StoryOption {
@@ -29,6 +30,9 @@ const StoryGenerator = () => {
   const [classroom, setClassroom] = useState<{ name: string; subject: string; grade_level: string } | null>(null);
   const [classroomLoadError, setClassroomLoadError] = useState<string | null>(null);
   const [classroomReloadKey, setClassroomReloadKey] = useState(0);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [selectedMaterialIds, setSelectedMaterialIds] = useState<string[]>([]);
+  const [groundedSourceLabels, setGroundedSourceLabels] = useState<string[]>([]);
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -61,6 +65,9 @@ const StoryGenerator = () => {
         .catch(() => {
           setClassroomLoadError("Failed to load classroom details. Please try again.");
         });
+      api.materials.getAll(classroomId)
+        .then((response) => setMaterials(response.materials))
+        .catch(() => setMaterials([]));
     }
   }, [classroomId, classroomReloadKey]);
 
@@ -159,12 +166,13 @@ const StoryGenerator = () => {
     setGenerationError(null);
     try {
       // Start chapter and generate story options
-      const response = await api.story.startChapter(classroomId, lessonInput);
+      const response = await api.story.startChapter(classroomId, lessonInput, selectedMaterialIds);
 
       setChapterId(response.chapter.id);
       generationRequestRef.current = null;
       const options = response.chapter.story_ideas || [];
       setStoryOptions(options);
+      setGroundedSourceLabels((response.chapter.grounded_sources || []).map((source) => source.source_label));
       setStep(2);
       toast.success("Story options generated!");
 
@@ -264,6 +272,27 @@ const StoryGenerator = () => {
                   </div>
                 </div>
 
+                {materials.length > 0 && (
+                  <fieldset className="space-y-3 rounded-lg border p-4">
+                    <legend className="px-1 text-sm font-medium">Lesson materials (optional)</legend>
+                    <p className="text-xs text-muted-foreground">Only checked PDFs will be sent as bounded source excerpts.</p>
+                    {materials.map((material) => (
+                      <label key={material.id} className="flex min-h-11 cursor-pointer items-center gap-3">
+                        <input
+                          type="checkbox"
+                          aria-label={`Use ${material.source_filename}`}
+                          checked={selectedMaterialIds.includes(material.id)}
+                          onChange={(event) => setSelectedMaterialIds((current) => event.target.checked
+                            ? [...current, material.id]
+                            : current.filter((id) => id !== material.id))}
+                          className="h-5 w-5"
+                        />
+                        <span>{material.source_filename} · {material.page_count} page{material.page_count === 1 ? "" : "s"}</span>
+                      </label>
+                    ))}
+                  </fieldset>
+                )}
+
                 {generationError && (
                   <p role="alert" className="text-sm text-destructive">
                     {generationError} Please try again.
@@ -295,6 +324,9 @@ const StoryGenerator = () => {
           {step === 2 && (
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-foreground">Choose Your Story</h2>
+              {groundedSourceLabels.length > 0 && (
+                <p className="rounded-md border bg-muted/40 p-3 text-sm">Grounded in {groundedSourceLabels.join(", ")}</p>
+              )}
               <div className="grid md:grid-cols-3 gap-6">
                 {storyOptions.map((option) => (
                   <Card

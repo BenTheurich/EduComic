@@ -4,6 +4,16 @@
 import type { Chapter, ChapterPreview, ChapterStatus, ChapterWithPanels } from "@/types/story";
 import type { Student } from "@/types/student";
 
+export interface Material {
+  id: string;
+  classroom_id: string;
+  source_filename: string;
+  extraction_state: "ready";
+  content_hash: string;
+  page_count: number;
+  text_char_count: number;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || (
   import.meta.env.DEV || import.meta.env.MODE === 'test'
     ? 'http://127.0.0.1:8000'
@@ -34,7 +44,8 @@ export async function apiFetch<T>(
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(error.detail || `HTTP ${response.status}: ${response.statusText}`);
+      const detail = typeof error.detail === "string" ? error.detail : error.detail?.message;
+      throw new Error(detail || `HTTP ${response.status}: ${response.statusText}`);
     }
 
     return await response.json();
@@ -144,9 +155,21 @@ export const api = {
 
   },
 
+  materials: {
+    getAll: (classroomId: string) =>
+      apiFetch<{ success: boolean; materials: Material[] }>(`/classrooms/${classroomId}/materials`),
+    upload: (classroomId: string, file: File) =>
+      apiFetch<{ success: boolean; material: Material }>(
+        `/classrooms/${classroomId}/materials?filename=${encodeURIComponent(file.name)}`,
+        { method: "POST", body: file },
+      ),
+    delete: (materialId: string) =>
+      apiFetch<{ success: boolean }>(`/materials/${materialId}?confirm=true`, { method: "DELETE" }),
+  },
+
   // Story generation
   story: {
-    startChapter: (classroomId: string, lessonPrompt: string) =>
+    startChapter: (classroomId: string, lessonPrompt: string, materialIds: string[] = []) =>
       apiFetch<{
         success: boolean;
         chapter: Chapter & {
@@ -160,7 +183,7 @@ export const api = {
         };
       }>(`/classrooms/${classroomId}/chapters/start`, {
         method: 'POST',
-        body: JSON.stringify({ lesson_prompt: lessonPrompt }),
+        body: JSON.stringify({ lesson_prompt: lessonPrompt, ...(materialIds.length ? { material_ids: materialIds } : {}) }),
       }),
 
     chooseIdea: (chapterId: string, ideaId: string) =>

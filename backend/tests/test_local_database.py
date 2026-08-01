@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from alembic import command
@@ -62,7 +63,7 @@ def test_blank_database_upgrades_to_migration_head(tmp_path):
         "student_classrooms",
         "students",
     }
-    assert engine.connect().execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_provider_provenance"
+    assert engine.connect().execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_material_grounding"
     generation_columns = {column["name"] for column in inspect(engine).get_columns("generation_runs")}
     assert {"selected_idea_id", "stage", "error_code", "artifact_paths"} <= generation_columns
     indexes = {index["name"] for index in inspect(engine).get_indexes("generation_runs")}
@@ -243,15 +244,54 @@ def test_deleting_classroom_cascades_owned_story_rows(tmp_path):
         assert session.execute(text("SELECT COUNT(*) FROM chapters WHERE classroom_id = :id"), {"id": classroom_id}).scalar_one() == 0
 
 
-def test_material_provenance_foreign_key_cascades(tmp_path):
-    """Catches a PostgreSQL-hostile immediate restriction on owned provenance rows."""
+def test_material_provenance_does_not_reference_deletable_source_row(tmp_path):
+    """Catches source deletion erasing immutable chapter provenance."""
     url = _database_url(tmp_path / "educomic.db")
     upgrade_database(url)
 
     foreign_keys = inspect(create_engine(url)).get_foreign_keys("chapter_materials")
-    material_key = next(key for key in foreign_keys if key["constrained_columns"] == ["material_id"])
+    assert all(key["constrained_columns"] != ["material_id"] for key in foreign_keys)
 
-    assert material_key["options"]["ondelete"] == "CASCADE"
+
+def test_material_grounding_migration_preserves_existing_provenance(tmp_path):
+    """Catches the FK fix dropping historical material ID/hash rows during upgrade."""
+    url = _database_url(tmp_path / "educomic.db")
+    _upgrade_to(url, "0005_provider_provenance")
+    engine = create_engine(url)
+    ids = {name: str(uuid4()) for name in ("profile", "classroom", "material", "chapter", "link")}
+    with engine.begin() as connection:
+        connection.execute(text(
+            "INSERT INTO local_profiles (id, display_name, role, display_settings) "
+            "VALUES (:profile, 'Teacher', 'teacher', '{}')"
+        ), ids)
+        connection.execute(text(
+            "INSERT INTO classrooms (id, owner_id, name, subject, grade_level, story_theme, design_style) "
+            "VALUES (:classroom, :profile, 'Science', 'Space', '7', 'Moons', 'comic')"
+        ), ids)
+        connection.execute(text(
+            "INSERT INTO materials (id, classroom_id, source_filename, extraction_state, content_hash) "
+            "VALUES (:material, :classroom, 'legacy.pdf', 'ready', :hash)"
+        ), {**ids, "hash": "b" * 64})
+        connection.execute(text(
+            "INSERT INTO chapters (id, classroom_id, \"index\", original_prompt, status, revision, "
+            "option_student_ids, option_provenance_complete, option_settings_snapshot) "
+            "VALUES (:chapter, :classroom, 1, 'Moons', 'draft', 0, '[]', 1, '{}')"
+        ), ids)
+        connection.execute(text(
+            "INSERT INTO chapter_materials (id, chapter_id, material_id, content_hash) "
+            "VALUES (:link, :chapter, :material, :hash)"
+        ), {**ids, "hash": "b" * 64})
+
+    upgrade_database(url)
+    with engine.begin() as connection:
+        retained = connection.execute(text(
+            "SELECT material_id, content_hash, source_label, excerpts FROM chapter_materials"
+        )).one()
+        connection.execute(text("DELETE FROM materials WHERE id = :material"), ids)
+        count = connection.execute(text("SELECT COUNT(*) FROM chapter_materials")).scalar_one()
+
+    assert tuple(retained) == (ids["material"], "b" * 64, "Historical source", "[]")
+    assert count == 1
 
 
 def test_deleting_classroom_cascades_material_provenance_graph(tmp_path):
@@ -278,7 +318,13 @@ def test_deleting_classroom_cascades_material_provenance_graph(tmp_path):
         chapter.classroom_id = classroom.id
         session.add_all([material, chapter])
         session.flush()
-        session.add(ChapterMaterial(chapter_id=chapter.id, material_id=material.id, content_hash=material.content_hash))
+        session.add(ChapterMaterial(
+            chapter_id=chapter.id,
+            material_id=material.id,
+            content_hash=material.content_hash,
+            source_label="fictional.pdf",
+            excerpts=[{"page": 1, "text": "Fictional orbit fact."}],
+        ))
         session.commit()
         session.delete(classroom)
         session.commit()

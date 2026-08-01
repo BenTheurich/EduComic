@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from database.models import (
     ActiveWork,
     Chapter,
+    ChapterMaterial,
     Classroom,
     DeletionManifest,
     GenerationRun,
@@ -28,6 +29,7 @@ from database.models import (
 from database.session import create_session_factory
 from local_runtime import local_database_url, resolve_local_paths
 from local_storage import LocalStorage, media_url
+from materials import snapshot_sources
 from provider_config import SUPPORTED_BFL_MODELS, SUPPORTED_OPENAI_MODELS, require_supported_model
 
 LOCAL_TEACHER_ID = "00000000-0000-0000-0000-000000000001"
@@ -89,7 +91,68 @@ def _student(student: Student) -> dict[str, Any]:
     }
 
 
-def _chapter(chapter: Chapter) -> dict[str, Any]:
+def _material(material: Material) -> dict[str, Any]:
+    pages = list(material.extracted_pages or [])
+    return {
+        "id": material.id,
+        "classroom_id": material.classroom_id,
+        "source_filename": material.source_filename,
+        "extraction_state": material.extraction_state,
+        "content_hash": material.content_hash,
+        "page_count": len(pages),
+        "text_char_count": sum(len(str(page.get("text", ""))) for page in pages),
+        "created_at": _iso(material.created_at),
+        "updated_at": _iso(material.updated_at),
+    }
+
+
+def create_material(
+    classroom_id: str,
+    source_filename: str,
+    object_path: str,
+    content_hash: str,
+    extracted_pages: list[dict[str, Any]],
+) -> dict[str, Any]:
+    with _session() as session:
+        if session.get(Classroom, classroom_id) is None:
+            raise ValueError("Classroom not found")
+        material = Material(
+            classroom_id=classroom_id,
+            source_filename=source_filename,
+            object_path=object_path,
+            extraction_state="ready",
+            content_hash=content_hash,
+            extracted_pages=extracted_pages,
+        )
+        session.add(material)
+        session.flush()
+        return _material(material)
+
+
+def get_materials_by_classroom(classroom_id: str) -> list[dict[str, Any]]:
+    with _session() as session:
+        rows = session.scalars(
+            select(Material)
+            .where(Material.classroom_id == classroom_id)
+            .order_by(Material.created_at, Material.id)
+        ).all()
+        return [_material(row) for row in rows]
+
+
+def _chapter(chapter: Chapter, session: Session) -> dict[str, Any]:
+    grounded_sources = [
+        {
+            "material_id": row.material_id,
+            "content_hash": row.content_hash,
+            "source_label": row.source_label,
+            "excerpts": list(row.excerpts or []),
+        }
+        for row in session.scalars(
+            select(ChapterMaterial)
+            .where(ChapterMaterial.chapter_id == chapter.id)
+            .order_by(ChapterMaterial.created_at, ChapterMaterial.id)
+        ).all()
+    ]
     data = {
         "id": chapter.id,
         "classroom_id": chapter.classroom_id,
@@ -103,6 +166,7 @@ def _chapter(chapter: Chapter) -> dict[str, Any]:
         "status": chapter.status,
         "revision": chapter.revision,
         "story_script": chapter.story_script,
+        "grounded_sources": grounded_sources,
         "thumbnail_url": None,
         "created_at": _iso(chapter.created_at),
         "updated_at": _iso(chapter.updated_at),
@@ -391,7 +455,7 @@ def finish_superseded_avatar_cleanup(student_id: str, object_path: str) -> None:
 def get_chapter(chapter_id: str) -> dict[str, Any] | None:
     with _session() as session:
         chapter = session.get(Chapter, chapter_id)
-        return _chapter(chapter) if chapter else None
+        return _chapter(chapter, session) if chapter else None
 
 
 def create_chapter(data: dict[str, Any]) -> dict[str, Any]:
@@ -413,7 +477,7 @@ def create_chapter(data: dict[str, Any]) -> dict[str, Any]:
         chapter = Chapter(**data)
         session.add(chapter)
         session.flush()
-        return _chapter(chapter)
+        return _chapter(chapter, session)
 
 
 def update_chapter(chapter_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
@@ -437,7 +501,7 @@ def update_chapter(chapter_id: str, updates: dict[str, Any]) -> dict[str, Any] |
         for key, value in updates.items():
             setattr(chapter, key, value)
         session.flush()
-        return _chapter(chapter)
+        return _chapter(chapter, session)
 
 
 def _deletion_started(session: Session, target_kind: str, target_id: str) -> bool:
@@ -464,7 +528,12 @@ def _deletion_started(session: Session, target_kind: str, target_id: str) -> boo
     return False
 
 
-def begin_story_options(classroom_id: str, index: int, original_prompt: str) -> dict[str, Any]:
+def begin_story_options(
+    classroom_id: str,
+    index: int,
+    original_prompt: str,
+    material_ids: list[str] | None = None,
+) -> dict[str, Any]:
     """Create an option shell and durable provider-work lease in one transaction."""
     with _session() as session:
         if session.get(Classroom, classroom_id) is None:
@@ -484,9 +553,46 @@ def begin_story_options(classroom_id: str, index: int, original_prompt: str) -> 
         )
         session.add(chapter)
         session.flush()
+        selected_ids = list(dict.fromkeys(material_ids or []))
+        if selected_ids:
+            rows = list(
+                session.scalars(
+                    select(Material).where(
+                        Material.id.in_(selected_ids),
+                        Material.classroom_id == classroom_id,
+                        Material.extraction_state == "ready",
+                    )
+                ).all()
+            )
+            by_id = {row.id: row for row in rows}
+            if len(by_id) != len(selected_ids):
+                raise ValueError("Selected materials must be ready and belong to this classroom")
+            snapshots = snapshot_sources(
+                [
+                    {
+                        "id": by_id[material_id].id,
+                        "source_filename": by_id[material_id].source_filename,
+                        "content_hash": by_id[material_id].content_hash,
+                        "extracted_pages": by_id[material_id].extracted_pages,
+                    }
+                    for material_id in selected_ids
+                ]
+            )
+            session.add_all(
+                [
+                    ChapterMaterial(
+                        chapter_id=chapter.id,
+                        material_id=source["material_id"],
+                        content_hash=source["content_hash"],
+                        source_label=source["source_label"],
+                        excerpts=source["excerpts"],
+                    )
+                    for source in snapshots
+                ]
+            )
         session.add(ActiveWork(work_kind="story_options", target_kind="chapter", target_id=chapter.id))
         session.flush()
-        return _chapter(chapter)
+        return _chapter(chapter, session)
 
 
 def complete_story_options(chapter_id: str, story_ideas: list[dict[str, Any]]) -> dict[str, Any]:
@@ -505,7 +611,7 @@ def complete_story_options(chapter_id: str, story_ideas: list[dict[str, Any]]) -
         chapter.status = "options_generated"
         session.delete(work)
         session.flush()
-        return _chapter(chapter)
+        return _chapter(chapter, session)
 
 
 def fail_story_options(chapter_id: str) -> None:
@@ -573,7 +679,7 @@ def choose_chapter_idea(chapter_id: str, idea_id: str) -> dict[str, Any] | None:
         )
         if result.rowcount != 1:
             return None
-        return _chapter(session.get(Chapter, chapter_id))
+        return _chapter(session.get(Chapter, chapter_id), session)
 
 
 def claim_chapter_generation(chapter_id: str, chosen_idea_id: str) -> dict[str, Any] | None:
@@ -591,7 +697,7 @@ def claim_chapter_generation(chapter_id: str, chosen_idea_id: str) -> dict[str, 
         if result.rowcount != 1:
             return None
         chapter = session.get(Chapter, chapter_id)
-        claimed = _chapter(chapter)
+        claimed = _chapter(chapter, session)
         claimed["target_revision"] = chapter.revision + 1
         return claimed
 
@@ -867,7 +973,7 @@ def get_chapters_by_classroom(classroom_id: str) -> list[dict[str, Any]]:
         rows = session.scalars(
             select(Chapter).where(Chapter.classroom_id == classroom_id).order_by(Chapter.index)
         ).all()
-        return [_chapter(row) for row in rows]
+        return [_chapter(row, session) for row in rows]
 
 
 def _add_story_title(chapter: dict[str, Any]) -> None:
@@ -1110,6 +1216,10 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
         paths.extend(session.scalars(select(Material.object_path).where(Material.classroom_id == target_id)).all())
         for run in session.scalars(select(GenerationRun).where(GenerationRun.chapter_id.in_(chapter_ids))).all():
             paths.extend(run.artifact_paths or [])
+    elif target_kind == "material":
+        material = session.get(Material, target_id)
+        if material:
+            paths.append(material.object_path)
     elif target_kind == "student":
         student = session.get(Student, target_id)
         if student:
@@ -1156,6 +1266,11 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
         classroom = session.get(Classroom, target_id)
         if classroom:
             session.delete(classroom)
+        return
+    if target_kind == "material":
+        material = session.get(Material, target_id)
+        if material:
+            session.delete(material)
         return
     if target_kind == "reset":
         session.execute(delete(Classroom))

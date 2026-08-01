@@ -6,7 +6,7 @@ from alembic import command
 from alembic.config import Config
 
 
-MIGRATION_HEAD = "0005_provider_provenance"
+MIGRATION_HEAD = "0006_material_grounding"
 
 
 def upgrade_database(database_url: str) -> None:

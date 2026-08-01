@@ -29,6 +29,7 @@ from api_models import (
 )
 from local_runtime import initialize_local_backend, local_readiness_details, resolve_local_paths
 from local_storage import LocalStorage, StorageValidationError
+from materials import MAX_PDF_BYTES, MaterialRejected, extract_pdf
 from provider_config import configured_secret
 from services.avatar import ProviderConfigurationError, generate_avatar
 from services.generation import run_generation
@@ -223,6 +224,87 @@ async def delete_classroom_endpoint(classroom_id: UUID, confirm: bool = False):
     if not execute_deletion("classroom", str(classroom_id)):
         raise HTTPException(status_code=409, detail="Local file cleanup is incomplete; retry deletion")
     return {"success": True, "message": "Classroom deleted"}
+
+
+async def _bounded_pdf_body(request: Request) -> bytes:
+    content = bytearray()
+    async for chunk in request.stream():
+        content.extend(chunk[: MAX_PDF_BYTES + 1 - len(content)])
+        if len(content) > MAX_PDF_BYTES:
+            raise MaterialRejected("oversized")
+    return bytes(content)
+
+
+@app.post("/classrooms/{classroom_id}/materials", status_code=201)
+async def upload_material_endpoint(classroom_id: UUID, request: Request, filename: str):
+    """Accept one bounded raw PDF body and atomically retain only validated sources."""
+    from database.database import create_material, get_classroom
+
+    classroom_id = str(classroom_id)
+    if get_classroom(classroom_id) is None:
+        raise HTTPException(status_code=404, detail="Classroom not found")
+    filename = filename.strip()
+    if (
+        not filename
+        or len(filename) > 255
+        or "/" in filename
+        or "\\" in filename
+        or any(ord(character) < 32 for character in filename)
+    ):
+        raise HTTPException(status_code=400, detail="A safe source filename is required")
+    try:
+        content = await _bounded_pdf_body(request)
+        extracted = extract_pdf(content)
+    except MaterialRejected as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"state": exc.state, "message": str(exc)},
+        )
+
+    storage = LocalStorage(resolve_local_paths().root)
+    staged = material = None
+    try:
+        staged = storage.stage_bytes(content, ".pdf", max_bytes=MAX_PDF_BYTES)
+        object_path = storage.new_object_path("materials", classroom_id, ".pdf")
+        material = create_material(
+            classroom_id,
+            filename,
+            object_path,
+            extracted.content_hash,
+            extracted.pages,
+        )
+        storage.finalize(staged, object_path)
+        staged = None
+    except Exception:
+        if staged:
+            storage.discard_staged(staged)
+        if material:
+            from database.database import execute_deletion
+
+            execute_deletion("material", material["id"])
+        raise
+    return {"success": True, "material": material}
+
+
+@app.get("/classrooms/{classroom_id}/materials")
+async def list_materials_endpoint(classroom_id: UUID):
+    from database.database import get_classroom, get_materials_by_classroom
+
+    classroom_id = str(classroom_id)
+    if get_classroom(classroom_id) is None:
+        raise HTTPException(status_code=404, detail="Classroom not found")
+    return {"success": True, "materials": get_materials_by_classroom(classroom_id)}
+
+
+@app.delete("/materials/{material_id}")
+async def delete_material_endpoint(material_id: UUID, confirm: bool = False):
+    from database.database import execute_deletion
+
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Deletion requires explicit confirmation")
+    if not execute_deletion("material", str(material_id)):
+        raise HTTPException(status_code=409, detail="Local file cleanup is incomplete; retry deletion")
+    return {"success": True, "message": "Material deleted"}
 
 
 @app.get("/classrooms")
@@ -651,15 +733,20 @@ async def start_chapter_endpoint(
         else:
             next_index = 1
 
-        chapter = begin_story_options(classroom_id, next_index, lesson_prompt)
+        selected_material_ids = [str(material_id) for material_id in request.material_ids]
+        chapter = (
+            begin_story_options(classroom_id, next_index, lesson_prompt, selected_material_ids)
+            if selected_material_ids
+            else begin_story_options(classroom_id, next_index, lesson_prompt)
+        )
         try:
             students = get_students_by_ids(chapter["option_student_ids"])
-            story_ideas = generate_story_ideas(
-                classroom,
-                students,
-                lesson_prompt,
-                model=chapter["option_settings_snapshot"]["openai_model"],
-            )
+            provider_args = {
+                "model": chapter["option_settings_snapshot"]["openai_model"]
+            }
+            if chapter.get("grounded_sources"):
+                provider_args["materials"] = chapter["grounded_sources"]
+            story_ideas = generate_story_ideas(classroom, students, lesson_prompt, **provider_args)
         except Exception:
             fail_story_options(chapter["id"])
             raise

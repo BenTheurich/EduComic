@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import type { Material } from "@/lib/api";
 import { exportStoryPdf } from "@/lib/exportStoryPdf";
 import type { Chapter } from "@/types/story";
 import {
@@ -49,6 +50,10 @@ const ClassroomDetail = () => {
   const [classroom, setClassroom] = useState<Classroom | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
+  const [materialError, setMaterialError] = useState("");
+  const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -68,6 +73,7 @@ const ClassroomDetail = () => {
         setClassroom(null);
         setStudents([]);
         setChapters([]);
+        setMaterials([]);
 
         // Fetch classroom with students
         const classroomResponse = await api.classrooms.getById(id);
@@ -83,6 +89,8 @@ const ClassroomDetail = () => {
         // Fetch chapters
         const chaptersResponse = await api.classrooms.getChapters(id);
         setChapters(chaptersResponse.chapters);
+        const materialsResponse = await api.materials.getAll(id);
+        setMaterials(materialsResponse.materials);
 
       } catch {
         setLoadError("Failed to load classroom. Please try again.");
@@ -145,6 +153,32 @@ const ClassroomDetail = () => {
       await api.classrooms.delete(id);
       navigate("/teacher/dashboard");
     } catch { toast.error("Classroom deletion is incomplete. Retry to finish local file cleanup."); }
+  };
+
+  const uploadMaterial = async () => {
+    if (!id || !materialFile) return;
+    setIsUploadingMaterial(true);
+    setMaterialError("");
+    try {
+      const response = await api.materials.upload(id, materialFile);
+      setMaterials((current) => [...current, response.material]);
+      setMaterialFile(null);
+      toast.success("Lesson PDF is ready");
+    } catch (error) {
+      setMaterialError(error instanceof Error ? error.message : "The PDF could not be uploaded.");
+    } finally {
+      setIsUploadingMaterial(false);
+    }
+  };
+
+  const deleteMaterial = async (materialId: string) => {
+    try {
+      await api.materials.delete(materialId);
+      setMaterials((current) => current.filter((material) => material.id !== materialId));
+      toast.success("Material deleted; existing story provenance was retained");
+    } catch {
+      setMaterialError("Local file cleanup is incomplete. Retry material deletion.");
+    }
   };
 
   // Get calendar week from date
@@ -321,6 +355,7 @@ const ClassroomDetail = () => {
         <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="backdrop-blur-lg bg-muted/50 border border-border/30">
             <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsTrigger value="materials">Materials</TabsTrigger>
             <TabsTrigger value="stories">Stories</TabsTrigger>
           </TabsList>
 
@@ -504,6 +539,48 @@ const ClassroomDetail = () => {
             )}
           </TabsContent>
 
+          <TabsContent value="materials" className="space-y-6">
+            <Card>
+              <CardContent className="space-y-4 pt-6">
+                <div>
+                  <h2 className="text-xl font-semibold">Lesson materials</h2>
+                  <p className="text-sm text-muted-foreground">Native-text PDFs only. Scanned files need OCR, which is not supported yet.</p>
+                </div>
+                <label className="block text-sm font-medium" htmlFor="lesson-pdf">Upload lesson PDF</label>
+                <input
+                  id="lesson-pdf"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(event) => setMaterialFile(event.target.files?.[0] || null)}
+                  className="block min-h-11 w-full rounded-md border bg-background p-2 text-sm"
+                />
+                <Button onClick={() => void uploadMaterial()} disabled={!materialFile || isUploadingMaterial}>
+                  {isUploadingMaterial ? "Uploading and extracting..." : "Upload and extract"}
+                </Button>
+                {materialError && <p role="alert" className="text-sm text-destructive">{materialError}</p>}
+              </CardContent>
+            </Card>
+
+            {materials.length === 0 ? <p className="text-sm text-muted-foreground">No ready lesson materials.</p> : materials.map((material) => (
+              <Card key={material.id}>
+                <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
+                  <div>
+                    <p className="font-medium">{material.source_filename}</p>
+                    <p className="text-sm text-muted-foreground">Ready · {material.page_count} page{material.page_count === 1 ? "" : "s"} · {material.text_char_count} characters</p>
+                    <p className="text-xs text-muted-foreground">SHA-256 {material.content_hash.slice(0, 12)}…</p>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild><Button variant="destructive" aria-label={`Delete ${material.source_filename}`}>Delete</Button></AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader><AlertDialogTitle>Delete {material.source_filename}?</AlertDialogTitle><AlertDialogDescription>The local PDF is deleted. Existing stories keep their source hash, page references, and excerpts.</AlertDialogDescription></AlertDialogHeader>
+                      <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void deleteMaterial(material.id)}>Confirm material deletion</AlertDialogAction></AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardContent>
+              </Card>
+            ))}
+          </TabsContent>
+
           <TabsContent value="stories" className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between gap-4">
               <div className="flex items-center gap-2">
@@ -586,6 +663,11 @@ const ClassroomDetail = () => {
                                       {chapter.status.replaceAll("_", " ")}
                                     </Badge>
                                   </div>
+                                  {(chapter.grounded_sources?.length || 0) > 0 && (
+                                    <p className="mt-2 text-xs text-muted-foreground">
+                                      Grounded in {chapter.grounded_sources?.map((source) => source.source_label).join(", ")} · provenance retained
+                                    </p>
+                                  )}
                                 </div>
                                 <div className="flex gap-2 flex-wrap">
                                   {chapter.status === "ready" && (
