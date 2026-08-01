@@ -36,7 +36,7 @@ from database.database import (
 )
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
-from materials import grounding_prompt
+from materials import UNTRUSTED_SOURCE_SYSTEM_RULE, grounding_prompt
 from provider_clients import LazyClient
 from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
 
@@ -513,7 +513,8 @@ def generate_full_script_and_panels(
     system_prompt = (
         "You write scripts for short educational comics. "
         f"Target: kids 6–16, clear and simple language, exactly {panel_count} panels per chapter. "
-        "Always respond with a single JSON object following the requested schema."
+        "Always respond with a single JSON object following the requested schema. "
+        f"{UNTRUSTED_SOURCE_SYSTEM_RULE}"
     )
 
     user_prompt = (

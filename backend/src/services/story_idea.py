@@ -5,10 +5,10 @@ import os
 from typing import Any, Dict, List
 
 from dotenv import load_dotenv
+from materials import UNTRUSTED_SOURCE_SYSTEM_RULE, grounding_prompt
 from openai import OpenAI
 from provider_clients import LazyClient
 from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
-from materials import grounding_prompt
 
 from story_contracts import StoryIdeasResponse
 
@@ -70,7 +70,8 @@ def generate_story_ideas(
 
     system_prompt = (
         "You create fun, age-appropriate ideas for short educational comic chapters "
-        "for kids roughly between 6 and 16 years old. Always respond with a single JSON object."
+        "for kids roughly between 6 and 16 years old. Always respond with a single JSON object. "
+        f"{UNTRUSTED_SOURCE_SYSTEM_RULE}"
     )
 
     user_prompt = (

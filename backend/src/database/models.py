@@ -171,6 +171,7 @@ class ChapterMaterial(TimestampMixin, Base):
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     source_label: Mapped[str] = mapped_column(String(255), nullable=False)
     excerpts: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    grounding_applied: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
 
 class Panel(TimestampMixin, Base):

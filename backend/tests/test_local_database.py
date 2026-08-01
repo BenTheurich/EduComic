@@ -1,8 +1,9 @@
 """Local database migration and constraint behavior."""
 
 from datetime import datetime, timedelta, timezone
+from io import StringIO
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from alembic import command
@@ -39,6 +40,14 @@ def _upgrade_to(database_url: str, revision: str) -> None:
     config.set_main_option("script_location", str(backend_root / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     command.upgrade(config, revision)
+
+
+def _downgrade_to(database_url: str, revision: str) -> None:
+    backend_root = Path(__file__).resolve().parents[1]
+    config = Config(str(backend_root / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_root / "alembic"))
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    command.downgrade(config, revision)
 
 
 def test_blank_database_upgrades_to_migration_head(tmp_path):
@@ -253,12 +262,12 @@ def test_material_provenance_does_not_reference_deletable_source_row(tmp_path):
     assert all(key["constrained_columns"] != ["material_id"] for key in foreign_keys)
 
 
-def test_material_grounding_migration_preserves_existing_provenance(tmp_path):
-    """Catches the FK fix dropping historical material ID/hash rows during upgrade."""
+def test_material_grounding_migration_marks_real_legacy_provenance_incomplete(tmp_path):
+    """Catches legacy ID/hash/filename rows being fabricated or serialized as applied grounding."""
     url = _database_url(tmp_path / "educomic.db")
     _upgrade_to(url, "0005_provider_provenance")
     engine = create_engine(url)
-    ids = {name: str(uuid4()) for name in ("profile", "classroom", "material", "chapter", "link")}
+    ids = {name: uuid4().hex for name in ("profile", "classroom", "material", "chapter", "link")}
     with engine.begin() as connection:
         connection.execute(text(
             "INSERT INTO local_profiles (id, display_name, role, display_settings) "
@@ -283,15 +292,100 @@ def test_material_grounding_migration_preserves_existing_provenance(tmp_path):
         ), {**ids, "hash": "b" * 64})
 
     upgrade_database(url)
+    columns = {column["name"] for column in inspect(engine).get_columns("chapter_materials")}
+    assert "grounding_applied" in columns
     with engine.begin() as connection:
         retained = connection.execute(text(
-            "SELECT material_id, content_hash, source_label, excerpts FROM chapter_materials"
+            "SELECT material_id, content_hash, source_label, excerpts, grounding_applied FROM chapter_materials"
         )).one()
         connection.execute(text("DELETE FROM materials WHERE id = :material"), ids)
         count = connection.execute(text("SELECT COUNT(*) FROM chapter_materials")).scalar_one()
 
-    assert tuple(retained) == (ids["material"], "b" * 64, "Historical source", "[]")
+    assert tuple(retained) == (ids["material"], "b" * 64, "legacy.pdf", "[]", 0)
     assert count == 1
+    import database.database as database
+
+    with database._session(url) as session:
+        serialized = database._chapter(session.get(Chapter, ids["chapter"]), session)
+    assert serialized["grounded_sources"] == []
+    assert serialized["material_provenance"] == [{
+        "material_id": str(UUID(ids["material"])),
+        "content_hash": "b" * 64,
+        "source_label": "legacy.pdf",
+        "excerpts": [],
+        "grounding_applied": False,
+    }]
+
+
+def test_populated_material_migration_downgrades_filters_deleted_sources_and_reupgrades(tmp_path):
+    """Catches a no-op downgrade, broken v5 FKs, or deleted provenance reappearing on re-upgrade."""
+    url = _database_url(tmp_path / "educomic.db")
+    _upgrade_to(url, "0005_provider_provenance")
+    engine = create_engine(url)
+    ids = {name: str(uuid4()) for name in (
+        "profile", "classroom", "chapter", "live_material", "deleted_material", "live_link", "deleted_link"
+    )}
+    with engine.begin() as connection:
+        connection.execute(text(
+            "INSERT INTO local_profiles (id, display_name, role, display_settings) "
+            "VALUES (:profile, 'Teacher', 'teacher', '{}')"
+        ), ids)
+        connection.execute(text(
+            "INSERT INTO classrooms (id, owner_id, name, subject, grade_level, story_theme, design_style) "
+            "VALUES (:classroom, :profile, 'Science', 'Space', '7', 'Moons', 'comic')"
+        ), ids)
+        connection.execute(text(
+            "INSERT INTO chapters (id, classroom_id, \"index\", original_prompt, status, revision, "
+            "option_student_ids, option_provenance_complete, option_settings_snapshot) "
+            "VALUES (:chapter, :classroom, 1, 'Moons', 'draft', 0, '[]', 1, '{}')"
+        ), ids)
+        connection.execute(text(
+            "INSERT INTO materials (id, classroom_id, source_filename, extraction_state, content_hash) VALUES "
+            "(:live_material, :classroom, 'live.pdf', 'ready', :live_hash), "
+            "(:deleted_material, :classroom, 'deleted.pdf', 'ready', :deleted_hash)"
+        ), {**ids, "live_hash": "c" * 64, "deleted_hash": "d" * 64})
+        connection.execute(text(
+            "INSERT INTO chapter_materials (id, chapter_id, material_id, content_hash) VALUES "
+            "(:live_link, :chapter, :live_material, :live_hash), "
+            "(:deleted_link, :chapter, :deleted_material, :deleted_hash)"
+        ), {**ids, "live_hash": "c" * 64, "deleted_hash": "d" * 64})
+
+    upgrade_database(url)
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM materials WHERE id = :deleted_material"), ids)
+        assert connection.execute(text("SELECT COUNT(*) FROM chapter_materials")).scalar_one() == 2
+
+    _downgrade_to(url, "0005_provider_provenance")
+    assert any(
+        foreign_key["constrained_columns"] == ["material_id"]
+        for foreign_key in inspect(engine).get_foreign_keys("chapter_materials")
+    )
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT material_id FROM chapter_materials")).scalar_one() == ids["live_material"]
+
+    upgrade_database(url)
+    with engine.connect() as connection:
+        row = connection.execute(text(
+            "SELECT material_id, source_label, grounding_applied FROM chapter_materials"
+        )).one()
+    assert tuple(row) == (ids["live_material"], "live.pdf", 0)
+
+
+def test_material_migration_postgresql_ddl_uses_collision_free_temporary_names():
+    """Catches rename-first PostgreSQL DDL reusing schema-scoped v5 constraint names."""
+    backend_root = Path(__file__).resolve().parents[1]
+    output = StringIO()
+    config = Config(str(backend_root / "alembic.ini"), output_buffer=output)
+    config.set_main_option("script_location", str(backend_root / "alembic"))
+    config.set_main_option("sqlalchemy.url", "postgresql://example.invalid/educomic")
+
+    command.upgrade(config, "0005_provider_provenance:0006_material_grounding", sql=True)
+
+    ddl = output.getvalue()
+    assert "CREATE TABLE chapter_materials_v6" in ddl
+    assert "CONSTRAINT fk_chapter_materials_v6_chapter" in ddl
+    assert "CONSTRAINT uq_chapter_material_v6" in ddl
+    assert "ALTER TABLE chapter_materials RENAME TO chapter_materials_v5" not in ddl
 
 
 def test_deleting_classroom_cascades_material_provenance_graph(tmp_path):

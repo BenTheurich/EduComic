@@ -140,18 +140,24 @@ def get_materials_by_classroom(classroom_id: str) -> list[dict[str, Any]]:
 
 
 def _chapter(chapter: Chapter, session: Session) -> dict[str, Any]:
-    grounded_sources = [
+    material_provenance = [
         {
             "material_id": row.material_id,
             "content_hash": row.content_hash,
             "source_label": row.source_label,
             "excerpts": list(row.excerpts or []),
+            "grounding_applied": row.grounding_applied,
         }
         for row in session.scalars(
             select(ChapterMaterial)
             .where(ChapterMaterial.chapter_id == chapter.id)
             .order_by(ChapterMaterial.created_at, ChapterMaterial.id)
         ).all()
+    ]
+    grounded_sources = [
+        {key: value for key, value in source.items() if key != "grounding_applied"}
+        for source in material_provenance
+        if source["grounding_applied"]
     ]
     data = {
         "id": chapter.id,
@@ -167,6 +173,7 @@ def _chapter(chapter: Chapter, session: Session) -> dict[str, Any]:
         "revision": chapter.revision,
         "story_script": chapter.story_script,
         "grounded_sources": grounded_sources,
+        "material_provenance": material_provenance,
         "thumbnail_url": None,
         "created_at": _iso(chapter.created_at),
         "updated_at": _iso(chapter.updated_at),
@@ -586,6 +593,7 @@ def begin_story_options(
                         content_hash=source["content_hash"],
                         source_label=source["source_label"],
                         excerpts=source["excerpts"],
+                        grounding_applied=True,
                     )
                     for source in snapshots
                 ]
