@@ -22,7 +22,7 @@ The public fictional demo comes later. It will reuse the private application's s
 9. A UI/UX critique, technical audit, remediation pass, and visual-system freeze occur after the private application is functionally complete and before work begins on the fictional demo.
 10. The fictional demo uses the polished private application as its visual and interaction source.
 11. Story generation defaults to exactly 12 panels and offers an explicit exactly-20-panel `Full comic` option.
-12. Full student erasure is distinct from classroom removal and deletes the student's profile, personal files, provider-input provenance, and every completed revision/asset generated from that student's identity or likeness while preserving a regenerable chapter shell and selected idea.
+12. Full student erasure is distinct from classroom removal. It deletes the student's profile, classroom memberships, source photo, avatar, and other student-owned local files. Already completed stories remain unchanged as historical artifacts, including their character depictions and panel media.
 
 ## Scope
 
@@ -266,12 +266,12 @@ Avatar regeneration is available when an avatar already exists. The old avatar s
 The UI distinguishes:
 
 - remove a student from one classroom;
-- fully erase the local student profile, source/avatar files, provider inputs, and affected story revisions/assets;
+- fully erase the local student profile, memberships, source photo, avatar, and other student-owned files while preserving completed stories;
 - delete a chapter and its panel images;
 - delete a classroom and its owned materials and chapters;
 - reset all local application data.
 
-Each confirmation names the affected data. A deletion reports success only after the required database mutation and file cleanup complete, and an interrupted cleanup remains retryable. After full student erasure, the latest unaffected revision becomes readable; if none exists, the chapter keeps its selected idea as a non-readable shell that can be regenerated without that student.
+Each confirmation names the affected data and states that completed stories will remain unchanged. A deletion reports success only after the required student-owned database mutation and file cleanup complete, and an interrupted cleanup remains retryable. Student erasure must not delete or rewrite completed story revisions, panel rows, panel media, story prompts, or historical character depictions.
 
 ### Settings
 

@@ -49,6 +49,7 @@ it("requires confirmation before full profile erasure", async () => {
   await screen.findByText("Mina");
   fireEvent.click(screen.getByRole("button", { name: "Erase profile and personal data" }));
   expect(erase).not.toHaveBeenCalled();
+  expect(screen.getByText(/Completed stories and their artwork remain unchanged/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Confirm full erasure" }));
   await waitFor(() => expect(erase).toHaveBeenCalledWith("student-1"));
 });

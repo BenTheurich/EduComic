@@ -206,7 +206,7 @@ const StudentProfile = () => {
 
                     <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive">Erase profile and personal data</Button></AlertDialogTrigger>
                         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Erase all personal data?</AlertDialogTitle>
-                            <AlertDialogDescription>This removes the profile, source photo, avatar, provider inputs, and every story revision generated from this student's identity.</AlertDialogDescription>
+                            <AlertDialogDescription>This removes the profile, classroom memberships, source photo, avatar, and other student-owned files. Completed stories and their artwork remain unchanged.</AlertDialogDescription>
                         </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction onClick={eraseProfile}>Confirm full erasure</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                     </AlertDialog>

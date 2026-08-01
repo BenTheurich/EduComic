@@ -1449,6 +1449,8 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
             paths.extend((student.photo_object_path, student.avatar_object_path))
             paths.extend(student.superseded_avatar_paths or [])
         for run in _affected_runs(session, target_id):
+            if run.job_state == "succeeded":
+                continue
             paths.extend(run.artifact_paths or [])
             paths.extend(
                 session.scalars(
@@ -1511,13 +1513,16 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
         return
     if target_kind != "student":
         raise ValueError("Unsupported deletion target")
-    affected = _affected_runs(session, target_id)
+    affected = [run for run in _affected_runs(session, target_id) if run.job_state != "succeeded"]
     option_chapters = [
         chapter
         for chapter in session.scalars(select(Chapter)).all()
         if (
-            not chapter.option_provenance_complete
-            or target_id in (chapter.option_student_ids or [])
+            chapter.status != "ready"
+            and (
+                not chapter.option_provenance_complete
+                or target_id in (chapter.option_student_ids or [])
+            )
         )
     ]
     chapter_ids = {run.chapter_id for run in affected} | {chapter.id for chapter in option_chapters}

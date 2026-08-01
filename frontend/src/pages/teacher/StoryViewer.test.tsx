@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StoryViewer from "./StoryViewer";
@@ -45,7 +45,10 @@ describe("StoryViewer", () => {
     });
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it("exposes reader controls and clamps a malformed saved scale", async () => {
     localStorage.setItem("teacherStoryReaderImageScale", "not-a-number");
@@ -119,7 +122,7 @@ describe("StoryViewer", () => {
     await waitFor(() => expect(screen.getByLabelText("Current path")).toHaveTextContent("/teacher/story/older-ready"));
   });
 
-  it("keeps the old panel visible during a correction failure and permits retry", async () => {
+  it("reuses the same idempotency key when the initial request outcome is unknown", async () => {
     getChapter.mockResolvedValue({
       success: true,
       chapter: {
@@ -130,7 +133,9 @@ describe("StoryViewer", () => {
       },
     });
     getChapters.mockResolvedValue({ success: true, chapters: [] });
-    regeneratePanel.mockRejectedValue(new Error("fictional provider failure"));
+    regeneratePanel
+      .mockRejectedValueOnce(new Error("fictional transport failure"))
+      .mockResolvedValueOnce({ run_id: "run-1", status: "failed", error_reference: "ref-1" });
 
     renderViewer();
     fireEvent.click(await screen.findByRole("button", { name: "Correct panel 2" }));
@@ -140,9 +145,135 @@ describe("StoryViewer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Regenerate panel 2" }));
 
     expect(screen.getByRole("img", { name: "Panel 2" })).toHaveAttribute("src", "/media/old.png");
-    expect(await screen.findByRole("alert")).toHaveTextContent("could not be regenerated");
-    expect(screen.getByRole("button", { name: "Retry panel 2" })).toBeEnabled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("status could not be confirmed");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("previous panel is still available");
+    const firstKey = regeneratePanel.mock.calls[0][4];
+    fireEvent.click(screen.getByRole("button", { name: "Check panel 2 status" }));
+    await waitFor(() => expect(regeneratePanel).toHaveBeenCalledTimes(2));
+    expect(regeneratePanel.mock.calls[1][4]).toBe(firstKey);
+    expect(await screen.findByRole("alert")).toHaveTextContent("previous panel is still available");
     expect(screen.getByRole("textbox", { name: "Correction for panel 2" })).toHaveValue("Make the arrow clockwise.");
+  });
+
+  it("resumes polling a known run without submitting a second correction", async () => {
+    const chapter = {
+      id: "current", classroom_id: "classroom-1", index: 1, revision: 1,
+      original_prompt: "Lesson", thumbnail_url: null, story_title: "Gravity", status: "ready",
+      created_at: "2026-01-01",
+      panels: [{ id: "panel-2", chapter_id: "current", index: 2, image: "/media/old.png", created_at: "2026-01-01" }],
+    };
+    getChapter
+      .mockResolvedValueOnce({ success: true, chapter })
+      .mockResolvedValueOnce({
+        success: true,
+        chapter: { ...chapter, revision: 2, panels: [{ ...chapter.panels[0], image: "/media/replacement.png" }] },
+      });
+    getChapters.mockResolvedValue({ success: true, chapters: [] });
+    regeneratePanel.mockResolvedValue({ run_id: "run-1", status: "regenerating" });
+    getPanelRegeneration
+      .mockRejectedValueOnce(new Error("fictional poll interruption"))
+      .mockResolvedValueOnce({ run_id: "run-1", status: "ready" });
+
+    renderViewer();
+    fireEvent.click(await screen.findByRole("button", { name: "Correct panel 2" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Correction for panel 2" }), {
+      target: { value: "Make the arrow clockwise." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate panel 2" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("status could not be confirmed");
+    fireEvent.click(screen.getByRole("button", { name: "Check panel 2 status" }));
+    await waitFor(() => expect(screen.getByRole("img", { name: "Panel 2" })).toHaveAttribute("src", "/media/replacement.png"));
+    expect(regeneratePanel).toHaveBeenCalledTimes(1);
+    expect(getPanelRegeneration).toHaveBeenNthCalledWith(1, "run-1");
+    expect(getPanelRegeneration).toHaveBeenNthCalledWith(2, "run-1");
+  });
+
+  it("treats a polling timeout as unknown instead of failed", async () => {
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "current", classroom_id: "classroom-1", index: 1, revision: 1,
+        original_prompt: "Lesson", thumbnail_url: null, story_title: "Gravity", status: "ready",
+        created_at: "2026-01-01",
+        panels: [{ id: "panel-2", chapter_id: "current", index: 2, image: "/media/old.png", created_at: "2026-01-01" }],
+      },
+    });
+    getChapters.mockResolvedValue({ success: true, chapters: [] });
+    regeneratePanel.mockResolvedValue({ run_id: "run-1", status: "regenerating" });
+    getPanelRegeneration.mockResolvedValue({ run_id: "run-1", status: "regenerating" });
+
+    renderViewer();
+    fireEvent.click(await screen.findByRole("button", { name: "Correct panel 2" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Correction for panel 2" }), {
+      target: { value: "Make the arrow clockwise." },
+    });
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate panel 2" }));
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("status could not be confirmed");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("previous panel is still available");
+    expect(getPanelRegeneration).toHaveBeenCalledTimes(300);
+  });
+
+  it("starts a new attempt only after a persisted failure", async () => {
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "current", classroom_id: "classroom-1", index: 1, revision: 1,
+        original_prompt: "Lesson", thumbnail_url: null, story_title: "Gravity", status: "ready",
+        created_at: "2026-01-01",
+        panels: [{ id: "panel-2", chapter_id: "current", index: 2, image: "/media/old.png", created_at: "2026-01-01" }],
+      },
+    });
+    getChapters.mockResolvedValue({ success: true, chapters: [] });
+    regeneratePanel.mockResolvedValue({ run_id: "run-1", status: "failed", error_reference: "ref-1" });
+
+    renderViewer();
+    fireEvent.click(await screen.findByRole("button", { name: "Correct panel 2" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Correction for panel 2" }), {
+      target: { value: "Make the arrow clockwise." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate panel 2" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("previous panel is still available");
+    const firstKey = regeneratePanel.mock.calls[0][4];
+    fireEvent.click(screen.getByRole("button", { name: "Retry panel 2" }));
+    await waitFor(() => expect(regeneratePanel).toHaveBeenCalledTimes(2));
+    expect(regeneratePanel.mock.calls[1][4]).not.toBe(firstKey);
+  });
+
+  it("reports a completed correction separately when refreshing the story fails", async () => {
+    const chapter = {
+      id: "current", classroom_id: "classroom-1", index: 1, revision: 1,
+      original_prompt: "Lesson", thumbnail_url: null, story_title: "Gravity", status: "ready",
+      created_at: "2026-01-01",
+      panels: [{ id: "panel-2", chapter_id: "current", index: 2, image: "/media/old.png", created_at: "2026-01-01" }],
+    };
+    getChapter
+      .mockResolvedValueOnce({ success: true, chapter })
+      .mockRejectedValueOnce(new Error("fictional refresh failure"))
+      .mockResolvedValueOnce({
+        success: true,
+        chapter: { ...chapter, revision: 2, panels: [{ ...chapter.panels[0], image: "/media/replacement.png" }] },
+      });
+    getChapters.mockResolvedValue({ success: true, chapters: [] });
+    regeneratePanel.mockResolvedValue({ run_id: "run-1", status: "ready" });
+
+    renderViewer();
+    fireEvent.click(await screen.findByRole("button", { name: "Correct panel 2" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Correction for panel 2" }), {
+      target: { value: "Make the arrow clockwise." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate panel 2" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("correction completed");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("previous panel is still available");
+    expect(screen.queryByRole("button", { name: "Retry panel 2" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reload story" }));
+    await waitFor(() => expect(screen.getByRole("img", { name: "Panel 2" })).toHaveAttribute("src", "/media/replacement.png"));
+    expect(regeneratePanel).toHaveBeenCalledTimes(1);
   });
 
   it("shows progress over the old panel then reloads the published replacement", async () => {

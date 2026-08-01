@@ -193,7 +193,7 @@ Removed fake controls return as real local mutations with complete SQLite and fi
 - Implement classroom editing with the same validation rules used at creation.
 - Implement student profile editing and existing-avatar regeneration entry points.
 - Distinguish classroom removal, student-profile deletion, chapter deletion, classroom deletion, and full local reset.
-- Apply the founder-approved treatment for completed stories that contain a deleted student's identity or likeness.
+- Preserve completed stories and panel media unchanged when deleting a student; remove only the profile, memberships, source photo, avatar, and other student-owned local files.
 - Make destructive actions explicit, confirmable, idempotent, and honest about partial cleanup failures.
 - Add settings only for implemented behavior: story length, design defaults, provider models, review controls, photo retention, local data information, and existing reader/accessibility preferences.
 - Keep provider key values in the backend environment file. Settings may show readiness but never return a key.
@@ -202,12 +202,14 @@ Removed fake controls return as real local mutations with complete SQLite and fi
 
 - Do not add decorative settings or fake account/deployment controls.
 - Do not rewrite completed stories after an ordinary classroom or student edit.
+- Do not delete or rewrite completed stories when a student profile is erased.
 - Do not report deletion success while required files remain due to an error.
 
 ### Acceptance gate
 
 - Edit forms preserve user input after recoverable failures.
 - Each delete operation has database and local-file verification.
+- Student-profile deletion preserves completed story rows and panel media.
 - Retrying an interrupted deletion is safe.
 - Existing avatar remains visible until replacement succeeds.
 - Settings persist and change the documented behavior.

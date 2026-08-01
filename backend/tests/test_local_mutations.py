@@ -115,8 +115,8 @@ def test_chapter_delete_reports_cleanup_failure_and_retry_is_idempotent(monkeypa
         assert not storage.absolute_path(object_path).exists()
 
 
-def test_full_student_erasure_removes_affected_revision_and_preserves_chapter_shell(monkeypatch, tmp_path):
-    """Catches profile deletion leaving an identifiable story revision readable."""
+def test_student_erasure_removes_personal_files_but_preserves_completed_story(monkeypatch, tmp_path):
+    """Catches profile erasure cascading into immutable completed story history."""
     client, database = _client(monkeypatch, tmp_path)
     with client:
         classroom = _classroom(client)
@@ -162,17 +162,38 @@ def test_full_student_erasure_removes_affected_revision_and_preserves_chapter_sh
                 for index, object_path in enumerate(object_paths, 1)
             ],
         )
+        personal_paths = [
+            storage.new_object_path("student-photos", student["id"], ".png"),
+            storage.new_object_path("avatars", student["id"], ".png"),
+            storage.new_object_path("avatars", student["id"], ".png"),
+        ]
+        for path in personal_paths:
+            storage.finalize(storage.stage_bytes(b"personal", ".png", max_bytes=20), path)
+        from database.models import Student
+
+        with database._session() as session:
+            stored_student = session.get(Student, student["id"])
+            stored_student.photo_object_path = personal_paths[0]
+            stored_student.avatar_object_path = personal_paths[1]
+            stored_student.superseded_avatar_paths = [personal_paths[2]]
 
         erased = client.delete(f"/students/{student['id']}?confirm=true")
 
         assert erased.status_code == 200
         assert database.get_student(student["id"]) is None
-        shell = database.get_chapter(chapter["id"])
-        assert shell["revision"] == 0
-        assert shell["chosen_idea_id"] == "idea_1"
-        assert shell["story_script"] is None
-        assert database.get_panels_by_chapter(chapter["id"]) == []
-        assert all(not storage.absolute_path(path).exists() for path in object_paths)
+        assert all(not storage.absolute_path(path).exists() for path in personal_paths)
+
+        completed = database.get_chapter(chapter["id"])
+        assert completed["status"] == "ready"
+        assert completed["revision"] == 1
+        assert completed["chosen_idea_id"] == "idea_1"
+        assert completed["original_prompt"] == "Teach forces"
+        assert completed["story_script"] == script
+        assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
+        panels = database.get_panels_by_chapter(chapter["id"])
+        assert [panel["index"] for panel in panels] == list(range(1, 13))
+        assert panels[0]["scene_description"] == "Mina builds"
+        assert all(storage.absolute_path(path).is_file() for path in object_paths)
 
 
 def test_migration_backfills_old_runs_conservatively(monkeypatch, tmp_path):

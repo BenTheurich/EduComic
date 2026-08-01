@@ -18,9 +18,17 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import type { PanelRegenerationStatus } from "@/lib/api";
 import { exportStoryPdf } from "@/lib/exportStoryPdf";
 import { clampReaderScale } from "@/lib/utils";
 import type { Chapter, ChapterWithPanels, Panel } from "@/types/story";
+
+type CorrectionOutcome = "editing" | "working" | "failed" | "unknown" | "published";
+
+interface CorrectionAttempt {
+  idempotencyKey: string;
+  runId?: string;
+}
 
 const StoryViewer = () => {
   const { id } = useParams();
@@ -34,7 +42,8 @@ const StoryViewer = () => {
   const [correctionPanel, setCorrectionPanel] = useState<number | null>(null);
   const [correction, setCorrection] = useState("");
   const [isRegenerating, setIsRegenerating] = useState(false);
-  const [correctionError, setCorrectionError] = useState<string | null>(null);
+  const [correctionOutcome, setCorrectionOutcome] = useState<CorrectionOutcome>("editing");
+  const [correctionAttempt, setCorrectionAttempt] = useState<CorrectionAttempt | null>(null);
   const [exportSettings, setExportSettings] = useState({
     pageSize: "a4",
     layout: "2"
@@ -129,33 +138,66 @@ const StoryViewer = () => {
     }
   };
 
-  const handlePanelRegeneration = async (panel: Panel) => {
-    if (!chapter || !correction.trim()) return;
+  const refreshPublishedPanel = async (panel: Panel) => {
+    if (!chapter) return;
     setIsRegenerating(true);
-    setCorrectionError(null);
     try {
-      let run = await api.chapters.regeneratePanel(
-        chapter.id,
-        panel.index,
-        chapter.revision,
-        correction,
-        crypto.randomUUID(),
-      );
-      for (let poll = 0; run.status === "regenerating" && poll < 300; poll += 1) {
-        await new Promise(resolve => setTimeout(resolve, 400));
-        run = await api.chapters.getPanelRegeneration(run.run_id);
-      }
-      if (run.status !== "ready") throw new Error(run.error_reference || "panel regeneration failed");
       const refreshed = await api.chapters.getById(chapter.id);
       setChapter(refreshed.chapter);
       setPanels(refreshed.chapter.panels || []);
       setCorrectionPanel(null);
       setCorrection("");
+      setCorrectionAttempt(null);
+      setCorrectionOutcome("editing");
       toast.success(`Panel ${panel.index} regenerated`);
     } catch {
-      setCorrectionError(
-        `Panel ${panel.index} could not be regenerated. The previous panel is still available.`,
-      );
+      setCorrectionOutcome("published");
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const handlePanelRegeneration = async (panel: Panel, resume = false) => {
+    if (!chapter || !correction.trim()) return;
+    let attempt = resume ? correctionAttempt : null;
+    if (!attempt) {
+      attempt = { idempotencyKey: crypto.randomUUID() };
+      setCorrectionAttempt(attempt);
+    }
+    setIsRegenerating(true);
+    setCorrectionOutcome("working");
+    try {
+      let run: PanelRegenerationStatus;
+      if (resume && attempt.runId) {
+        run = await api.chapters.getPanelRegeneration(attempt.runId);
+      } else {
+        run = await api.chapters.regeneratePanel(
+          chapter.id,
+          panel.index,
+          chapter.revision,
+          correction,
+          attempt.idempotencyKey,
+        );
+      }
+      attempt = { ...attempt, runId: run.run_id };
+      setCorrectionAttempt(attempt);
+      for (let poll = 0; run.status === "regenerating" && poll < 300; poll += 1) {
+        await new Promise(resolve => setTimeout(resolve, 400));
+        run = await api.chapters.getPanelRegeneration(run.run_id);
+      }
+      if (run.status === "regenerating") {
+        setCorrectionOutcome("unknown");
+        return;
+      }
+      if (run.status === "failed") {
+        setCorrectionAttempt(null);
+        setCorrectionOutcome("failed");
+        return;
+      }
+      setCorrectionOutcome("published");
+      await refreshPublishedPanel(panel);
+    } catch {
+      setCorrectionOutcome("unknown");
     } finally {
       setIsRegenerating(false);
     }
@@ -175,11 +217,12 @@ const StoryViewer = () => {
             aria-label={`Correct panel ${panel.index}`}
             variant="outline"
             size="sm"
-            disabled={isRegenerating}
+            disabled={isRegenerating || correctionOutcome === "unknown" || correctionOutcome === "published"}
             onClick={() => {
               setCorrectionPanel(panel.index);
               setCorrection("");
-              setCorrectionError(null);
+              setCorrectionAttempt(null);
+              setCorrectionOutcome("editing");
             }}
           >
             Correct panel {panel.index}
@@ -191,26 +234,61 @@ const StoryViewer = () => {
               id={`panel-correction-${panel.index}`}
               value={correction}
               maxLength={500}
-              disabled={isRegenerating}
+              disabled={isRegenerating || correctionOutcome === "unknown" || correctionOutcome === "published"}
               onChange={event => setCorrection(event.target.value)}
               placeholder="Describe the visual correction for this panel"
             />
             {isRegenerating && <p role="status">Regenerating panel {panel.index}...</p>}
-            {correctionError && <p role="alert" className="text-sm text-destructive">{correctionError}</p>}
+            {correctionOutcome === "failed" && (
+              <p role="alert" className="text-sm text-destructive">
+                Panel {panel.index} could not be regenerated. The previous panel is still available.
+              </p>
+            )}
+            {correctionOutcome === "unknown" && (
+              <p role="alert" className="text-sm text-destructive">
+                Panel {panel.index} regeneration status could not be confirmed. Check the existing attempt before trying again.
+              </p>
+            )}
+            {correctionOutcome === "published" && (
+              <p role="alert" className="text-sm text-destructive">
+                Panel {panel.index} correction completed, but the story could not be refreshed.
+              </p>
+            )}
             <div className="flex gap-2">
               <Button
-                aria-label={`${correctionError ? "Retry" : "Regenerate"} panel ${panel.index}`}
+                aria-label={
+                  correctionOutcome === "published"
+                    ? "Reload story"
+                    : correctionOutcome === "unknown"
+                      ? `Check panel ${panel.index} status`
+                      : `${correctionOutcome === "failed" ? "Retry" : "Regenerate"} panel ${panel.index}`
+                }
                 size="sm"
                 disabled={isRegenerating || !correction.trim()}
-                onClick={() => handlePanelRegeneration(panel)}
+                onClick={() => {
+                  if (correctionOutcome === "published") void refreshPublishedPanel(panel);
+                  else void handlePanelRegeneration(panel, correctionOutcome === "unknown");
+                }}
               >
-                {isRegenerating ? "Regenerating..." : correctionError ? "Retry" : "Regenerate"}
+                {isRegenerating
+                  ? "Regenerating..."
+                  : correctionOutcome === "published"
+                    ? "Reload story"
+                    : correctionOutcome === "unknown"
+                      ? "Check status"
+                      : correctionOutcome === "failed"
+                        ? "Retry"
+                        : "Regenerate"}
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={isRegenerating}
-                onClick={() => setCorrectionPanel(null)}
+                disabled={isRegenerating || correctionOutcome === "unknown" || correctionOutcome === "published"}
+                onClick={() => {
+                  setCorrectionPanel(null);
+                  setCorrectionAttempt(null);
+                  setCorrectionOutcome("editing");
+                }}
               >
                 Cancel
               </Button>

@@ -554,7 +554,10 @@ async def erase_student_endpoint(student_id: UUID, confirm: bool = False):
         raise HTTPException(status_code=400, detail="Erasure requires explicit confirmation")
     if not execute_deletion("student", str(student_id)):
         raise HTTPException(status_code=409, detail="Local file cleanup is incomplete; retry deletion")
-    return {"success": True, "message": "Student profile and personal data erased"}
+    return {
+        "success": True,
+        "message": "Student profile and personal files erased; completed stories preserved",
+    }
 
 
 @app.get("/students/{student_id}/classrooms")

@@ -38,7 +38,7 @@ The founder approved these decisions on 2026-08-01:
 - A UI/UX critique, technical audit, remediation pass, and visual-system freeze occur after private application acceptance and before the fictional demo.
 - The fictional demo reuses the polished private application components and workflow states.
 - Story generation defaults to exactly 12 panels and offers an explicit 20-panel `Full comic` setting.
-- Classroom removal and full student erasure are distinct. Full erasure removes the profile, source photo, avatar, provider-input provenance, and every completed story revision/file generated from that student's identity or likeness while preserving the selected idea in a regenerable chapter shell.
+- Classroom removal and full student erasure are distinct. Full erasure removes the profile, classroom memberships, source photo, avatar, and other student-owned local files. Completed stories are durable historical artifacts and remain unchanged, including their existing character depictions and panel media.
 
 The implementation specification is `docs/superpowers/specs/2026-08-01-local-private-byok-implementation-spec.md`.
 
@@ -225,7 +225,7 @@ Exit criterion: local mode is truthful, persistent, and localhost-only; the publ
 3. Atomically swap panel rows only after the replacement files are complete; mark every top-level failure `failed`; clean new partial files on failure and old files after success.
 4. Prevent concurrent commit/provider-spend races. Persist generation-run state in SQLite. Use a durable worker/queue only in the later hosted deployment.
 5. Extend readiness to the migration head, data-directory writability, provider config, and recoverable generation-run state.
-6. Persist immutable generation-cast IDs separately from provider-input provenance (the cast plus selected-option participants). Use provider-input provenance for deletion blocking and erasure, and treat incomplete legacy provenance conservatively.
+6. Persist immutable generation-cast IDs separately from provider-input provenance (the cast plus selected-option participants). Use provenance to block deletion while provider work is active and to explain historical inputs; do not use it to delete completed stories when a student profile is later erased.
 
 Exit criterion: fault-injection tests at OpenAI, BFL submit/poll/download, storage, database insert/swap, and process restart preserve the previous story and end in a truthful recoverable state.
 
@@ -233,8 +233,8 @@ Exit criterion: fault-injection tests at OpenAI, BFL submit/poll/download, stora
 
 1. Add real local classroom/profile update contracts and UI with bounded fields and honest error/success states. Reserve hosted ownership checks for the hosted track.
 2. Add existing-avatar regeneration using the durable replacement pattern; preserve the previous avatar on failure and delete it only after a successful row swap.
-3. Define and implement separate leave-classroom, delete student profile, delete classroom, delete chapter, and reset-local-data operations. Enumerate recorded local object paths, delete files and database rows with explicit failure handling, and make retries idempotent. Hosted auth-account deletion comes later.
-4. Implement the approved shared-story policy when a student is removed and expose its consequences before confirmation.
+3. Define and implement separate leave-classroom, delete student profile, delete classroom, delete chapter, and reset-local-data operations. Student-profile deletion removes the profile, memberships, source photo, avatar, and other student-owned files while preserving completed stories and panel media. Enumerate only the paths owned by the selected operation, handle failures explicitly, and make retries idempotent. Hosted auth-account deletion comes later.
+4. State before confirmation that deleting a student does not rewrite or remove already completed stories in which that student appeared.
 5. Add a real settings route for settings with effect. Store provider keys only in backend env/secret management for the first BYOK release; the UI may show configured/missing status and approved model/default choices without returning secrets.
 
 Exit criterion: browser and API tests prove local-mode truthfulness, validation, cancel/confirm, failure recovery, and SQLite/file cleanup; no simulated or no-op success remains.

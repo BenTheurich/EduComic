@@ -461,7 +461,7 @@ const ClassroomDetail = () => {
                                   <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void removeStudent(student.id)}>Confirm classroom removal</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                               </AlertDialog>
                               <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive" aria-label={`Erase all data for ${student.name}`}>Erase all personal data</Button></AlertDialogTrigger>
-                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Erase all personal data?</AlertDialogTitle><AlertDialogDescription>This removes the profile, files, provider inputs, and affected story revisions.</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Erase all personal data?</AlertDialogTitle><AlertDialogDescription>This removes the profile, classroom memberships, source photo, avatar, and other student-owned files. Completed stories and their artwork remain unchanged.</AlertDialogDescription></AlertDialogHeader>
                                   <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void eraseStudent(student.id)}>Confirm full erasure</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                               </AlertDialog>
                             </div>

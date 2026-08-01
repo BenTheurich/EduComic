@@ -187,4 +187,17 @@ describe("classroom materials", () => {
     await waitFor(() => expect(leaveClassroom).toHaveBeenCalledWith("student-1", "classroom-1"));
     expect(eraseStudent).not.toHaveBeenCalled();
   });
+
+  it("explains that full student erasure preserves completed stories", async () => {
+    getById.mockResolvedValueOnce({ success: true, classroom: {
+      id: "classroom-1", name: "Science", subject: "Physics", grade_level: "8", story_theme: "Space", design_style: "comic",
+      students: [{ id: "student-1", name: "Mina", interests: "bridges", avatar_url: null, created_at: "2026-08-01T00:00:00Z" }],
+    }});
+    render(<MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=students"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
+    await screen.findByText("Mina");
+
+    fireEvent.click(screen.getByRole("button", { name: "Erase all data for Mina" }));
+    expect(screen.getByText(/Completed stories and their artwork remain unchanged/)).toBeInTheDocument();
+    expect(eraseStudent).not.toHaveBeenCalled();
+  });
 });
