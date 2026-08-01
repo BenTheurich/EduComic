@@ -28,6 +28,7 @@ The post-review persistence, provider-boundary, lifecycle, and claim fixes are i
 - Avatar replacement compensates a failed database update by deleting the new file, and removes the superseded avatar only after the new row commits. Panel insert failures delete their new image; retries clear interrupted target-revision rows/files; successful revision changes remove superseded rows/files; chapter deletion removes all recorded panel files after the database commit. Cleanup failures are sanitized and logged without rolling back an already-correct database state.
 - Provider clients are constructed lazily on the first provider operation. Import, liveness, and readiness do not construct OpenAI, HTTPX, or Requests transports.
 - Chapter commit now uses one conditional SQL update to claim only `idea_chosen` or `failed` chapters with the selected idea. A repeated/in-flight commit receives HTTP 409 rather than starting a second generation.
+- Idea selection now uses its own conditional SQL update and is permitted only from `options_generated`, `idea_chosen`, or `failed`. It cannot reset `generating` (or another non-editable state) to `idea_chosen`; both a directly active chapter and a commit claim that wins after the route's read return HTTP 409 without changing the claimed state.
 - Preserved UUID validation, extra-field rejection, UTC serialization, database cascades, traversal/redirect protection, bounded media reads/writes, generic API errors, ready-only readers, and fail-closed PDF behavior. The pending panel-count decision was not changed.
 
 ### Readiness and startup
@@ -95,6 +96,7 @@ Additional small RED/GREEN cycles caught:
 - `/media/...` references being sent verbatim to BFL, invalid references reaching the provider, missing-key/avatar error conflation, orphaned avatar replacement files, and repeated chapter commit: focused tests failed first and then passed;
 - eager OpenAI construction during application import: the constructor-level sentinel failed first, then passed after lazy construction;
 - panel-insert compensation, successful avatar replacement cleanup, and chapter-delete cleanup passed with the concrete local filesystem and database.
+- the first choose-idea state regression failed with HTTP 200 and a mutated `generating` chapter; after the conditional transition it passed together with a stale-read/claim-wins boundary test (2/2), and the fresh backend suite passed 105/105.
 
 ## Fresh verification
 
@@ -102,7 +104,7 @@ All successful commands ran in the isolated recovery worktree. No provider netwo
 
 ```text
 backend\.venv\Scripts\python.exe -m pytest -q
-103 passed in 4.50s
+105 passed in 5.47s
 
 npm.cmd test -- --run
 18 test files passed; 45 tests passed; duration 5.85s

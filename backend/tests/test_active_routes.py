@@ -41,6 +41,14 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     monkeypatch.setattr(database, "update_chapter", update_chapter)
     monkeypatch.setattr(
         database,
+        "choose_chapter_idea",
+        lambda chapter, idea: update_chapter(
+            chapter, {"chosen_idea_id": idea, "status": "idea_chosen"}
+        ),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        database,
         "claim_chapter_generation",
         lambda chapter, idea: {**chapters[chapter], "status": "generating", "target_revision": 1},
         raising=False,
@@ -109,6 +117,77 @@ async def test_repeated_commit_is_atomically_rejected(monkeypatch, tmp_path):
 
     assert first.status_code == 200
     assert second.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_choose_idea_cannot_reset_a_generating_chapter(monkeypatch, tmp_path):
+    """Catches idea selection reopening a chapter for a second concurrent job."""
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    database = importlib.import_module("database.database")
+    main = importlib.import_module("main")
+    importlib.import_module("local_runtime").initialize_local_backend(tmp_path)
+    classroom = database.create_classroom("Class", "Math", "6", "Space", "cartoon")
+    chapter = database.create_chapter(
+        {
+            "classroom_id": classroom["id"],
+            "index": 1,
+            "original_prompt": "Teach forces",
+            "story_ideas": [{"id": "idea_1", "title": "Rocket", "summary": "Learn"}],
+            "chosen_idea_id": "idea_1",
+            "status": "generating",
+        }
+    )
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://test") as client:
+        response = await client.post(
+            f"/chapters/{chapter['id']}/choose-idea", json={"idea_id": "idea_1"}
+        )
+
+    assert response.status_code == 409
+    unchanged = database.get_chapter(chapter["id"])
+    assert unchanged["status"] == "generating"
+    assert unchanged["chosen_idea_id"] == "idea_1"
+
+
+@pytest.mark.asyncio
+async def test_choose_idea_loses_truthfully_when_commit_claim_wins_after_read(monkeypatch, tmp_path):
+    """Catches a stale route read bypassing the database transition guard."""
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
+    database = importlib.import_module("database.database")
+    main = importlib.import_module("main")
+    importlib.import_module("local_runtime").initialize_local_backend(tmp_path)
+    classroom = database.create_classroom("Class", "Math", "6", "Space", "cartoon")
+    chapter = database.create_chapter(
+        {
+            "classroom_id": classroom["id"],
+            "index": 1,
+            "original_prompt": "Teach forces",
+            "story_ideas": [{"id": "idea_1", "title": "Rocket", "summary": "Learn"}],
+            "chosen_idea_id": "idea_1",
+            "status": "idea_chosen",
+        }
+    )
+    original_get_chapter = database.get_chapter
+    claimed = False
+
+    def stale_read_then_claim(chapter_id):
+        nonlocal claimed
+        stale = original_get_chapter(chapter_id)
+        if not claimed:
+            claimed = True
+            assert database.claim_chapter_generation(chapter_id, "idea_1") is not None
+        return stale
+
+    monkeypatch.setattr(database, "get_chapter", stale_read_then_claim)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://test") as client:
+        response = await client.post(
+            f"/chapters/{chapter['id']}/choose-idea", json={"idea_id": "idea_1"}
+        )
+
+    assert response.status_code == 409
+    current = original_get_chapter(chapter["id"])
+    assert current["status"] == "generating"
 
 
 @pytest.mark.asyncio

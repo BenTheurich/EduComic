@@ -649,7 +649,7 @@ async def choose_story_idea(chapter_id: UUID, request: StoryChoiceRequest):
     Returns:
         Updated chapter
     """
-    from database.database import get_chapter, update_chapter
+    from database.database import choose_chapter_idea, get_chapter
 
     try:
         chapter_id = str(chapter_id)
@@ -659,11 +659,12 @@ async def choose_story_idea(chapter_id: UUID, request: StoryChoiceRequest):
         if not chapter:
             raise HTTPException(status_code=404, detail="Chapter not found")
 
-        update_data = {"chosen_idea_id": idea_id, "status": "idea_chosen"}
+        if idea_id not in {idea.get("id") for idea in chapter.get("story_ideas") or []}:
+            raise HTTPException(status_code=400, detail="Story choice is invalid")
 
-        updated = update_chapter(chapter_id, update_data)
+        updated = choose_chapter_idea(chapter_id, idea_id)
         if not updated:
-            raise HTTPException(status_code=500, detail="Failed to update chapter")
+            raise HTTPException(status_code=409, detail="Chapter cannot be changed in its current state")
 
         return {"success": True, "chapter": updated}
 

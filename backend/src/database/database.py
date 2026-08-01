@@ -272,6 +272,22 @@ def update_chapter(chapter_id: str, updates: dict[str, Any]) -> dict[str, Any] |
         return _chapter(chapter)
 
 
+def choose_chapter_idea(chapter_id: str, idea_id: str) -> dict[str, Any] | None:
+    """Choose an idea only while the chapter is in an explicit editable state."""
+    with _session() as session:
+        result = session.execute(
+            update(Chapter)
+            .where(
+                Chapter.id == chapter_id,
+                Chapter.status.in_(("options_generated", "idea_chosen", "failed")),
+            )
+            .values(chosen_idea_id=idea_id, status="idea_chosen")
+        )
+        if result.rowcount != 1:
+            return None
+        return _chapter(session.get(Chapter, chapter_id))
+
+
 def claim_chapter_generation(chapter_id: str, chosen_idea_id: str) -> dict[str, Any] | None:
     """Atomically reserve the next revision for one generation request."""
     with _session() as session:

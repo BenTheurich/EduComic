@@ -76,11 +76,19 @@ async def test_choose_idea_accepts_only_a_valid_idea_id(monkeypatch):
     chapter_id = uuid4()
     updates = []
 
-    monkeypatch.setattr(database, "get_chapter", lambda _id: {"id": str(chapter_id)})
     monkeypatch.setattr(
         database,
-        "update_chapter",
-        lambda _chapter_id, data: (updates.append(data) or {"id": str(chapter_id), **data}),
+        "get_chapter",
+        lambda _id: {"id": str(chapter_id), "story_ideas": [{"id": "idea_1"}]},
+    )
+    monkeypatch.setattr(
+        database,
+        "choose_chapter_idea",
+        lambda _chapter_id, idea: (
+            updates.append({"chosen_idea_id": idea, "status": "idea_chosen"})
+            or {"id": str(chapter_id), "chosen_idea_id": idea, "status": "idea_chosen"}
+        ),
+        raising=False,
     )
 
     async with httpx.AsyncClient(
