@@ -7,6 +7,8 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from story_contracts import StoryIdeasResponse
+
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
@@ -26,7 +28,6 @@ def _classroom_context_dict(
     """Compact JSON context that we send to OpenAI."""
     return {
         "classroom": {
-            "id": classroom["id"],
             "name": classroom["name"],
             "subject": classroom["subject"],
             "grade_level": classroom["grade_level"],
@@ -38,7 +39,6 @@ def _classroom_context_dict(
             {
                 "name": s["name"],
                 "interests": s.get("interests", ""),
-                "avatar_url": s.get("avatar_url"),
             }
             for s in students
         ],
@@ -85,36 +85,21 @@ def generate_story_ideas(
         f"INPUT:\n{json.dumps(payload, ensure_ascii=False)}"
     )
 
-    resp = openai_client.chat.completions.create(
+    resp = openai_client.chat.completions.parse(
         model=OPENAI_MODEL,
-        response_format={"type": "json_object"},
+        response_format=StoryIdeasResponse,
+        max_completion_tokens=2048,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
     )
 
-    raw = resp.choices[0].message.content
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise RuntimeError(f"OpenAI returned invalid JSON for story ideas: {e}\nRaw: {raw}")
+    parsed = resp.choices[0].message.parsed
+    if parsed is None:
+        raise RuntimeError("OpenAI returned no validated story ideas")
 
-    ideas_raw = data.get("ideas", [])
-    ideas: List[Dict[str, Any]] = []
-    for idx, idea in enumerate(ideas_raw, start=1):
-        ideas.append(
-            {
-                "id": f"idea_{idx}",
-                "title": idea.get("title", f"Idea {idx}"),
-                "summary": idea.get("summary", ""),
-            }
-        )
-    # Ensure exactly 3 items by trimming or padding
-    if len(ideas) > 3:
-        ideas = ideas[:3]
-    while len(ideas) < 3:
-        i = len(ideas) + 1
-        ideas.append({"id": f"idea_{i}", "title": f"Idea {i}", "summary": ""})
-
-    return ideas
+    return [
+        {"id": f"idea_{idx}", **idea.model_dump()}
+        for idx, idea in enumerate(parsed.ideas, start=1)
+    ]

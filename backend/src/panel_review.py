@@ -6,7 +6,6 @@ Multimodal quality check for generated comic panels.
 Given:
   - image_url (from FLUX / BFL sample URL)
   - panel script (narration, dialogue, featured students)
-  - classroom + students context
 
 It:
   - Uses an OpenAI vision-capable model to inspect the image
@@ -20,6 +19,8 @@ from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 from openai import OpenAI
+
+from story_contracts import PanelReview
 
 load_dotenv()
 
@@ -94,35 +95,12 @@ def review_panel_image(
     setting = (panel.get("setting") or "").strip()
     description = (panel.get("description") or "").strip()
 
-    # Build a compact map of student info for the reviewer
-    students_by_name: Dict[str, Dict[str, Any]] = {
-        s["name"]: s for s in students if "name" in s
-    }
-
-    student_info = []
-    for name in featured_students:
-        s = students_by_name.get(name)
-        if not s:
-            continue
-        student_info.append(
-            {
-                "name": s["name"],
-                "interests": s.get("interests", ""),
-                "avatar_url": s.get("avatar_url"),
-            }
-        )
-
     review_payload = {
         "panel_index": panel.get("index"),
         "expected_setting": setting,
         "expected_visual_description": description,
         "expected_text": expected_text,
         "expected_featured_students": featured_students,
-        "classroom_subject": classroom.get("subject"),
-        "classroom_grade": classroom.get("grade_level"),
-        "classroom_story_theme": classroom.get("story_theme"),
-        "student_info": student_info,
-        "target_min_score": min_score,
     }
 
     system_prompt = (
@@ -202,7 +180,7 @@ def review_panel_image(
         "max 2–3 sentences, focusing on the most important fixes such as moving specific "
         "bubbles to the right character, correcting mis-written text, or adding/removing "
         'bubbles.",\n'
-        '  "notes": "optional extra comments or explanations"\n'
+        '  "notes": "extra comments, or an empty string"\n'
         "}\n\n"
         "Be concise and practical in 'issues' and 'suggested_fix_prompt'. For example, you "
         "might say: \"Move the bubble with 'F = ma' so the tail points to LENA on the left; "
@@ -215,9 +193,10 @@ def review_panel_image(
     print("         → Calling panel review provider...")
 
     try:
-        resp = openai_client.chat.completions.create(
+        resp = openai_client.chat.completions.parse(
             model=OPENAI_QA_MODEL,
-            response_format={"type": "json_object"},
+            response_format=PanelReview,
+            max_completion_tokens=2048,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -232,25 +211,14 @@ def review_panel_image(
                 },
             ],
         )
-        raw = resp.choices[0].message.content
     except Exception:
         raise RuntimeError("Panel review request failed") from None
 
-    print("         → Received response, parsing...")
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        raise RuntimeError("Panel review returned invalid JSON") from None
-
-    # Light normalization so caller can assume keys exist
-    data.setdefault("score", 0.0)
-    dims = data.setdefault("dimensions", {})
-    dims.setdefault("text_accuracy", 0.0)
-    dims.setdefault("character_accuracy", 0.0)
-    dims.setdefault("layout_readability", 0.0)
-    data.setdefault("issues", [])
-    data.setdefault("suggested_fix_prompt", "")
-    data.setdefault("notes", "")
+    parsed = resp.choices[0].message.parsed
+    if parsed is None:
+        raise RuntimeError("Panel review returned invalid response")
+    data = parsed.model_dump()
+    dims = data["dimensions"]
 
     print("         ✓ Review complete!")
     print(f"         → Overall score: {data['score']:.1f}/10")

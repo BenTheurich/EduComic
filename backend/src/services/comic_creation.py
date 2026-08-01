@@ -23,6 +23,8 @@ import requests
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from story_contracts import ComicScript
+
 from database.database import (
     create_panel,
     get_chapter,
@@ -53,9 +55,9 @@ BFL_MODEL_ENDPOINT = os.getenv("BFL_MODEL_ENDPOINT", "flux-2-pro")
 SUPABASE_IMAGES_BUCKET = os.getenv("SUPABASE_IMAGES_BUCKET")
 
 # NEW: panel review configuration
-PANEL_REVIEW_ENABLED = os.getenv("PANEL_REVIEW_ENABLED", "true").lower() == "true"
+PANEL_REVIEW_ENABLED = os.getenv("PANEL_REVIEW_ENABLED", "false").lower() == "true"
 PANEL_REVIEW_MIN_SCORE = float(os.getenv("PANEL_REVIEW_MIN_SCORE", "9.0"))
-PANEL_REVIEW_MAX_ATTEMPTS = int(os.getenv("PANEL_REVIEW_MAX_ATTEMPTS", "3"))
+PANEL_REVIEW_MAX_ATTEMPTS = min(3, max(1, int(os.getenv("PANEL_REVIEW_MAX_ATTEMPTS", "3"))))
 
 if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_API_KEY_HERE":
     print("[WARN] OPENAI_API_KEY not set; OpenAI calls will fail until you configure it.")
@@ -95,14 +97,6 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
     """
 
     print("Starting comic generation")
-
-    print("\n🧹 Step 0: Cleaning up existing panels (if any)...")
-    # Delete any existing panels for this chapter to allow regeneration
-    try:
-        supabase.table("panels").delete().eq("chapter_id", chapter_id).execute()
-        print("✓ Existing panels cleared")
-    except Exception:
-        print("Existing panel cleanup skipped")
 
     print("\n📚 Step 1: Fetching chapter data...")
     chapter = get_chapter(chapter_id)
@@ -154,6 +148,13 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
     )
     print("✓ Script generated")
     print(f"✓ Panels to generate: {len(script.get('panels', []))}")
+
+    print("\n🧹 Clearing existing panels...")
+    try:
+        supabase.table("panels").delete().eq("chapter_id", chapter_id).execute()
+        print("✓ Existing panels cleared")
+    except Exception:
+        print("Existing panel cleanup skipped")
 
     # Build FLUX prompts
     print("\n📝 Step 6: Building FLUX prompts...")
@@ -460,7 +461,6 @@ def _classroom_context_dict(
     """Compact JSON context that we send to OpenAI."""
     return {
         "classroom": {
-            "id": classroom["id"],
             "name": classroom["name"],
             "subject": classroom["subject"],
             "grade_level": classroom["grade_level"],
@@ -472,7 +472,6 @@ def _classroom_context_dict(
             {
                 "name": s["name"],
                 "interests": s.get("interests", ""),
-                "avatar_url": s.get("avatar_url"),
             }
             for s in students
         ],
@@ -512,7 +511,6 @@ def generate_full_script_and_panels(
         "- Use the students' names in dialogue sometimes to make it personal.\n"
         "- Do NOT have characters speak about themselves in the third person.\n"
         "- Do NOT have a character address themselves by name in their own speech bubble.\n"
-        "- Keep dialogue lines short (max 15 words).\n"
         "- Make sure the story helps understand the subject in a concrete way.\n"
         "- The 'speaker' field must always be either a student name from this classroom\n"
         "  or 'Teacher' / 'Narrator'.\n\n"
@@ -538,36 +536,25 @@ def generate_full_script_and_panels(
         f"INPUT:\n{json.dumps(payload, ensure_ascii=False)}"
     )
 
-    resp = openai_client.chat.completions.create(
+    resp = openai_client.chat.completions.parse(
         model=OPENAI_MODEL,
-        response_format={"type": "json_object"},
+        response_format=ComicScript,
+        max_completion_tokens=8192,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
     )
 
-    raw = resp.choices[0].message.content
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        raise RuntimeError("OpenAI returned invalid JSON for script") from None
+    parsed = resp.choices[0].message.parsed
+    if parsed is None:
+        raise RuntimeError("OpenAI returned no validated comic script")
 
-    panels = data.get("panels", [])
-    # Normalize panel indices to 1..N if missing/invalid
-    for idx, panel in enumerate(panels, start=1):
-        panel["index"] = int(panel.get("index", idx))
-        panel.setdefault("setting", "")
-        panel.setdefault("description", "")
-        panel.setdefault("narration", "")
-        panel.setdefault("dialogue", [])
-        panel.setdefault("featured_students", [])
-
-    data["panels"] = panels
-    data.setdefault("episode_title", chosen_idea.get("title", "Untitled Chapter"))
-    data.setdefault("learning_objectives", [])
-
-    return data
+    validated = ComicScript.model_validate(
+        parsed.model_dump(),
+        context={"student_names": {student["name"] for student in students}},
+    )
+    return validated.model_dump()
 
 
 # ─────────────────────────────────────────────────────────────

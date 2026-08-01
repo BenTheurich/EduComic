@@ -1,7 +1,6 @@
 """Provider and storage failures must not print sensitive values."""
 
 import importlib
-import json
 from types import SimpleNamespace
 
 import pytest
@@ -41,19 +40,19 @@ class _Storage:
 
 
 class _ReviewCompletions:
-    def __init__(self, *, content=None, error=None):
-        self.content = content
+    def __init__(self, *, parsed=None, error=None):
+        self.parsed = parsed
         self.error = error
 
-    def create(self, **_kwargs):
+    def parse(self, **_kwargs):
         if self.error:
             raise self.error
-        message = SimpleNamespace(content=self.content)
+        message = SimpleNamespace(parsed=self.parsed)
         return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
-def _review_client(*, content=None, error=None):
-    completions = _ReviewCompletions(content=content, error=error)
+def _review_client(*, parsed=None, error=None):
+    completions = _ReviewCompletions(parsed=parsed, error=error)
     return SimpleNamespace(chat=SimpleNamespace(completions=completions))
 
 
@@ -136,9 +135,21 @@ def test_panel_review_success_prints_no_provider_url_or_student_name(
     panel_review = importlib.import_module("panel_review")
     image_url = "https://provider.test/private-panel-token"
     panel, classroom, students = _private_panel_review_inputs()
-    response = json.dumps({"score": 9.0, "dimensions": {}, "issues": []})
+    response = panel_review.PanelReview.model_validate(
+        {
+            "score": 9.0,
+            "dimensions": {
+                "text_accuracy": 9.0,
+                "character_accuracy": 9.0,
+                "layout_readability": 9.0,
+            },
+            "issues": [],
+            "suggested_fix_prompt": "",
+            "notes": "",
+        }
+    )
     monkeypatch.setattr(panel_review, "OPENAI_API_KEY", "configured-test-key")
-    monkeypatch.setattr(panel_review, "openai_client", _review_client(content=response))
+    monkeypatch.setattr(panel_review, "openai_client", _review_client(parsed=response))
     capsys.readouterr()
 
     result = panel_review.review_panel_image(image_url, panel, classroom, students)
@@ -180,19 +191,16 @@ def test_panel_review_invalid_response_exposes_only_generic_error(monkeypatch, c
     panel_review = importlib.import_module("panel_review")
     image_url = "https://provider.test/private-panel-token"
     panel, classroom, students = _private_panel_review_inputs()
-    raw_response = "private response https://provider.test/private-response-token"
     monkeypatch.setattr(panel_review, "OPENAI_API_KEY", "configured-test-key")
     monkeypatch.setattr(
-        panel_review, "openai_client", _review_client(content=raw_response)
+        panel_review, "openai_client", _review_client(parsed=None)
     )
     capsys.readouterr()
 
-    with pytest.raises(RuntimeError, match="^Panel review returned invalid JSON$") as raised:
+    with pytest.raises(RuntimeError, match="^Panel review returned invalid response$") as raised:
         panel_review.review_panel_image(image_url, panel, classroom, students)
 
     captured = capsys.readouterr()
     output = captured.out + captured.err
     assert image_url not in output
     assert "Private Student" not in output
-    assert raw_response not in output
-    assert raw_response not in str(raised.value)
