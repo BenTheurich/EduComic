@@ -17,10 +17,14 @@ class StorageValidationError(ValueError):
 
 class LocalStorage:
     def __init__(self, root: Path | str):
-        self.root = Path(root).expanduser().resolve()
+        self.root = Path(root).expanduser().absolute()
+        self._reject_redirect(self.root)
         self.root.mkdir(parents=True, exist_ok=True)
+        self._reject_redirect(self.root)
         for directory in (*OBJECT_CLASSES, "staging"):
-            (self.root / directory).mkdir(exist_ok=True)
+            path = self.root / directory
+            path.mkdir(exist_ok=True)
+            self._reject_redirect(path)
 
     def new_object_path(self, object_class: str, owner_id: str, suffix: str) -> str:
         if object_class not in OBJECT_CLASSES:
@@ -73,13 +77,16 @@ class LocalStorage:
             raise StorageValidationError("cleanup age cannot be negative")
         cutoff = (now or datetime.now(timezone.utc)).timestamp() - older_than.total_seconds()
         removed = 0
-        for path in (self.root / "staging").iterdir():
+        staging = self.absolute_path("staging", allow_staging=True)
+        for path in staging.iterdir():
+            self._reject_redirect(path)
             if path.is_file() and path.stat().st_mtime < cutoff:
                 path.unlink()
                 removed += 1
         return removed
 
     def absolute_path(self, object_path: str, *, allow_staging: bool = False) -> Path:
+        self._reject_redirect(self.root)
         if not isinstance(object_path, str) or not object_path or "\\" in object_path or ":" in object_path:
             raise StorageValidationError("invalid object path")
         relative = PurePosixPath(object_path)
@@ -88,10 +95,20 @@ class LocalStorage:
         allowed = OBJECT_CLASSES | ({"staging"} if allow_staging else set())
         if relative.parts[0] not in allowed:
             raise StorageValidationError("unknown object class")
-        resolved = (self.root / Path(*relative.parts)).resolve()
+        lexical = self.root / Path(*relative.parts)
+        self._reject_redirect(lexical)
+        resolved = lexical.resolve()
         if resolved == self.root or self.root not in resolved.parents:
             raise StorageValidationError("object path escapes storage root")
         return resolved
+
+    @staticmethod
+    def _reject_redirect(path: Path) -> None:
+        try:
+            if path.absolute() != path.resolve():
+                raise StorageValidationError("managed path is redirected")
+        except OSError as exc:
+            raise StorageValidationError("managed path is redirected") from exc
 
     def content_type(self, object_path: str) -> str:
         suffix = PurePosixPath(object_path).suffix.lower()

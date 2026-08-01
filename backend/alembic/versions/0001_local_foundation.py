@@ -100,7 +100,7 @@ def upgrade() -> None:
         "chapter_materials",
         sa.Column("id", uuid, primary_key=True),
         sa.Column("chapter_id", uuid, sa.ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("material_id", uuid, sa.ForeignKey("materials.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column("material_id", uuid, sa.ForeignKey("materials.id", ondelete="CASCADE"), nullable=False),
         sa.Column("content_hash", sa.String(64), nullable=False),
         *timestamps(),
         sa.UniqueConstraint("chapter_id", "material_id", name="uq_chapter_material"),

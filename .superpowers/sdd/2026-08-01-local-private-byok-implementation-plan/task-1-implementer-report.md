@@ -4,7 +4,7 @@
 
 COMPLETE
 
-Phase 1 now has a checked-in SQLite/Alembic data contract, concrete validated local storage, first-run initialization, and bounded FastAPI media delivery. The default dependency and environment paths do not require the Supabase package, variables, project, database, or Storage.
+Phase 1 now has a checked-in SQLite/Alembic data contract, concrete validated local storage, first-run initialization, and bounded FastAPI media delivery. The default dependency and environment paths do not require the Supabase package, variables, project, database, or Storage. `/ready` deliberately remains HTTP 503 with `local_persistence_not_migrated` until Phase 2 converts the legacy persistence paths; provider keys cannot mask that blocker.
 
 ## Architecture and boundaries
 
@@ -12,7 +12,7 @@ Phase 1 now has a checked-in SQLite/Alembic data contract, concrete validated lo
 - `backend/alembic/versions/0001_local_foundation.py` is the authoritative initial migration. It creates foreign keys, cascades, uniqueness rules, status/revision/positive-sequence checks, indexes, and UTC `CURRENT_TIMESTAMP` defaults. There is deliberately no final or upper panel-count constraint while the founder decision remains pending.
 - `backend/src/database/session.py` creates engines/sessions and enables SQLite foreign keys on every connection. `backend/src/database/migrations.py` applies checked-in migrations to head.
 - `backend/src/local_runtime.py` resolves `EDUCOMIC_DATA_DIR`, defaults to ignored `backend/data/`, creates required directories, resolves the SQLite `DATABASE_URL`, and migrates at FastAPI lifespan startup.
-- `backend/src/local_storage.py` is one concrete local implementation: UUID owner-scoped object names, nonempty/size-bounded staging, `os.replace` atomic finalization/replacement, bounded reads, idempotent deletion, abandoned-staging cleanup, traversal/absolute/unknown-class rejection, and known MIME handling. Staging objects cannot be read through the ready-object boundary.
+- `backend/src/local_storage.py` is one concrete local implementation: UUID owner-scoped object names, nonempty/size-bounded staging, `os.replace` atomic finalization/replacement, bounded reads, idempotent deletion, abandoned-staging cleanup, traversal/absolute/unknown-class rejection, junction/symlink/reparse-point rejection before managed filesystem operations, and known MIME handling. Staging objects cannot be read through the ready-object boundary.
 - `GET /media/{object_path}` returns bounded bytes and application headers only; it does not expose a local filesystem path or directory listing.
 - The legacy `database.database.supabase` name is an import-compatibility sentinel only. It imports no Supabase package and fails closed if a remaining direct query-builder path executes.
 
@@ -117,7 +117,7 @@ The first production build attempt correctly failed because the existing Vite co
 ## Dependency and lockfile changes
 
 - Removed the direct `supabase` dependency and its transitive client stack from `backend/pyproject.toml` / `backend/uv.lock`.
-- Added exact direct pins `sqlalchemy==2.0.51` and `alembic==1.18.5` through `uv add`.
+- Every direct runtime and dev dependency is exactly pinned to its already-locked version, including `sqlalchemy==2.0.51` and `alembic==1.18.5`; the lock resolution itself did not change.
 - `uv.lock` records exact resolved packages and passes both offline lock checking and locked offline sync.
 - The initial sandbox run could not access `C:\Users\benth\AppData\Local\uv\cache`; the successful approved workflow used isolated `C:\tmp\EduComic-uv-cache` without bypassing uv or hand-editing the lockfile.
 
@@ -152,7 +152,7 @@ No reset, stash, clean, checkout, provider call, Supabase project access, deploy
 
 ## Self-review and Phase 2 handoff
 
-Self-review confirmed traversal checks, staging isolation, no API filesystem-path response, SQLite foreign-key activation, migration head tracking, restart persistence, cascades, and the absence of a new final panel-count rule. The local implementation uses standard library file operations and one SQLAlchemy boundary; no storage/persistence plugin framework was added.
+Self-review confirmed traversal and redirect checks, staging isolation, no API filesystem-path response, SQLite foreign-key activation, migration head tracking, UTC-aware restart persistence, full-graph cascades, and the absence of a new final panel-count rule. The local implementation uses standard library file operations and one SQLAlchemy boundary; no storage/persistence plugin framework was added.
 
 Exact Phase 2 handoff:
 
@@ -161,6 +161,49 @@ Exact Phase 2 handoff:
 - replace the direct enrollment lookup and Supabase avatar upload in `backend/src/services/avatar.py` with local queries and `LocalStorage`;
 - replace direct panel deletion and image upload in `backend/src/services/comic_creation.py` with transactional local persistence/storage;
 - return `media_url(recorded_object_path)` rather than object paths from the converted API serializers;
-- expand readiness to database/data-directory checks during Phase 2, and complete durable provider-output revision swaps in Phase 3.
+- remove the deliberate `local_persistence_not_migrated` readiness blocker only after Phase 2 has converted and checked the database/data-directory paths, and complete durable provider-output revision swaps in Phase 3.
 
 Those paths are intentionally not reported as working local CRUD/generation in Phase 1; they are import-compatible and fail closed rather than silently using hosted infrastructure or temporary provider URLs.
+
+## Review-fix RED / GREEN evidence
+
+The Phase 1 review fixes were developed test-first. The focused RED run reported `8 failed, 15 passed`: redirected root, staging cleanup, media read, and replacement were not rejected; the provenance foreign key used `RESTRICT`; persisted SQLite timestamps were naive; and readiness could return 200 before local persistence had been migrated.
+
+The smallest fixes added lexical-versus-resolved path validation before managed operations, changed provenance deletion to `CASCADE` in both model and migration, introduced one narrow UTC-normalizing SQLAlchemy type, and made readiness fail closed on the Phase 2 sentinel. Actual Windows junction tests cover the root, cleanup preservation of an external file, ready-media reads, and replacement. The resulting focused run passed:
+
+```text
+uv --cache-dir C:\tmp\EduComic-uv-cache run pytest -q tests\test_local_database.py tests\test_local_storage.py tests\test_local_startup.py tests\test_health.py
+30 passed in 2.47s
+```
+
+Additional verification after the review fixes:
+
+```text
+uv --cache-dir C:\tmp\EduComic-uv-cache run pytest -q
+81 passed in 2.44s
+
+uv --cache-dir C:\tmp\EduComic-uv-cache lock --check --offline
+Resolved 48 packages in 1ms
+
+uv --cache-dir C:\tmp\EduComic-uv-cache sync --extra dev --locked --offline
+Resolved 48 packages; checked 44 packages
+
+offline Alembic PostgreSQL upgrade compilation
+compiled PostgreSQL migration SQL: 7362 chars
+
+npm test -- --run
+18 test files passed; 43 tests passed; duration 4.70s
+
+npm run typecheck
+exit 0
+
+npm run lint
+exit 0
+
+VITE_API_URL=http://127.0.0.1:8000 npm run build
+2487 modules transformed; built in 3.73s
+```
+
+The PostgreSQL work in this phase is portability verification only: all metadata tables compile through SQLAlchemy's PostgreSQL dialect, and Alembic emits offline PostgreSQL SQL containing `ON DELETE CASCADE` and `TIMESTAMP WITH TIME ZONE`. No live PostgreSQL/Supabase database was provisioned or contacted. Applying the migration against the future hosted database remains an explicit live gate for that phase.
+
+The active setup instructions now use `uv sync --locked` (or `uv sync --extra dev --locked`) and `npm ci`. A shell syntax check could not be run on this Windows host because its WSL `bash.exe` shim has no installed `/bin/bash`; this is recorded as an environment limitation, not as a passing check.

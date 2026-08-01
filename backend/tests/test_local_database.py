@@ -1,14 +1,28 @@
 """Local database migration and constraint behavior."""
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.schema import CreateTable
 
 from database.migrations import upgrade_database
-from database.models import Chapter, Classroom, LocalProfile, Panel, Student, StudentClassroom
+from database.models import (
+    Base,
+    Chapter,
+    ChapterMaterial,
+    Classroom,
+    GenerationRun,
+    LocalProfile,
+    Material,
+    Panel,
+    Student,
+    StudentClassroom,
+)
 from database.session import create_local_engine
 
 
@@ -131,3 +145,107 @@ def test_deleting_classroom_cascades_owned_story_rows(tmp_path):
         session.delete(classroom)
         session.commit()
         assert session.execute(text("SELECT COUNT(*) FROM chapters WHERE classroom_id = :id"), {"id": classroom_id}).scalar_one() == 0
+
+
+def test_material_provenance_foreign_key_cascades(tmp_path):
+    """Catches a PostgreSQL-hostile immediate restriction on owned provenance rows."""
+    url = _database_url(tmp_path / "educomic.db")
+    upgrade_database(url)
+
+    foreign_keys = inspect(create_engine(url)).get_foreign_keys("chapter_materials")
+    material_key = next(key for key in foreign_keys if key["constrained_columns"] == ["material_id"])
+
+    assert material_key["options"]["ondelete"] == "CASCADE"
+
+
+def test_deleting_classroom_cascades_material_provenance_graph(tmp_path):
+    """Catches classroom deletion leaving material provenance rows behind."""
+    url = _database_url(tmp_path / "educomic.db")
+    upgrade_database(url)
+    engine = create_local_engine(url)
+    owner = LocalProfile(display_name="Local Teacher")
+    classroom = Classroom(owner=owner, name="Science", subject="Science", grade_level="5", story_theme="Space", design_style="comic")
+    material = Material(
+        classroom_id=classroom.id,
+        source_filename="fictional.pdf",
+        object_path="materials/example/fictional.pdf",
+        extraction_state="ready",
+        content_hash="a" * 64,
+        extracted_pages=[],
+    )
+    chapter = Chapter(classroom_id=classroom.id, index=1, original_prompt="Orbits", status="draft", revision=0)
+
+    with Session(engine) as session:
+        session.add(classroom)
+        session.flush()
+        material.classroom_id = classroom.id
+        chapter.classroom_id = classroom.id
+        session.add_all([material, chapter])
+        session.flush()
+        session.add(ChapterMaterial(chapter_id=chapter.id, material_id=material.id, content_hash=material.content_hash))
+        session.commit()
+        session.delete(classroom)
+        session.commit()
+
+        for table in ("chapter_materials", "chapters", "materials"):
+            assert session.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one() == 0
+
+
+def test_timestamps_reload_normalized_to_utc(tmp_path):
+    """Catches SQLite returning naive or non-UTC persisted timestamps."""
+    url = _database_url(tmp_path / "educomic.db")
+    upgrade_database(url)
+    first_engine = create_local_engine(url)
+    owner = LocalProfile(
+        display_name="Local Teacher",
+        created_at=datetime(2026, 8, 1, 12, 30, tzinfo=timezone(timedelta(hours=2))),
+    )
+    with Session(first_engine) as session:
+        session.add(owner)
+        session.commit()
+        owner_id = owner.id
+    first_engine.dispose()
+
+    restarted_engine = create_local_engine(url)
+    with Session(restarted_engine) as session:
+        loaded = session.get(LocalProfile, owner_id)
+        assert loaded.created_at == datetime(2026, 8, 1, 10, 30, tzinfo=timezone.utc)
+        assert loaded.updated_at.utcoffset() == timedelta(0)
+
+
+def test_generation_run_timestamps_reload_normalized_to_utc(tmp_path):
+    """Catches generation-run lifecycle timestamps bypassing UTC normalization."""
+    url = _database_url(tmp_path / "educomic.db")
+    upgrade_database(url)
+    first_engine = create_local_engine(url)
+    owner = LocalProfile(display_name="Local Teacher")
+    classroom = Classroom(owner=owner, name="Science", subject="Science", grade_level="5", story_theme="Space", design_style="comic")
+    with Session(first_engine) as session:
+        session.add(classroom)
+        session.flush()
+        chapter = Chapter(classroom_id=classroom.id, index=1, original_prompt="Orbits", status="draft", revision=0)
+        session.add(chapter)
+        session.flush()
+        run = GenerationRun(
+            idempotency_key="fictional-run",
+            chapter_id=chapter.id,
+            target_revision=1,
+            job_state="running",
+            started_at=datetime(2026, 8, 1, 12, 30, tzinfo=timezone(timedelta(hours=2))),
+        )
+        session.add(run)
+        session.commit()
+        run_id = run.id
+    first_engine.dispose()
+
+    restarted_engine = create_local_engine(url)
+    with Session(restarted_engine) as session:
+        loaded = session.get(GenerationRun, run_id)
+        assert loaded.started_at == datetime(2026, 8, 1, 10, 30, tzinfo=timezone.utc)
+
+
+def test_schema_compiles_for_postgresql_dialect():
+    """Catches SQLite-only column definitions entering the portable model contract."""
+    statements = [str(CreateTable(table).compile(dialect=postgresql.dialect())) for table in Base.metadata.sorted_tables]
+
+    assert len(statements) == 10

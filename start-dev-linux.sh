@@ -26,7 +26,7 @@ trap cleanup INT TERM
 # Start Backend
 echo -e "${BLUE}📦 Setting up backend...${NC}"
 cd backend
-uv sync
+uv sync --locked
 cd src
 
 echo -e "${GREEN}✓ Backend dependencies installed${NC}"
@@ -50,11 +50,8 @@ cd ../..
 echo -e "${BLUE}📦 Setting up frontend...${NC}"
 cd frontend
 
-# Check if node_modules exists, if not install
-if [ ! -d "node_modules" ]; then
-    echo -e "${BLUE}Installing frontend dependencies...${NC}"
-    npm install
-fi
+echo -e "${BLUE}Installing locked frontend dependencies...${NC}"
+npm ci
 
 echo -e "${GREEN}✓ Frontend dependencies ready${NC}"
 echo -e "${BLUE}🎨 Starting frontend server...${NC}"

@@ -1,11 +1,32 @@
 """Concrete local file lifecycle behavior."""
 
 import os
+import shutil
+import subprocess
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
 from local_storage import LocalStorage, StorageValidationError
+
+
+def _create_directory_redirect(link: Path, target: Path) -> None:
+    if os.name == "nt":
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            check=True,
+            capture_output=True,
+        )
+    else:
+        link.symlink_to(target, target_is_directory=True)
+
+
+def _remove_directory_redirect(link: Path) -> None:
+    if os.name == "nt":
+        link.rmdir()
+    else:
+        link.unlink()
 
 
 def test_object_paths_reject_unsafe_inputs(tmp_path):
@@ -73,3 +94,69 @@ def test_staging_files_cannot_be_read_as_ready_objects(tmp_path):
 
     with pytest.raises(StorageValidationError):
         storage.read_bytes(staged_path, max_bytes=20)
+
+
+def test_redirected_storage_root_is_rejected(tmp_path):
+    """Catches a redirected managed root being accepted as the storage boundary."""
+    target = tmp_path / "external"
+    target.mkdir()
+    redirect = tmp_path / "redirect"
+    _create_directory_redirect(redirect, target)
+    try:
+        with pytest.raises(StorageValidationError, match="redirected"):
+            LocalStorage(redirect)
+    finally:
+        _remove_directory_redirect(redirect)
+
+
+def test_redirected_staging_cleanup_preserves_external_files(tmp_path):
+    """Catches cleanup following a replaced staging directory outside storage."""
+    storage = LocalStorage(tmp_path / "storage")
+    staging = storage.root / "staging"
+    shutil.rmtree(staging)
+    external = tmp_path / "external"
+    external.mkdir()
+    external_file = external / "keep.png"
+    external_file.write_bytes(b"keep")
+    old_time = datetime.now(timezone.utc) - timedelta(hours=2)
+    os.utime(external_file, (old_time.timestamp(), old_time.timestamp()))
+    _create_directory_redirect(staging, external)
+    try:
+        with pytest.raises(StorageValidationError, match="redirected"):
+            storage.cleanup_staging(older_than=timedelta(hours=1))
+        assert external_file.read_bytes() == b"keep"
+    finally:
+        _remove_directory_redirect(staging)
+
+
+def test_redirected_media_read_is_rejected(tmp_path):
+    """Catches reads following a redirected object owner directory."""
+    storage = LocalStorage(tmp_path)
+    owner = "00000000-0000-0000-0000-000000000001"
+    target = storage.root / "materials" / "redirected"
+    target.mkdir()
+    (target / "image.png").write_bytes(b"redirected")
+    redirect = storage.root / "avatars" / owner
+    _create_directory_redirect(redirect, target)
+    try:
+        with pytest.raises(StorageValidationError, match="redirected"):
+            storage.read_bytes(f"avatars/{owner}/image.png", max_bytes=20)
+    finally:
+        _remove_directory_redirect(redirect)
+
+
+def test_redirected_media_replacement_is_rejected(tmp_path):
+    """Catches atomic replacement following a redirected object owner directory."""
+    storage = LocalStorage(tmp_path)
+    owner = "00000000-0000-0000-0000-000000000001"
+    target = storage.root / "materials" / "redirected"
+    target.mkdir()
+    redirect = storage.root / "avatars" / owner
+    _create_directory_redirect(redirect, target)
+    staged = storage.stage_bytes(b"new-image", ".png", max_bytes=20)
+    try:
+        with pytest.raises(StorageValidationError, match="redirected"):
+            storage.finalize(staged, f"avatars/{owner}/image.png")
+        assert not (target / "image.png").exists()
+    finally:
+        _remove_directory_redirect(redirect)

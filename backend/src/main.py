@@ -121,12 +121,13 @@ async def readiness_check():
     missing = [name for name in required if not os.getenv(name)]
     if not os.getenv("BFL_API_KEY"):
         missing.append("BFL_API_KEY")
+    content = {
+        "status": "not_ready",
+        "blocking_reasons": ["local_persistence_not_migrated"],
+    }
     if missing:
-        return JSONResponse(
-            status_code=503,
-            content={"status": "not_ready", "missing_configuration": missing},
-        )
-    return {"status": "ready"}
+        content["missing_configuration"] = missing
+    return JSONResponse(status_code=503, content=content)
 
 
 @app.get("/media/{object_path:path}")

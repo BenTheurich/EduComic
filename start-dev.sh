@@ -28,7 +28,7 @@ fi
 if [ ! -d "backend/.venv" ]; then
     echo "📦 Installing backend dependencies with UV..."
     cd backend
-    uv sync
+    uv sync --locked
     cd ..
     echo "✅ Backend dependencies installed"
     echo ""
@@ -38,7 +38,7 @@ fi
 if [ ! -d "frontend/node_modules" ]; then
     echo "📦 Installing frontend dependencies..."
     cd frontend
-    npm install
+    npm ci
     cd ..
     echo "✅ Frontend dependencies installed"
     echo ""

@@ -1,6 +1,6 @@
 # EduComic
 
-EduComic is a local educational comic application built with React and FastAPI. The private profile stores structured data in SQLite and assets in `backend/data/`; it does not require a hosted database or object-storage account.
+EduComic is an educational comic application built with React and FastAPI. Phase 1 provides the SQLite and local-file foundation without a hosted database or object-storage account. Existing classroom, student, and generation paths still fail closed at a compatibility boundary until Phase 2 converts them; this is not yet the complete private application.
 
 ## Local setup
 
@@ -8,7 +8,7 @@ EduComic is a local educational comic application built with React and FastAPI. 
 
    ```bash
    cd backend
-   uv sync --extra dev
+   uv sync --extra dev --locked
    ```
 
 2. Copy `backend/.env.example` to `backend/.env` and add the backend-only OpenAI and Black Forest Labs keys.
@@ -26,7 +26,7 @@ EduComic is a local educational comic application built with React and FastAPI. 
 
    ```bash
    cd frontend
-   npm install
+   npm ci
    npm run dev
    ```
 
@@ -50,4 +50,4 @@ npm test
 - Validated local storage under `backend/data/` owns uploaded and generated files.
 - OpenAI and Black Forest Labs are optional paid provider integrations configured only on the backend.
 
-Future hosted PostgreSQL or Supabase work is separate from the private profile; see [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for the deny-by-default hosted boundary, not local setup instructions.
+Future hosted PostgreSQL or Supabase work is separate from the private profile. PostgreSQL migration execution remains a future hosted acceptance gate; Phase 1 verifies portability by schema inspection and tests only. See [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for the deny-by-default hosted boundary, not local setup instructions.

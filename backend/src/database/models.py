@@ -1,6 +1,6 @@
 """SQLAlchemy data contract for the local private application."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -19,6 +19,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 
 def _uuid() -> str:
@@ -29,10 +30,32 @@ class Base(DeclarativeBase):
     pass
 
 
+class UTCDateTime(TypeDecorator):
+    impl = DateTime
+    cache_ok = True
+
+    def __init__(self):
+        super().__init__(timezone=True)
+
+    def process_bind_param(self, value: datetime | None, _dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    def process_result_value(self, value: datetime | None, _dialect) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        UTCDateTime(), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
 
@@ -139,7 +162,7 @@ class ChapterMaterial(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=_uuid)
     chapter_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False)
-    material_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("materials.id", ondelete="RESTRICT"), nullable=False)
+    material_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("materials.id", ondelete="CASCADE"), nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
@@ -181,8 +204,8 @@ class GenerationRun(TimestampMixin, Base):
     target_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     job_state: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
     error_reference: Mapped[str | None] = mapped_column(String(64))
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class Setting(TimestampMixin, Base):
