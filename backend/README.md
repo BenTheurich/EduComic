@@ -1,48 +1,19 @@
-# EduComic Backend API
+# EduComic backend
 
-FastAPI backend for the EduComic application.
+The private backend uses FastAPI, SQLite, Alembic migrations, and local files. No hosted database or object-storage setup is required.
 
-## Setup
-
-1. Install dependencies:
 ```bash
-pip install -r requirements.txt
+uv sync --extra dev
+copy .env.example .env
+uv run uvicorn --app-dir src main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-2. Create `.env` file with your Supabase credentials:
+On first startup the backend creates `data/educomic.db`, applies migrations, and creates the asset directories. Set `EDUCOMIC_DATA_DIR` to keep local data elsewhere, or `DATABASE_URL` for an explicitly configured SQLAlchemy database.
+
+Provider keys stay in the ignored backend `.env` file. Do not expose the backend beyond localhost: the private profile has no authentication.
+
+Run offline tests with:
+
 ```bash
-cp .env.example .env
+uv run pytest -q
 ```
-
-3. Run the development server:
-```bash
-uvicorn main:app --reload
-```
-
-The API will be available at `http://localhost:8000`
-
-## API Documentation
-
-Once running, visit:
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-
-## Endpoints
-
-### Classrooms
-- `POST /classrooms` - Create classroom
-- `GET /classrooms` - List all classrooms
-- `GET /classrooms/{id}` - Get classroom by ID
-- `GET /classrooms/{id}/students` - Get classroom students
-
-### Students
-- `POST /students` - Create student
-- `GET /students/{id}` - Get student by ID
-- `PATCH /students/{id}` - Update student
-
-### Stories
-- `POST /stories` - Create story
-- `GET /stories/{id}` - Get story by ID
-- `PATCH /stories/{id}` - Update story
-- `GET /stories/{id}/full` - Get story with panels
-- `GET /stories/{id}/complete` - Get story with panels and students

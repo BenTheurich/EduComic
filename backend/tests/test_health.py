@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 
 import httpx
 import pytest
-from conftest import created_supabase_clients
 
 
 def _load_application():
@@ -31,25 +30,14 @@ async def test_liveness_loads_offline_and_readiness_reports_missing_configuratio
     assert readiness.status_code == 503
     assert readiness.json() == {
         "status": "not_ready",
-        "missing_configuration": ["SUPABASE_URL", "SUPABASE_KEY", "OPENAI_API_KEY", "BFL_API_KEY"],
+        "missing_configuration": ["OPENAI_API_KEY", "BFL_API_KEY"],
     }
-    assert created_supabase_clients == []
-
-
-def test_database_operations_fail_closed_when_supabase_is_unconfigured():
-    """Catches unconfigured database calls reaching a client with absent credentials."""
-    database = importlib.import_module("database.database")
-
-    with pytest.raises(RuntimeError, match="Supabase is not configured"):
-        database.get_all_classrooms()
 
 
 @pytest.mark.asyncio
 async def test_bfl_api_key_makes_readiness_and_avatar_generation_compatible(monkeypatch):
     """Catches readiness accepting BFL_API_KEY while avatar generation rejects it."""
     for name, value in {
-        "SUPABASE_URL": "https://example.test",
-        "SUPABASE_KEY": "test-key",
         "OPENAI_API_KEY": "test-key",
         "BFL_API_KEY": "test-key",
     }.items():

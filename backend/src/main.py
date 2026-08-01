@@ -4,6 +4,7 @@ FastAPI main application entry point.
 
 import logging
 import os
+from contextlib import asynccontextmanager
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
@@ -14,7 +15,7 @@ from fastapi import (
     Request,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from api_models import (
     ClassroomCreateRequest,
@@ -23,17 +24,27 @@ from api_models import (
     StoryChoiceRequest,
     StudentCreateRequest,
 )
+from local_runtime import initialize_local_backend, resolve_local_paths
+from local_storage import LocalStorage, StorageValidationError
 from services.avatar import generate_avatar
 from services.comic_creation import commit_story_choice
 
 # Load environment variables
 load_dotenv()
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    initialize_local_backend()
+    yield
+
+
 # Create FastAPI app
 app = FastAPI(
     title="EduComic API",
     description="API for educational comic generation",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 logger = logging.getLogger("educomic.api")
@@ -106,7 +117,7 @@ async def health_check():
 @app.get("/ready")
 async def readiness_check():
     """Report whether the configuration required for work is present."""
-    required = ("SUPABASE_URL", "SUPABASE_KEY", "OPENAI_API_KEY")
+    required = ("OPENAI_API_KEY",)
     missing = [name for name in required if not os.getenv(name)]
     if not os.getenv("BFL_API_KEY"):
         missing.append("BFL_API_KEY")
@@ -116,6 +127,22 @@ async def readiness_check():
             content={"status": "not_ready", "missing_configuration": missing},
         )
     return {"status": "ready"}
+
+
+@app.get("/media/{object_path:path}")
+async def local_media(object_path: str):
+    """Serve a validated local object without returning its filesystem path."""
+    storage = LocalStorage(resolve_local_paths().root)
+    try:
+        content = storage.read_bytes(object_path, max_bytes=50 * 1024 * 1024)
+        content_type = storage.content_type(object_path)
+    except StorageValidationError:
+        raise HTTPException(status_code=404, detail="Media not found")
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @app.post("/classrooms")

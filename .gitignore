@@ -14,6 +14,7 @@ build/
 # Local temporary files
 /tmp/
 /output/
+backend/data/
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints

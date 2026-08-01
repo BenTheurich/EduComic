@@ -1,38 +1,20 @@
-"""
-Database module for Supabase operations.
-Provides get and create functions for all tables.
-"""
+"""Legacy database helpers awaiting Phase 2 SQLAlchemy repository conversion."""
 
-import os
 from typing import Any, Dict, List, Optional
 
-from dotenv import load_dotenv
-from supabase import Client, create_client
-
-# Load environment variables
-load_dotenv()
-
-# Initialize Supabase client
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+class LegacyPersistenceNotMigratedError(RuntimeError):
+    """Raised when a remaining direct query-builder caller reaches Phase 1."""
 
 
-class DatabaseConfigurationError(RuntimeError):
-    """Raised when a database operation is attempted without Supabase credentials."""
-
-
-class _UnconfiguredSupabase:
+class _LegacyQueryBuilder:
     def __getattr__(self, _name: str):
-        raise DatabaseConfigurationError(
-            "Supabase is not configured; set SUPABASE_URL and SUPABASE_KEY."
+        raise LegacyPersistenceNotMigratedError(
+            "This database caller has not yet been converted to local SQLAlchemy."
         )
 
 
-supabase: Client | _UnconfiguredSupabase = (
-    create_client(SUPABASE_URL, SUPABASE_KEY)
-    if SUPABASE_URL and SUPABASE_KEY
-    else _UnconfiguredSupabase()
-)
+# Kept only so existing route/service imports remain import-compatible until Phase 2.
+supabase = _LegacyQueryBuilder()
 
 
 # ============================================

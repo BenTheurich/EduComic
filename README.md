@@ -1,171 +1,53 @@
-# EduComic - Educational Comic Generation Platform
+# EduComic
 
-Transform classroom lessons into engaging, personalized graphic novels using AI.
+EduComic is a local educational comic application built with React and FastAPI. The private profile stores structured data in SQLite and assets in `backend/data/`; it does not require a hosted database or object-storage account.
 
-## 🚀 Quick Start
+## Local setup
 
-### 1. Install UV (Python Package Manager)
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+1. Install backend dependencies:
 
-### 2. Configure Environment Variables
-```bash
-# Backend
-cp backend/.env.example backend/.env
-# Edit backend/.env with your API keys (Supabase, OpenAI, etc.)
+   ```bash
+   cd backend
+   uv sync --extra dev
+   ```
 
-# Frontend (optional, defaults work)
-cp frontend/.env.example frontend/.env
-```
+2. Copy `backend/.env.example` to `backend/.env` and add the backend-only OpenAI and Black Forest Labs keys.
 
-### 3. Start Development Servers
-```bash
-./start-dev.sh
-```
+3. Start the backend on localhost:
 
-That's it! The script will:
-- ✅ Install backend dependencies (if needed)
-- ✅ Install frontend dependencies (if needed)
-- ✅ Start backend on http://localhost:8000
-- ✅ Start frontend on http://localhost:8080
-- ✅ Show you when everything is ready
+   ```bash
+   cd backend
+   uv run uvicorn --app-dir src main:app --reload --host 127.0.0.1 --port 8000
+   ```
 
-Visit http://localhost:8080 to use the app!
+   First startup creates `backend/data/`, applies the checked-in Alembic migrations, and serves local media through `/media/...` URLs.
 
-### Stop Servers
-```bash
-# Press Ctrl+C in the terminal running start-dev.sh
-# Or run:
-./stop-dev.sh
-```
+4. Start the frontend:
 
-### Manual Start (Alternative)
-If you prefer to run servers separately:
-```bash
-# Terminal 1 - Backend
-cd backend/src
-uv run uvicorn main:app --reload --port 8000
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
-# Terminal 2 - Frontend
-cd frontend
-npm run dev
-```
+Changing the backend bind address exposes an unauthenticated local application and is unsupported for the private release.
 
-## 📚 Documentation
+## Tests
 
-- **[SUPABASE_SETUP.md](SUPABASE_SETUP.md)** - Database setup instructions
-
-## 🏗️ Project Structure
-
-```
-EduComic/
-├── backend/              # FastAPI backend
-│   ├── src/
-│   │   ├── main.py      # API entry point
-│   │   ├── database/    # Supabase integration
-│   │   └── services/    # Business logic (story, avatar generation)
-│   ├── pyproject.toml   # Python dependencies
-│   └── uv.lock          # Locked dependencies
-├── frontend/            # React + Vite frontend
-│   ├── src/
-│   │   ├── pages/       # Page components
-│   │   ├── components/  # Reusable components
-│   │   └── lib/         # API client & utilities
-│   └── package.json     # Node dependencies
-└── docs/                # Documentation & assets
-```
-
-## 🛠️ Tech Stack
-
-**Backend:**
-- FastAPI - Modern Python web framework
-- Supabase - PostgreSQL database
-- OpenAI - Story generation
-- Black Forest Labs - Image generation
-
-**Frontend:**
-- React 18 - UI framework
-- Vite - Build tool
-- TailwindCSS - Styling
-- shadcn/ui - Component library
-
-**Development:**
-- UV - Python package manager
-- TypeScript - Type safety
-- ESLint - Code linting
-
-## 🧪 Testing
-
-### Test Backend API
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Generate story options
-curl -X POST "http://localhost:8000/story/generate-options?classroom_id=YOUR_ID&lesson_prompt=Newton's%20Laws"
-```
-
-## 👥 Team Collaboration
-
-### Pulling Changes
-```bash
-git pull
-cd backend && uv sync
-cd ../frontend && npm install
-```
-
-### Adding Dependencies
-
-**Backend:**
 ```bash
 cd backend
-uv add package-name
-git add pyproject.toml uv.lock
+uv run pytest -q
+
+cd ../frontend
+npm test
 ```
 
-**Frontend:**
-```bash
-cd frontend
-npm install package-name
-git add package.json package-lock.json
-```
+## Architecture
 
-## 🔑 Environment Variables
+- React 18, TypeScript, and Vite provide the browser UI.
+- FastAPI provides the local JSON and media API.
+- SQLAlchemy 2 and Alembic manage the SQLite data contract.
+- Validated local storage under `backend/data/` owns uploaded and generated files.
+- OpenAI and Black Forest Labs are optional paid provider integrations configured only on the backend.
 
-### Backend (.env)
-```env
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_key
-OPENAI_API_KEY=your_openai_key
-BFL_API_KEY=your_black_forest_labs_key
-ENVIRONMENT=development
-```
-
-### Frontend (.env)
-```env
-VITE_API_URL=http://localhost:8000
-```
-
-## 📖 Features
-
-- **Classroom Management** - Create and manage classrooms with students
-- **Story Generation** - AI-powered story creation based on lesson content
-- **Avatar Creation** - Generate student avatars using AI
-- **Comic Viewer** - Read generated comics in an engaging format
-- **Teacher Dashboard** - Manage multiple classrooms and stories
-
-## 🤝 Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Test locally
-4. Submit a pull request
-
-## 📝 License
-
-[Add your license here]
-
-## 🆘 Need Help?
-
-- Open an issue for bugs or questions
+Future hosted PostgreSQL or Supabase work is separate from the private profile; see [SUPABASE_SETUP.md](SUPABASE_SETUP.md) for the deny-by-default hosted boundary, not local setup instructions.

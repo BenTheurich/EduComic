@@ -14,15 +14,9 @@ CONFIG_VARS = (
     "BFL_API_KEY",
     "BFL_MODEL_ENDPOINT",
     "ALLOWED_ORIGINS",
+    "DATABASE_URL",
+    "EDUCOMIC_DATA_DIR",
 )
-
-
-class FakeSupabaseClient:
-    def table(self, *_args, **_kwargs):
-        raise AssertionError("database client must not be used by health checks")
-
-
-created_supabase_clients = []
 
 
 def pytest_sessionstart(session):
@@ -32,11 +26,6 @@ def pytest_sessionstart(session):
     dotenv = ModuleType("dotenv")
     dotenv.load_dotenv = lambda *args, **kwargs: False
     sys.modules["dotenv"] = dotenv
-
-    supabase = ModuleType("supabase")
-    supabase.Client = FakeSupabaseClient
-    supabase.create_client = lambda *args: created_supabase_clients.append(args) or FakeSupabaseClient()
-    sys.modules["supabase"] = supabase
 
     openai = ModuleType("openai")
     openai.OpenAI = lambda *args, **kwargs: object()
