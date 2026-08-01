@@ -31,6 +31,8 @@ def _reconcile_interrupted_runs() -> None:
                 "UPDATE generation_runs SET job_state = 'failed', stage = 'failed', "
                 "error_code = 'interrupted', error_reference = :reference, "
                 "finished_at = :finished_at WHERE id = :run_id"
+            ).bindparams(
+                sa.bindparam("finished_at", type_=sa.DateTime(timezone=True))
             ),
             {
                 "reference": uuid4().hex,
