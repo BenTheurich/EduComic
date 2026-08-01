@@ -429,11 +429,18 @@ It is not an acceptance dependency for this roadmap.
 ## Execution and review cadence
 
 - Execute one phase at a time in dependency order.
-- Begin each phase by inspecting current callers, tests, and dirty state.
-- Let the implementing agent choose concrete code details within this plan and the specification.
-- Keep each phase reviewable as one outcome or a small sequence of coherent commits.
-- Require fresh acceptance evidence before moving to the next phase.
-- Ask the founder only when a remaining product decision blocks the phase or the proposed work changes scope.
+- Use one fresh implementation agent and one fresh independent reviewer per phase.
+- Let the implementation agent choose concrete code details within this plan and specification after tracing only the affected callers and tests.
+- Use focused tests during implementation and any fix round, then run the complete backend/frontend/static/build gate once at phase end.
+- Repeat the full gate only when a fix changes shared architecture, migrations, dependencies, or cross-cutting runtime behavior.
+- Run browser verification for user-visible workflow changes, not routine backend-only fixes without a named browser risk.
+- Allow at most one normal fix round and one scoped re-review. If a Critical or Important finding remains, stop and present the load-bearing blocker to the founder.
+- Treat Critical and Important findings as blocking. Record Minor findings for the UI/UX or final release phase instead of extending the phase loop.
+- Keep review risk-focused: data loss, privacy, deletion, migrations, provider spend/output, storage, authentication claims, and truthful persistence/status receive strict scrutiny; ordinary UI wiring, wording, and low-risk refactoring receive lighter review.
+- Do not reopen an approved phase unless a later diff directly regresses it.
+- Keep internal briefs, reports, and review packages ignored and uncommitted; commit only actual public project documentation.
+- Preserve each phase as one reviewable outcome or a small sequence of coherent commits.
+- Ask the founder only when a genuine product decision blocks the phase or the proposed work changes scope.
 - Do not expand a phase with speculative hosted infrastructure.
 
 ## Plan completion condition
