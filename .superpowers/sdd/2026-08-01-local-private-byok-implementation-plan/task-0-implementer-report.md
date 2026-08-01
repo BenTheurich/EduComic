@@ -19,8 +19,9 @@ No behavioral repairs were needed after review: the copied set already validates
 
 ## Fresh verification
 
-- `C:\tmp\EduComic-worktrees\public-release-cleanup\backend\.venv\Scripts\python.exe -m pytest tests/test_story_contracts.py tests/test_safe_service_logging.py -q` — `24 passed in 0.35s`.
-- `C:\tmp\EduComic-worktrees\public-release-cleanup\backend\.venv\Scripts\python.exe -m pytest -q` — `52 passed in 0.63s` (fresh run immediately before the provider-contract commit).
+- The shared virtualenv's site configuration points at the cleanup worktree's `src`; prior unqualified backend baseline commands therefore do not count as recovery-worktree verification. The following current commands explicitly prepend `C:\tmp\EduComic-worktrees\product-intent-recovery\backend\src`.
+- `...python.exe -c "import sys, pytest; sys.path.insert(0, r'C:\tmp\EduComic-worktrees\product-intent-recovery\backend\src'); raise SystemExit(pytest.main(['tests/test_story_contracts.py::test_invalid_panel_review_stops_generation_before_later_side_effects', 'tests/test_active_routes.py::test_invalid_story_ideas_do_not_insert_a_chapter', '-q']))"` — `2 passed in 0.48s`.
+- `...python.exe -c "import sys, pytest; sys.path.insert(0, r'C:\tmp\EduComic-worktrees\product-intent-recovery\backend\src'); raise SystemExit(pytest.main(['-q']))"` — `54 passed in 0.70s`.
 - Recovery frontend equals cleanup base (`git diff --quiet c3ee935... -- frontend`). With the already-installed cleanup dependencies: `npm.cmd run typecheck` — exit 0; `npm.cmd run test -- --run` — `18 passed`, `43 passed`; recovery `npm.cmd run build` with `VITE_API_URL=http://127.0.0.1:8000` — exit 0.
 - The initial production build without `VITE_API_URL` failed as designed: `VITE_API_URL must be set for production builds`. The successful build emitted only the existing Browserslist stale-data warning (caniuse-lite 14 months old); no fix was appropriate for this task.
 - `git diff --cached --check` found no provider-contract whitespace errors. The copied Markdown has intentional two-space hard breaks, which `git diff --check` reports as trailing whitespace; it was preserved unchanged.
@@ -35,8 +36,10 @@ Read-only status was checked before and after recovery work.
 
 ## Self-review and remaining decision
 
+- TDD red-green evidence: the new review-orchestration regression failed before the service change because review exceptions were retried and then persisted; the minimal change now lets the strict review error propagate. It proves exactly one required pre-review BFL call and no later BFL call, upload, or panel write. The chapter route regression proves an invalid story-idea service result returns a safe failure without a chapter insert.
 - Reviewed all seven files and their direct callers: strict Pydantic models use `extra="forbid"`, reject missing/invalid parsed output, revalidate the comic cast with classroom context before panel deletion or BFL calls, and tests cover that ordering.
 - Kept existing validation, generic provider errors, prompt redaction, accessibility/cleanup-base code, and review-default behavior intact. No dependencies or speculative abstraction added.
+- This fix does not make the generation pipeline atomic: existing panels are still deleted before review and a later review failure can leave prior panel work altered. Staging, atomic replacement, and worker recovery remain Phase 3 work by explicit ruling.
 - Founder choice remains pending: panel length is currently provisional 8–12. It was deliberately not changed. This does not block Task 0 preservation; it blocks any product-contract finalization that would alter panel length.
 
 Status: COMPLETE

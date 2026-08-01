@@ -309,6 +309,69 @@ def test_invalid_script_is_rejected_before_panel_deletion_or_image_provider(monk
     assert deleted == []
 
 
+def test_invalid_panel_review_stops_generation_before_later_side_effects(monkeypatch):
+    """Catches review failures being converted into retries and persisted panels."""
+    comic_creation = importlib.import_module("services.comic_creation")
+    monkeypatch.setattr(comic_creation, "PANEL_REVIEW_ENABLED", True)
+    monkeypatch.setattr(comic_creation, "PANEL_REVIEW_MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(
+        comic_creation,
+        "get_chapter",
+        lambda _chapter_id: {
+            "id": "chapter-1",
+            "index": 1,
+            "classroom_id": "classroom-1",
+            "original_prompt": "Teach forces",
+            "story_ideas": [{"id": "idea_1", "title": "Rocket lesson", "summary": "Learn."}],
+        },
+    )
+    monkeypatch.setattr(comic_creation, "get_classroom", lambda _classroom_id: _classroom())
+    monkeypatch.setattr(comic_creation, "get_students_by_classroom", lambda _classroom_id: _students())
+    monkeypatch.setattr(comic_creation, "generate_full_script_and_panels", lambda *_args, **_kwargs: _script())
+
+    class _DeleteQuery:
+        def delete(self):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def execute(self):
+            return None
+
+    monkeypatch.setattr(comic_creation, "supabase", SimpleNamespace(table=lambda *_args: _DeleteQuery()))
+    flux_calls = []
+    uploads = []
+    panel_writes = []
+    monkeypatch.setattr(
+        comic_creation,
+        "call_flux_and_download",
+        lambda *_args, **_kwargs: (flux_calls.append("flux") or (b"image", "https://provider.test/panel")),
+    )
+    monkeypatch.setattr(
+        comic_creation,
+        "review_panel_image",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("Panel review returned invalid response")),
+    )
+    monkeypatch.setattr(
+        comic_creation,
+        "upload_image_and_get_url",
+        lambda *_args, **_kwargs: uploads.append("upload"),
+    )
+    monkeypatch.setattr(
+        comic_creation,
+        "create_panel",
+        lambda *_args, **_kwargs: panel_writes.append("panel"),
+    )
+
+    with pytest.raises(RuntimeError, match="Panel review returned invalid response"):
+        comic_creation.commit_story_choice("chapter-1", "idea_1")
+
+    assert flux_calls == ["flux"]
+    assert uploads == []
+    assert panel_writes == []
+
+
 def test_panel_review_defaults_off_and_attempts_are_hard_clamped(monkeypatch):
     comic_creation = importlib.import_module("services.comic_creation")
     monkeypatch.delenv("PANEL_REVIEW_ENABLED", raising=False)

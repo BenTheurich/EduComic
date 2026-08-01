@@ -266,23 +266,18 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
 
             # Run multimodal review against the *BFL sample URL*
             print("      → Running quality review...")
-            try:
-                review = review_panel_image(
-                    image_url=source_url,
-                    panel=panel,
-                    classroom=classroom,
-                    students=students,
-                    min_score=PANEL_REVIEW_MIN_SCORE,
-                )
-                score = float(review.get("score", 0.0))
-                print(f"      ✓ Quality score: {score:.1f}/10 (threshold: {PANEL_REVIEW_MIN_SCORE})")
-                issues = review.get("issues") or []
-                if issues:
-                    print(f"      ⚠️  Issues found: {len(issues)}")
-            except Exception:
-                print(f"      ❌ Panel review failed on attempt {attempt}")
-                review = None
-                score = 0.0
+            review = review_panel_image(
+                image_url=source_url,
+                panel=panel,
+                classroom=classroom,
+                students=students,
+                min_score=PANEL_REVIEW_MIN_SCORE,
+            )
+            score = float(review.get("score", 0.0))
+            print(f"      ✓ Quality score: {score:.1f}/10 (threshold: {PANEL_REVIEW_MIN_SCORE})")
+            issues = review.get("issues") or []
+            if issues:
+                print(f"      ⚠️  Issues found: {len(issues)}")
 
             # Track best attempt so far
             if score > best_score:

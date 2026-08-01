@@ -87,6 +87,45 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     assert committed == [(str(chapter_id), "idea_1")]
 
 
+@pytest.mark.asyncio
+async def test_invalid_story_ideas_do_not_insert_a_chapter(monkeypatch):
+    """Catches the chapter route persisting an invalid provider result."""
+    database = importlib.import_module("database.database")
+    main = importlib.import_module("main")
+    story_idea = importlib.import_module("services.story_idea")
+    classroom_id = uuid4()
+    inserts = []
+
+    class ChapterQuery:
+        def insert(self, data):
+            inserts.append(data)
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=[])
+
+    monkeypatch.setattr(database, "get_classroom", lambda _id: {"id": str(classroom_id), "story_theme": "space"})
+    monkeypatch.setattr(database, "get_students_by_classroom", lambda _id: [])
+    monkeypatch.setattr(database, "get_chapters_by_classroom", lambda _id: [])
+    monkeypatch.setattr(database, "supabase", SimpleNamespace(table=lambda _name: ChapterQuery()))
+    monkeypatch.setattr(
+        story_idea,
+        "generate_story_ideas",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("OpenAI returned no validated story ideas")),
+    )
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=main.app), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            f"/classrooms/{classroom_id}/chapters/start",
+            json={"lesson_prompt": "Newton's laws"},
+        )
+
+    assert response.status_code == 500
+    assert inserts == []
+
+
 def test_stale_story_paths_are_not_registered_for_any_method():
     """Catches deleted story paths returning under any HTTP method."""
     app = importlib.import_module("main").app
