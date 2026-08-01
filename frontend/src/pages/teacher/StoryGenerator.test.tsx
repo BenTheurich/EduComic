@@ -140,7 +140,7 @@ describe("StoryGenerator", () => {
     expect(console.log).not.toHaveBeenCalled();
   });
 
-  it("reuses the idempotency key when the commit response is ambiguous", async () => {
+  it("retries an ambiguous commit directly with the same idempotency key", async () => {
     const randomUUID = vi.spyOn(globalThis.crypto, "randomUUID")
       .mockReturnValueOnce("00000000-0000-4000-8000-000000000001")
       .mockReturnValueOnce("00000000-0000-4000-8000-000000000002");
@@ -165,6 +165,8 @@ describe("StoryGenerator", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Select This Story" }));
     await waitFor(() => expect(commitChapter).toHaveBeenCalledTimes(2));
 
+    expect(chooseIdea).toHaveBeenCalledTimes(1);
+    expect(chooseIdea.mock.invocationCallOrder[0]).toBeLessThan(commitChapter.mock.invocationCallOrder[0]);
     expect(commitChapter.mock.calls.map((call) => call[2])).toEqual([
       "00000000-0000-4000-8000-000000000001",
       "00000000-0000-4000-8000-000000000001",

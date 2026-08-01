@@ -32,7 +32,12 @@ const StoryGenerator = () => {
   const [panels, setPanels] = useState<Panel[]>([]);
   const [isPolling, setIsPolling] = useState(false);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const generationRequestRef = useRef<{ chapterId: string; storyId: string; idempotencyKey: string } | null>(null);
+  const generationRequestRef = useRef<{
+    chapterId: string;
+    storyId: string;
+    idempotencyKey: string;
+    stage: "choose" | "commit";
+  } | null>(null);
   const pollAttempts = useRef(0);
   const consecutivePollingErrors = useRef(0);
   const maxPollAttempts = 300; // 10 minutes at 2-second intervals
@@ -184,11 +189,14 @@ const StoryGenerator = () => {
     const previousRequest = generationRequestRef.current;
     const request = previousRequest?.chapterId === chapterId && previousRequest.storyId === storyId
       ? previousRequest
-      : { chapterId, storyId, idempotencyKey: crypto.randomUUID() };
+      : { chapterId, storyId, idempotencyKey: crypto.randomUUID(), stage: "choose" as const };
     generationRequestRef.current = request;
 
     try {
-      await api.story.chooseIdea(chapterId, storyId);
+      if (request.stage === "choose") {
+        await api.story.chooseIdea(chapterId, storyId);
+        request.stage = "commit";
+      }
 
       // Start the comic generation in the background
       await api.story.commitChapter(chapterId, storyId, request.idempotencyKey);
