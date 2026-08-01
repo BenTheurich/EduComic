@@ -86,6 +86,19 @@ describe("removed classroom materials feature", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("exposes the invite copy action as a named 44-pixel target", async () => {
+    render(
+      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1"]}>
+        <Routes>
+          <Route path="/teacher/classroom/:id" element={<ClassroomDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const copyInvite = await screen.findByRole("button", { name: "Copy invite link" });
+    expect(copyInvite).toHaveClass("h-11", "min-w-11");
+  });
+
   it("does not offer a Materials link in the real teacher sidebar", () => {
     render(
       <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1"]}>

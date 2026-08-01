@@ -251,10 +251,11 @@ const ClassroomDetail = () => {
                   {window.location.origin}/student/join/{id}
                 </code>
                 <Button
+                  aria-label="Copy invite link"
                   onClick={copyInviteLink}
                   size="sm"
                   variant="ghost"
-                  className="h-7 px-2 backdrop-blur-sm"
+                  className="px-2 backdrop-blur-sm"
                 >
                   <Copy className="w-3 h-3" />
                 </Button>

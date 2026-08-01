@@ -105,3 +105,7 @@ Task 18A: complete (commits 6eed33f..bf4ba58; re-review clean). Frontend 37 test
 Task 18B: complete. Production `frontend/src` contains zero `console.log`, `console.debug`, `console.warn`, or `console.error` calls. Student classroom, student sidebar classroom-list, and story-generator metadata failures now stay visible and provide retry actions. Focused 9 tests and full frontend 40 tests, typecheck, lint, production build, diff check, and staged Gitleaks pass.
 
 Task 18B: fix round 1/5 (2 addressed, 0 open - truthful retryable ClassroomDetail load failure and deterministic local `scrollTo` test stub). Full frontend 41 tests pass without unexpected stderr; typecheck, lint, production build, zero-console detector, diff check, and staged Gitleaks pass.
+
+Task 18 browser checkpoint: one 40px-wide shared small icon control found and fixed with a 44px minimum plus regression test. Headed Chromium desktop/mobile keyboard, retry, reader, reduced-motion, overflow, console, request, and visual checks pass; frontend suite now has 42 tests.
+
+Task 18 browser fix round 1/5: invite-copy control named and restored to 44px height; reduced-motion assertion made unconditional. Headed Chromium passes again; frontend suite now has 43 tests.
