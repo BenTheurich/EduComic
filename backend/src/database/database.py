@@ -30,14 +30,20 @@ from database.session import create_session_factory
 from local_runtime import local_database_url, resolve_local_paths
 from local_storage import LocalStorage, media_url
 from materials import snapshot_sources
-from provider_config import SUPPORTED_BFL_MODELS, SUPPORTED_OPENAI_MODELS, require_supported_model
+from provider_config import (
+    DEFAULT_BFL_MODEL,
+    DEFAULT_OPENAI_MODEL,
+    SUPPORTED_BFL_MODELS,
+    SUPPORTED_OPENAI_MODELS,
+    require_supported_model,
+)
 
 LOCAL_TEACHER_ID = "00000000-0000-0000-0000-000000000001"
 DEFAULT_SETTINGS = {
     "story_length": 12,
     "default_design_style": "comic",
-    "openai_model": "gpt-5.1",
-    "bfl_model": "flux-2-pro",
+    "openai_model": DEFAULT_OPENAI_MODEL,
+    "bfl_model": DEFAULT_BFL_MODEL,
     "automatic_panel_review": False,
     "panel_review_attempt_cap": 3,
     "reader_preferences": {},
@@ -234,8 +240,8 @@ def ensure_local_teacher(database_url: str | None = None) -> dict[str, Any]:
                 Setting(
                     profile_id=profile.id,
                     default_design_style="comic",
-                    openai_model="gpt-5.1",
-                    bfl_endpoint="flux-2-pro",
+                    openai_model=DEFAULT_OPENAI_MODEL,
+                    bfl_endpoint=DEFAULT_BFL_MODEL,
                     automatic_panel_review=False,
                     panel_review_attempt_cap=3,
                     generation_defaults={"story_length": 12},
@@ -302,8 +308,8 @@ def get_settings() -> dict[str, Any]:
         return {
             "story_length": int((setting.generation_defaults or {}).get("story_length", 12)),
             "default_design_style": setting.default_design_style or "comic",
-            "openai_model": setting.openai_model or "gpt-5.1",
-            "bfl_model": setting.bfl_endpoint or "flux-2-pro",
+            "openai_model": setting.openai_model or DEFAULT_OPENAI_MODEL,
+            "bfl_model": setting.bfl_endpoint or DEFAULT_BFL_MODEL,
             "automatic_panel_review": setting.automatic_panel_review,
             "panel_review_attempt_cap": setting.panel_review_attempt_cap,
             "reader_preferences": dict(setting.reader_preferences or {}),
@@ -654,7 +660,7 @@ def begin_avatar_work(student_id: str) -> tuple[dict[str, Any], str]:
             raise GenerationConflict("Avatar generation is already active")
         setting = session.scalar(select(Setting).where(Setting.profile_id == LOCAL_TEACHER_ID))
         model = require_supported_model(
-            setting.bfl_endpoint if setting else "flux-2-pro",
+            setting.bfl_endpoint if setting else DEFAULT_BFL_MODEL,
             SUPPORTED_BFL_MODELS,
             "BFL",
         )
@@ -802,10 +808,10 @@ def _generation_snapshot(session: Session, classroom_id: str) -> dict[str, Any]:
     if story_length not in (12, 20):
         raise ValueError("Unsupported story length")
     openai_model = require_supported_model(
-        setting.openai_model if setting else "gpt-5.1", SUPPORTED_OPENAI_MODELS, "OpenAI"
+        setting.openai_model if setting else DEFAULT_OPENAI_MODEL, SUPPORTED_OPENAI_MODELS, "OpenAI"
     )
     bfl_model = require_supported_model(
-        setting.bfl_endpoint if setting else "flux-2-pro", SUPPORTED_BFL_MODELS, "BFL"
+        setting.bfl_endpoint if setting else DEFAULT_BFL_MODEL, SUPPORTED_BFL_MODELS, "BFL"
     )
     return {
         "story_length": story_length,
@@ -1287,8 +1293,8 @@ def _apply_deletion(session: Session, target_kind: str, target_id: str | None) -
         setting = session.scalar(select(Setting).where(Setting.profile_id == LOCAL_TEACHER_ID))
         if setting:
             setting.default_design_style = "comic"
-            setting.openai_model = "gpt-5.1"
-            setting.bfl_endpoint = "flux-2-pro"
+            setting.openai_model = DEFAULT_OPENAI_MODEL
+            setting.bfl_endpoint = DEFAULT_BFL_MODEL
             setting.automatic_panel_review = False
             setting.panel_review_attempt_cap = 3
             setting.generation_defaults = {"story_length": 12}

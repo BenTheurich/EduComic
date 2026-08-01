@@ -20,7 +20,7 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from openai import OpenAI
 from provider_clients import LazyClient
-from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
+from provider_config import DEFAULT_OPENAI_MODEL, SUPPORTED_OPENAI_MODELS, require_supported_model
 
 from story_contracts import PanelReview
 
@@ -64,7 +64,7 @@ def review_panel_image(
     students: List[Dict[str, Any]],
     min_score: float = 8.0,
     *,
-    model: str = "gpt-5.1",
+    model: str = DEFAULT_OPENAI_MODEL,
 ) -> Dict[str, Any]:
     """
     Ask a multimodal OpenAI model to review a single comic panel image.

@@ -16,7 +16,7 @@ beforeEach(() => {
     settings: {
       story_length: 12,
       default_design_style: "comic",
-      openai_model: "gpt-5.1",
+      openai_model: "gpt-5.6-terra",
       bfl_model: "flux-2-pro",
       automatic_panel_review: false,
       panel_review_attempt_cap: 3,
@@ -40,6 +40,17 @@ it("persists a full-comic choice without showing secrets or local paths", async 
   fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
 
   await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ story_length: 20 })));
+});
+
+it("explains and saves a current OpenAI model choice", async () => {
+  render(<MemoryRouter><Settings /></MemoryRouter>);
+  await screen.findByRole("heading", { name: "Settings" });
+
+  expect(screen.getByText(/balanced cost and quality/i)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("OpenAI model"), { target: { value: "gpt-5.6-sol" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+  await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ openai_model: "gpt-5.6-sol" })));
 });
 
 it("requires a confirmation dialog before resetting local data", async () => {

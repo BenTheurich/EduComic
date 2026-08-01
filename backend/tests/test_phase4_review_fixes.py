@@ -81,12 +81,12 @@ def test_story_options_snapshot_participants_model_and_block_classroom_deletion(
     chapter = response.json()["chapter"]
     assert observed == {
         "student_ids": [student["id"]],
-        "model": "gpt-5.1",
+        "model": "gpt-5.6-terra",
         "delete_during_provider": False,
     }
     assert chapter["option_student_ids"] == [student["id"]]
     assert chapter["option_provenance_complete"] is True
-    assert chapter["option_settings_snapshot"]["openai_model"] == "gpt-5.1"
+    assert chapter["option_settings_snapshot"]["openai_model"] == "gpt-5.6-terra"
 
 
 def test_generation_uses_snapshotted_cast_and_provider_models(monkeypatch, tmp_path):
@@ -141,7 +141,7 @@ def test_generation_uses_snapshotted_cast_and_provider_models(monkeypatch, tmp_p
 
     assert observed == {
         "student_ids": [first["id"]],
-        "openai_model": "gpt-5.1",
+        "openai_model": "gpt-5.6-terra",
         "bfl_model": "flux-2-pro",
     }
     assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
@@ -389,7 +389,7 @@ def test_review_migration_marks_legacy_provenance_incomplete_and_repairs_current
     upgrade_database(url)
 
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_material_grounding"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0007_provider_defaults"
         defaults = json.loads(connection.execute(text("SELECT generation_defaults FROM settings")).scalar_one())
         run = connection.execute(
             text("SELECT settings_snapshot, script_snapshot FROM generation_runs WHERE id = :id"),

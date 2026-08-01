@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from materials import UNTRUSTED_SOURCE_SYSTEM_RULE, grounding_prompt
 from openai import OpenAI
 from provider_clients import LazyClient
-from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
+from provider_config import DEFAULT_OPENAI_MODEL, SUPPORTED_OPENAI_MODELS, require_supported_model
 
 from story_contracts import StoryIdeasResponse
 
@@ -52,7 +52,7 @@ def generate_story_ideas(
     students: List[Dict[str, Any]],
     teacher_outline: str,
     *,
-    model: str = "gpt-5.1",
+    model: str = DEFAULT_OPENAI_MODEL,
     materials: list[dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
     """

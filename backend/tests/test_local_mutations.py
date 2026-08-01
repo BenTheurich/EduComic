@@ -52,7 +52,7 @@ def test_edits_and_settings_persist_and_generation_snapshots_the_selected_contra
             json={
                 "story_length": 20,
                 "default_design_style": "manga",
-                "openai_model": "gpt-5.1",
+                "openai_model": "gpt-5.6-terra",
                 "bfl_model": "flux-2-pro",
                 "automatic_panel_review": True,
                 "panel_review_attempt_cap": 2,
@@ -187,7 +187,7 @@ def test_migration_backfills_old_runs_conservatively(monkeypatch, tmp_path):
     engine = create_engine(f"sqlite:///{(tmp_path / 'educomic.db').as_posix()}")
     with engine.connect() as connection:
         head = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert head == "0006_material_grounding"
+        assert head == "0007_provider_defaults"
         defaults = connection.execute(text("SELECT generation_defaults FROM settings")).scalar_one()
         assert '"story_length": 12' in defaults
         assert student["id"]

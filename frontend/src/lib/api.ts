@@ -353,7 +353,7 @@ export const api = {
       settings: {
         story_length: 12 | 20;
         default_design_style: 'manga' | 'comic' | 'cartoon';
-        openai_model: 'gpt-5.1';
+        openai_model: 'gpt-5.6-sol' | 'gpt-5.6-terra' | 'gpt-5.6-luna';
         bfl_model: 'flux-2-pro';
         automatic_panel_review: boolean;
         panel_review_attempt_cap: 1 | 2 | 3;

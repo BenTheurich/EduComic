@@ -14,7 +14,7 @@ from database import database
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
 from panel_review import review_panel_image
-from provider_config import SUPPORTED_BFL_MODELS, require_supported_model
+from provider_config import DEFAULT_BFL_MODEL, SUPPORTED_BFL_MODELS, require_supported_model
 from services import comic_creation
 
 
@@ -37,7 +37,7 @@ def submit_bfl_generation(
     aspect_ratio: str = "3:2",
     reference_images: list[str] | None = None,
     *,
-    model: str = "flux-2-pro",
+    model: str = DEFAULT_BFL_MODEL,
 ) -> str:
     model = require_supported_model(model, SUPPORTED_BFL_MODELS, "BFL")
     width, height = comic_creation._dims_from_aspect(aspect_ratio)
@@ -46,7 +46,7 @@ def submit_bfl_generation(
         "width": width,
         "height": height,
         "output_format": "png",
-        "safety_tolerance": 4,
+        "safety_tolerance": 2,
     }
     storage = LocalStorage(resolve_local_paths().root)
     for index, reference in enumerate((reference_images or [])[:8]):

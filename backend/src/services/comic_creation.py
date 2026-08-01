@@ -38,7 +38,7 @@ from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
 from materials import UNTRUSTED_SOURCE_SYSTEM_RULE, grounding_prompt
 from provider_clients import LazyClient
-from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
+from provider_config import DEFAULT_BFL_MODEL, DEFAULT_OPENAI_MODEL, SUPPORTED_OPENAI_MODELS, require_supported_model
 
 # NEW: quality review helper
 from panel_review import review_panel_image
@@ -56,8 +56,6 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
 openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
 BFL_API_KEY = os.getenv("BFL_API_KEY", "YOUR_BFL_API_KEY_HERE")
-
-BFL_MODEL_ENDPOINT = os.getenv("BFL_MODEL_ENDPOINT", "flux-2-pro")
 
 # NEW: panel review configuration
 PANEL_REVIEW_ENABLED = os.getenv("PANEL_REVIEW_ENABLED", "false").lower() == "true"
@@ -499,7 +497,7 @@ def generate_full_script_and_panels(
     teacher_outline: str,
     chosen_idea: Dict[str, Any],
     panel_count: int = 12,
-    model: str = "gpt-5.1",
+    model: str = DEFAULT_OPENAI_MODEL,
     materials: list[dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     """
@@ -750,7 +748,7 @@ def call_flux_and_download(
     if not BFL_API_KEY or BFL_API_KEY == "YOUR_BFL_API_KEY_HERE":
         raise RuntimeError("BFL_API_KEY is not set; cannot call FLUX API")
 
-    submit_url = f"https://api.bfl.ai/v1/{BFL_MODEL_ENDPOINT}"
+    submit_url = f"https://api.bfl.ai/v1/{DEFAULT_BFL_MODEL}"
     headers = {
         "accept": "application/json",
         "Content-Type": "application/json",
@@ -764,7 +762,7 @@ def call_flux_and_download(
         "width": width,
         "height": height,
         "output_format": "png",
-        "safety_tolerance": 4,
+        "safety_tolerance": 2,
         # You can uncomment this if you've found prompt_upsampling hurts text:
         # "prompt_upsampling": False,
     }

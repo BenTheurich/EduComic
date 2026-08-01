@@ -202,6 +202,7 @@ def test_story_idea_service_uses_structured_parse_and_redacts_non_narrative_data
 
     assert [idea["id"] for idea in result] == ["idea_1", "idea_2", "idea_3"]
     call = completions.calls[0]
+    assert call["model"] == "gpt-5.6-terra"
     assert call["response_format"] is StoryIdeasResponse
     assert call["max_completion_tokens"] == 2048
     prompt = _all_message_text(call)
@@ -221,6 +222,7 @@ def test_comic_service_uses_structured_parse_and_contextual_cast_validation(monk
 
     assert len(result["panels"]) == 12
     call = completions.calls[0]
+    assert call["model"] == "gpt-5.6-terra"
     assert call["response_format"] is ComicScript
     assert call["max_completion_tokens"] == 8192
     prompt = _all_message_text(call)
@@ -256,6 +258,7 @@ def test_panel_review_uses_strict_parse_and_omits_classroom_and_student_profiles
 
     assert result["score"] == 9.0
     call = completions.calls[0]
+    assert call["model"] == "gpt-5.6-terra"
     assert call["response_format"] is PanelReview
     assert call["max_completion_tokens"] == 2048
     prompt = _all_message_text(call)

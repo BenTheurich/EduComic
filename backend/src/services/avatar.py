@@ -21,7 +21,7 @@ from database.database import (
 )
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
-from provider_config import SUPPORTED_BFL_MODELS, require_supported_model
+from provider_config import DEFAULT_BFL_MODEL, SUPPORTED_BFL_MODELS, require_supported_model
 
 
 logger = logging.getLogger("educomic.avatar")
@@ -160,7 +160,7 @@ async def _call_black_forest_api(
     prompt: str,
     api_key: str,
     *,
-    model: str = "flux-2-pro",
+    model: str = DEFAULT_BFL_MODEL,
     input_image: str | None = None,
 ) -> str:
     """
@@ -180,7 +180,7 @@ async def _call_black_forest_api(
 
     headers = {"accept": "application/json", "x-key": api_key, "Content-Type": "application/json"}
 
-    payload = {"prompt": prompt}
+    payload = {"prompt": prompt, "safety_tolerance": 2}
     if input_image is not None:
         payload["input_image"] = input_image
 

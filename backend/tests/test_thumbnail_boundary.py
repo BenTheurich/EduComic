@@ -126,8 +126,11 @@ def test_comic_generation_uses_canonical_submit_and_provider_polling_urls(
         def json(self):
             return self.payload
 
-    def post(url, **_kwargs):
+    submitted = {}
+
+    def post(url, **kwargs):
         requested_urls.append(url)
+        submitted.update(kwargs["json"])
         return Response({"polling_url": polling_url})
 
     def get(url, **_kwargs):
@@ -149,6 +152,7 @@ def test_comic_generation_uses_canonical_submit_and_provider_polling_urls(
         polling_url,
         sample_url,
     ]
+    assert submitted["safety_tolerance"] == 2
 
 
 def test_flux_inlines_validated_local_reference_bytes(monkeypatch, tmp_path):

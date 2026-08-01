@@ -63,7 +63,16 @@ export default function Settings() {
           <option value="comic">Comic</option><option value="manga">Manga</option><option value="cartoon">Cartoon</option>
         </select>
       </label>
-      <div><p className="font-semibold">Provider models</p><p>OpenAI: {settings.openai_model} ({readiness.openai ? "ready" : "key not configured"})</p><p>BFL: {settings.bfl_model} ({readiness.bfl ? "ready" : "key not configured"})</p></div>
+      <div className="space-y-2"><p className="font-semibold">Provider models</p>
+        <label className="block">OpenAI model
+          <select className="mt-1 min-h-11 w-full rounded-md border bg-background px-3" value={settings.openai_model}
+            onChange={(event) => setSettings({ ...settings, openai_model: event.target.value as SettingsData["openai_model"] })}>
+            <option value="gpt-5.6-terra">Terra — balanced cost and quality</option>
+            <option value="gpt-5.6-sol">Sol — highest quality</option>
+            <option value="gpt-5.6-luna">Luna — fastest and lowest cost</option>
+          </select>
+        </label>
+        <p>OpenAI: {readiness.openai ? "ready" : "key not configured"}</p><p>BFL: {settings.bfl_model} ({readiness.bfl ? "ready" : "key not configured"})</p></div>
       <label className="flex min-h-11 items-center gap-3">
         <Checkbox checked={settings.automatic_panel_review} onCheckedChange={(checked) => setSettings({ ...settings, automatic_panel_review: checked === true })} />
         Automatically review generated panels
