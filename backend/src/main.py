@@ -24,10 +24,10 @@ from api_models import (
     StoryChoiceRequest,
     StudentCreateRequest,
 )
-from local_runtime import initialize_local_backend, local_readiness, resolve_local_paths
+from local_runtime import initialize_local_backend, local_readiness_details, resolve_local_paths
 from local_storage import LocalStorage, StorageValidationError
 from services.avatar import ProviderConfigurationError, generate_avatar
-from services.comic_creation import commit_story_choice
+from services.generation import run_generation
 
 # Load environment variables
 load_dotenv()
@@ -117,7 +117,10 @@ async def health_check():
 @app.get("/ready")
 async def readiness_check():
     """Inspect local data and provider configuration without paid calls."""
-    persistence_ready, storage_ready = local_readiness()
+    local_data = local_readiness_details()
+    persistence_ready = local_data["persistence"]
+    migrations_ready = local_data["migrations"]
+    storage_ready = local_data["storage"]
 
     def configured_secret(name: str) -> bool:
         value = os.getenv(name, "").strip()
@@ -129,22 +132,27 @@ async def readiness_check():
     }
     missing = [name for name, configured in (("OPENAI_API_KEY", providers["openai"]), ("BFL_API_KEY", providers["bfl"])) if not configured]
     content = {
-        "status": "ready" if persistence_ready and storage_ready else "not_ready",
-        "local_data": {"persistence": persistence_ready, "storage": storage_ready},
+        "status": "ready" if persistence_ready and migrations_ready and storage_ready else "not_ready",
+        "local_data": local_data,
         "provider_capabilities": providers,
+        "generation_capability": persistence_ready and migrations_ready and storage_ready and all(providers.values()),
     }
     if missing:
         content["missing_configuration"] = missing
-    if not persistence_ready or not storage_ready:
+    if not persistence_ready or not migrations_ready or not storage_ready:
         content["blocking_reasons"] = [
             reason
             for ready, reason in (
                 (persistence_ready, "local_persistence_unavailable"),
+                (migrations_ready, "database_migration_required"),
                 (storage_ready, "local_storage_unavailable"),
             )
             if not ready
         ]
-    return JSONResponse(status_code=200 if persistence_ready and storage_ready else 503, content=content)
+    return JSONResponse(
+        status_code=200 if persistence_ready and migrations_ready and storage_ready else 503,
+        content=content,
+    )
 
 
 @app.get("/media/{object_path:path}")
@@ -494,15 +502,8 @@ async def create_avatar_endpoint(student_id: UUID):
 # ============================================
 
 
-def _run_story_generation(chapter_id: str, chosen_idea_id: str) -> None:
-    from database.database import update_chapter
-
-    try:
-        commit_story_choice(chapter_id, chosen_idea_id)
-    except Exception:
-        reference = uuid4().hex
-        logger.error("Story generation failed reference=%s", reference)
-        update_chapter(chapter_id, {"status": "failed"})
+def _run_story_generation(run_id: str) -> None:
+    run_generation(run_id)
 
 
 @app.post("/chapters/commit")
@@ -529,7 +530,7 @@ async def commit_chapter_endpoint(
     Returns:
         Immediate success response - use polling to track progress
     """
-    from database.database import claim_chapter_generation, get_chapter
+    from database.database import GenerationConflict, begin_generation_run, get_chapter
 
     try:
         # Verify chapter exists
@@ -541,23 +542,23 @@ async def commit_chapter_endpoint(
         ideas = {idea.get("id") for idea in chapter.get("story_ideas") or []}
         if request.chosen_idea_id not in ideas or chapter.get("chosen_idea_id") != request.chosen_idea_id:
             raise HTTPException(status_code=400, detail="Story choice is invalid")
-        claimed = claim_chapter_generation(chapter_id, request.chosen_idea_id)
-        if claimed is None:
-            raise HTTPException(status_code=409, detail="Chapter generation is already active")
+        idempotency_key = request.idempotency_key or f"legacy-{chapter_id}-{chapter['revision'] + 1}"
+        run, created = begin_generation_run(chapter_id, request.chosen_idea_id, idempotency_key)
 
-        # Start the actual comic generation in the background
-        background_tasks.add_task(
-            _run_story_generation, chapter_id, request.chosen_idea_id
-        )
+        if created:
+            background_tasks.add_task(_run_story_generation, run["id"])
 
         return {
             "success": True,
-            "message": "Comic generation started",
+            "message": "Comic generation started" if created else "Comic generation request already exists",
             "chapter_id": chapter_id,
-            "status": "generating",
+            "run_id": run["id"],
+            "status": {"succeeded": "ready", "failed": "failed"}.get(run["job_state"], "generating"),
         }
     except HTTPException:
         raise
+    except GenerationConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except ValueError:
         raise HTTPException(status_code=400, detail="Story choice is invalid")
     except Exception:

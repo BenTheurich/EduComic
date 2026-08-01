@@ -1,5 +1,6 @@
 """Concrete SQLite persistence used by the local/private application."""
 
+import hashlib
 import json
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -11,12 +12,16 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from database.models import Chapter, Classroom, LocalProfile, Panel, Student, StudentClassroom
+from database.models import Chapter, Classroom, GenerationRun, LocalProfile, Panel, Student, StudentClassroom
 from database.session import create_session_factory
 from local_runtime import local_database_url, resolve_local_paths
 from local_storage import LocalStorage, media_url
 
 LOCAL_TEACHER_ID = "00000000-0000-0000-0000-000000000001"
+
+
+class GenerationConflict(RuntimeError):
+    pass
 
 
 @lru_cache(maxsize=8)
@@ -91,6 +96,22 @@ def _panel(panel: Panel) -> dict[str, Any]:
         "scene_description": panel.scene_description,
         "speakers": panel.speakers,
         "created_at": _iso(panel.created_at),
+    }
+
+
+def _generation_run(run: GenerationRun) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "chapter_id": run.chapter_id,
+        "selected_idea_id": run.selected_idea_id,
+        "target_revision": run.target_revision,
+        "job_state": run.job_state,
+        "stage": run.stage,
+        "error_code": run.error_code,
+        "error_reference": run.error_reference,
+        "artifact_paths": list(run.artifact_paths or []),
+        "started_at": _iso(run.started_at) if run.started_at else None,
+        "finished_at": _iso(run.finished_at) if run.finished_at else None,
     }
 
 
@@ -306,6 +327,197 @@ def claim_chapter_generation(chapter_id: str, chosen_idea_id: str) -> dict[str, 
         claimed = _chapter(chapter)
         claimed["target_revision"] = chapter.revision + 1
         return claimed
+
+
+def begin_generation_run(
+    chapter_id: str, selected_idea_id: str, idempotency_key: str
+) -> tuple[dict[str, Any], bool]:
+    """Reserve at most one local run while returning identical retries unchanged."""
+    if not isinstance(idempotency_key, str) or not 1 <= len(idempotency_key) <= 80:
+        raise ValueError("Invalid idempotency key")
+    scoped_key = hashlib.sha256(f"{chapter_id}:{idempotency_key}".encode()).hexdigest()
+    try:
+        with _session() as session:
+            existing = session.scalar(
+                select(GenerationRun).where(GenerationRun.idempotency_key == scoped_key)
+            )
+            if existing:
+                if existing.chapter_id != chapter_id or existing.selected_idea_id != selected_idea_id:
+                    raise GenerationConflict("Idempotency key does not match the original request")
+                return _generation_run(existing), False
+
+            active = session.scalar(
+                select(GenerationRun).where(
+                    GenerationRun.chapter_id == chapter_id,
+                    GenerationRun.job_state.in_(("queued", "running")),
+                )
+            )
+            if active:
+                raise GenerationConflict("Chapter generation is already active")
+
+            chapter = session.get(Chapter, chapter_id)
+            if chapter is None:
+                raise ValueError("Chapter not found")
+            ideas = {idea.get("id") for idea in chapter.story_ideas or []}
+            if selected_idea_id not in ideas or chapter.chosen_idea_id != selected_idea_id:
+                raise ValueError("Story choice is invalid")
+            if chapter.status not in ("idea_chosen", "failed", "ready"):
+                raise GenerationConflict("Chapter cannot generate in its current state")
+
+            run = GenerationRun(
+                idempotency_key=scoped_key,
+                chapter_id=chapter_id,
+                selected_idea_id=selected_idea_id,
+                target_revision=chapter.revision + 1,
+                job_state="queued",
+                stage="queued",
+                artifact_paths=[],
+            )
+            session.add(run)
+            if chapter.revision == 0:
+                chapter.status = "generating"
+            session.flush()
+            return _generation_run(run), True
+    except IntegrityError:
+        with _session() as session:
+            winner = session.scalar(
+                select(GenerationRun).where(GenerationRun.idempotency_key == scoped_key)
+            )
+            if winner and winner.chapter_id == chapter_id and winner.selected_idea_id == selected_idea_id:
+                return _generation_run(winner), False
+        raise GenerationConflict("Chapter generation is already active") from None
+
+
+def get_generation_run(run_id: str) -> dict[str, Any] | None:
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        return _generation_run(run) if run else None
+
+
+def start_generation_run(run_id: str) -> dict[str, Any] | None:
+    now = datetime.now(timezone.utc)
+    with _session() as session:
+        result = session.execute(
+            update(GenerationRun)
+            .where(GenerationRun.id == run_id, GenerationRun.job_state == "queued")
+            .values(job_state="running", stage="script", started_at=now)
+        )
+        if result.rowcount != 1:
+            return None
+        return _generation_run(session.get(GenerationRun, run_id))
+
+
+def set_generation_stage(run_id: str, stage: str) -> None:
+    with _session() as session:
+        result = session.execute(
+            update(GenerationRun)
+            .where(GenerationRun.id == run_id, GenerationRun.job_state == "running")
+            .values(stage=stage)
+        )
+        if result.rowcount != 1:
+            raise GenerationConflict("Generation run is not active")
+
+
+def record_generation_artifact(run_id: str, object_path: str) -> None:
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.job_state not in ("queued", "running"):
+            raise GenerationConflict("Generation run is not active")
+        paths = list(run.artifact_paths or [])
+        if object_path not in paths:
+            run.artifact_paths = [*paths, object_path]
+
+
+def finalize_generation_run(
+    run_id: str, script: dict[str, Any], panels: list[dict[str, Any]]
+) -> list[str]:
+    numbers = [panel["index"] for panel in panels]
+    if not numbers or numbers != list(range(1, len(numbers) + 1)):
+        raise ValueError("Ready panel sequence must be complete")
+    storage = LocalStorage(resolve_local_paths().root)
+    try:
+        for panel in panels:
+            object_path = panel.get("image_object_path")
+            if not isinstance(object_path, str) or not object_path.startswith("story-images/"):
+                raise ValueError
+            if not storage.absolute_path(object_path).is_file():
+                raise ValueError
+    except ValueError:
+        raise ValueError("Ready panels require durable local story media") from None
+
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.job_state != "running":
+            raise GenerationConflict("Generation run is not active")
+        chapter = session.get(Chapter, run.chapter_id)
+        if chapter is None or run.target_revision != chapter.revision + 1:
+            raise GenerationConflict("Generation target revision is stale")
+
+        old_paths = list(
+            session.scalars(select(Panel.image_object_path).where(Panel.chapter_id == chapter.id)).all()
+        )
+        session.execute(delete(Panel).where(Panel.chapter_id == chapter.id))
+        for data in panels:
+            session.add(
+                Panel(
+                    chapter_id=chapter.id,
+                    revision=run.target_revision,
+                    panel_number=data["index"],
+                    dialogue=json.dumps(data.get("dialogue") or [], ensure_ascii=False),
+                    scene_description=data.get("description") or "",
+                    speakers=data.get("speakers") or [],
+                    image_object_path=data["image_object_path"],
+                )
+            )
+        chapter.chosen_idea_id = run.selected_idea_id
+        chapter.title = script["episode_title"]
+        chapter.story_script = script
+        chapter.revision = run.target_revision
+        chapter.status = "ready"
+        run.job_state = "succeeded"
+        run.stage = "ready"
+        run.finished_at = datetime.now(timezone.utc)
+        session.flush()
+        return old_paths
+
+
+def fail_generation_run(run_id: str, error_code: str, error_reference: str) -> list[str]:
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None:
+            return []
+        if run.job_state not in ("queued", "running"):
+            return list(run.artifact_paths or [])
+        run.job_state = "failed"
+        run.stage = "failed"
+        run.error_code = error_code
+        run.error_reference = error_reference
+        run.finished_at = datetime.now(timezone.utc)
+        chapter = session.get(Chapter, run.chapter_id)
+        if chapter and chapter.revision == 0:
+            chapter.status = "failed"
+        elif chapter:
+            chapter.status = "ready"
+        return list(run.artifact_paths or [])
+
+
+def fail_interrupted_generation_runs(database_url: str | None = None) -> list[str]:
+    paths: list[str] = []
+    with _session(database_url) as session:
+        runs = session.scalars(
+            select(GenerationRun).where(GenerationRun.job_state.in_(("queued", "running")))
+        ).all()
+        for run in runs:
+            run.job_state = "failed"
+            run.stage = "failed"
+            run.error_code = "interrupted"
+            run.error_reference = uuid4().hex
+            run.finished_at = datetime.now(timezone.utc)
+            paths.extend(run.artifact_paths or [])
+            chapter = session.get(Chapter, run.chapter_id)
+            if chapter:
+                chapter.status = "ready" if chapter.revision > 0 else "failed"
+    return paths
 
 
 def get_chapters_by_classroom(classroom_id: str) -> list[dict[str, Any]]:

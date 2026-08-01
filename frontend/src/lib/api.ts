@@ -166,7 +166,7 @@ export const api = {
         body: JSON.stringify({ idea_id: ideaId }),
       }),
 
-    commitChapter: (chapterId: string, ideaId: string) =>
+    commitChapter: (chapterId: string, ideaId: string, idempotencyKey: string) =>
       apiFetch<{
         success: boolean;
         message: string;
@@ -177,6 +177,7 @@ export const api = {
         body: JSON.stringify({
           chapter_id: chapterId,
           chosen_idea_id: ideaId,
+          idempotency_key: idempotencyKey,
         }),
       }),
   },

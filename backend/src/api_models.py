@@ -12,6 +12,9 @@ LongText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)
 ]
 IdeaId = Annotated[str, StringConstraints(pattern=r"^idea_[1-3]$")]
+IdempotencyKey = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)
+]
 
 
 class ClassroomCreateRequest(BaseModel):
@@ -48,5 +51,8 @@ class StoryChoiceRequest(BaseModel):
 
 
 class CommitStoryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     chapter_id: UUID
     chosen_idea_id: IdeaId
+    idempotency_key: IdempotencyKey | None = None

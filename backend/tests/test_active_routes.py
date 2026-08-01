@@ -49,8 +49,11 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     )
     monkeypatch.setattr(
         database,
-        "claim_chapter_generation",
-        lambda chapter, idea: {**chapters[chapter], "status": "generating", "target_revision": 1},
+        "begin_generation_run",
+        lambda chapter, idea, key: (
+            {"id": "run-1", "chapter_id": chapter, "job_state": "queued", "target_revision": 1},
+            True,
+        ),
         raising=False,
     )
     monkeypatch.setattr(
@@ -58,7 +61,7 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
         "generate_story_ideas",
         lambda *_args: [{"title": f"Idea {index}", "summary": "Summary"} for index in range(1, 4)],
     )
-    monkeypatch.setattr(main, "commit_story_choice", lambda chapter, idea: committed.append((chapter, idea)))
+    monkeypatch.setattr(main, "run_generation", lambda run: committed.append(run), raising=False)
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=main.app), base_url="http://test"
@@ -72,7 +75,7 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
         )
         committed_response = await client.post(
             "/chapters/commit",
-            json={"chapter_id": str(chapter_id), "chosen_idea_id": "idea_1"},
+            json={"chapter_id": str(chapter_id), "chosen_idea_id": "idea_1", "idempotency_key": "request-1"},
         )
         read = await client.get(f"/chapters/{chapter_id}")
 
@@ -85,11 +88,11 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     assert chosen.json()["chapter"]["status"] == "idea_chosen"
     assert committed_response.json()["status"] == "generating"
     assert read.json()["chapter"] == {**chapters[str(chapter_id)], "panels": []}
-    assert committed == [(str(chapter_id), "idea_1")]
+    assert committed == ["run-1"]
 
 
 @pytest.mark.asyncio
-async def test_repeated_commit_is_atomically_rejected(monkeypatch, tmp_path):
+async def test_repeated_commit_is_idempotent_and_a_different_active_key_conflicts(monkeypatch, tmp_path):
     monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
     database = importlib.import_module("database.database")
     main = importlib.import_module("main")
@@ -105,18 +108,23 @@ async def test_repeated_commit_is_atomically_rejected(monkeypatch, tmp_path):
             "status": "idea_chosen",
         }
     )
-    monkeypatch.setattr(main, "commit_story_choice", lambda *_args: None)
+    monkeypatch.setattr(main, "run_generation", lambda *_args: None, raising=False)
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://test") as client:
         first = await client.post(
-            "/chapters/commit", json={"chapter_id": chapter["id"], "chosen_idea_id": "idea_1"}
+            "/chapters/commit", json={"chapter_id": chapter["id"], "chosen_idea_id": "idea_1", "idempotency_key": "request-1"}
         )
         second = await client.post(
-            "/chapters/commit", json={"chapter_id": chapter["id"], "chosen_idea_id": "idea_1"}
+            "/chapters/commit", json={"chapter_id": chapter["id"], "chosen_idea_id": "idea_1", "idempotency_key": "request-1"}
+        )
+        conflicting = await client.post(
+            "/chapters/commit", json={"chapter_id": chapter["id"], "chosen_idea_id": "idea_1", "idempotency_key": "request-2"}
         )
 
     assert first.status_code == 200
-    assert second.status_code == 409
+    assert second.status_code == 200
+    assert second.json()["run_id"] == first.json()["run_id"]
+    assert conflicting.status_code == 409
 
 
 @pytest.mark.asyncio

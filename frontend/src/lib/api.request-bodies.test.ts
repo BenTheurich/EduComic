@@ -41,6 +41,19 @@ describe("active POST request bodies", () => {
       path: "/chapters/00000000-0000-4000-8000-000000000002/choose-idea",
       body: { idea_id: "idea_1" },
     },
+    {
+      send: () => api.story.commitChapter(
+        "00000000-0000-4000-8000-000000000002",
+        "idea_1",
+        "generation-request-1",
+      ),
+      path: "/chapters/commit",
+      body: {
+        chapter_id: "00000000-0000-4000-8000-000000000002",
+        chosen_idea_id: "idea_1",
+        idempotency_key: "generation-request-1",
+      },
+    },
   ])("sends $path values as JSON", async ({ send, path, body }) => {
     const fetchMock = vi.fn().mockResolvedValue(new Response("{}", {
       status: 200,

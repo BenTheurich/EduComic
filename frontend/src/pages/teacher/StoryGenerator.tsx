@@ -182,7 +182,7 @@ const StoryGenerator = () => {
       await api.story.chooseIdea(chapterId, storyId);
 
       // Start the comic generation in the background
-      await api.story.commitChapter(chapterId, storyId);
+      await api.story.commitChapter(chapterId, storyId, crypto.randomUUID());
 
       // Start polling for panels
       startPolling();

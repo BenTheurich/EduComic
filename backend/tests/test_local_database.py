@@ -50,7 +50,11 @@ def test_blank_database_upgrades_to_migration_head(tmp_path):
         "student_classrooms",
         "students",
     }
-    assert engine.connect().execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0001_local_foundation"
+    assert engine.connect().execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0002_generation_durability"
+    generation_columns = {column["name"] for column in inspect(engine).get_columns("generation_runs")}
+    assert {"selected_idea_id", "stage", "error_code", "artifact_paths"} <= generation_columns
+    indexes = {index["name"] for index in inspect(engine).get_indexes("generation_runs")}
+    assert "uq_generation_runs_active_chapter" in indexes
 
 
 def test_database_records_survive_engine_restart(tmp_path):

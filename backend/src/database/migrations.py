@@ -6,6 +6,9 @@ from alembic import command
 from alembic.config import Config
 
 
+MIGRATION_HEAD = "0002_generation_durability"
+
+
 def upgrade_database(database_url: str) -> None:
     backend_root = Path(__file__).resolve().parents[2]
     config = Config(str(backend_root / "alembic.ini"))

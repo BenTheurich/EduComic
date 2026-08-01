@@ -50,12 +50,15 @@ async def test_readiness_does_not_construct_provider_clients(monkeypatch, tmp_pa
     response = await main.readiness_check()
 
     assert response.status_code == 200
+    assert response.body
+    assert b'"generation_capability":false' in response.body
 
 
 @pytest.mark.asyncio
-async def test_readiness_reports_all_blockers(monkeypatch):
+async def test_readiness_reports_all_blockers(monkeypatch, tmp_path):
     """Catches readiness hiding missing keys or unmigrated local persistence."""
     monkeypatch.setattr(socket.socket, "connect", lambda *_args, **_kwargs: pytest.fail("network access"))
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
 
     app = _load_application().app
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
@@ -64,15 +67,21 @@ async def test_readiness_reports_all_blockers(monkeypatch):
     assert readiness.status_code == 503
     assert readiness.json() == {
         "status": "not_ready",
-        "local_data": {"persistence": False, "storage": True},
+        "local_data": {
+            "persistence": False,
+            "migrations": False,
+            "data_directory_writable": True,
+            "storage": True,
+        },
         "provider_capabilities": {"openai": False, "bfl": False},
+        "generation_capability": False,
         "missing_configuration": ["OPENAI_API_KEY", "BFL_API_KEY"],
-        "blocking_reasons": ["local_persistence_unavailable"],
+        "blocking_reasons": ["local_persistence_unavailable", "database_migration_required"],
     }
 
 
 @pytest.mark.asyncio
-async def test_provider_keys_do_not_hide_unmigrated_persistence(monkeypatch):
+async def test_provider_keys_do_not_hide_unmigrated_persistence(monkeypatch, tmp_path):
     """Catches provider keys making the incomplete private runtime report ready."""
     for name, value in {
         "OPENAI_API_KEY": "test-key",
@@ -80,6 +89,7 @@ async def test_provider_keys_do_not_hide_unmigrated_persistence(monkeypatch):
     }.items():
         monkeypatch.setenv(name, value)
     monkeypatch.setattr(socket.socket, "connect", lambda *_args, **_kwargs: pytest.fail("network access"))
+    monkeypatch.setenv("EDUCOMIC_DATA_DIR", str(tmp_path))
 
     app = _load_application().app
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
@@ -88,9 +98,15 @@ async def test_provider_keys_do_not_hide_unmigrated_persistence(monkeypatch):
     assert readiness.status_code == 503
     assert readiness.json() == {
         "status": "not_ready",
-        "local_data": {"persistence": False, "storage": True},
+        "local_data": {
+            "persistence": False,
+            "migrations": False,
+            "data_directory_writable": True,
+            "storage": True,
+        },
         "provider_capabilities": {"openai": True, "bfl": True},
-        "blocking_reasons": ["local_persistence_unavailable"],
+        "generation_capability": False,
+        "blocking_reasons": ["local_persistence_unavailable", "database_migration_required"],
     }
 
 

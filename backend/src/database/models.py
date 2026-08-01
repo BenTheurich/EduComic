@@ -17,6 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import TypeDecorator
@@ -196,14 +197,25 @@ class GenerationRun(TimestampMixin, Base):
         ),
         UniqueConstraint("idempotency_key", name="uq_generation_runs_idempotency_key"),
         Index("ix_generation_runs_chapter_state", "chapter_id", "job_state"),
+        Index(
+            "uq_generation_runs_active_chapter",
+            "chapter_id",
+            unique=True,
+            sqlite_where=text("job_state IN ('queued', 'running')"),
+            postgresql_where=text("job_state IN ('queued', 'running')"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(Uuid(as_uuid=False), primary_key=True, default=_uuid)
     idempotency_key: Mapped[str] = mapped_column(String(120), nullable=False)
     chapter_id: Mapped[str] = mapped_column(Uuid(as_uuid=False), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False)
+    selected_idea_id: Mapped[str | None] = mapped_column(String(80))
     target_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     job_state: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
+    stage: Mapped[str | None] = mapped_column(String(32))
+    error_code: Mapped[str | None] = mapped_column(String(40))
     error_reference: Mapped[str | None] = mapped_column(String(64))
+    artifact_paths: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 

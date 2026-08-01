@@ -72,6 +72,16 @@ class LocalStorage:
             return False
         return True
 
+    def discard_staged(self, staged_path: str) -> bool:
+        path = self.absolute_path(staged_path, allow_staging=True)
+        if PurePosixPath(staged_path).parts[0] != "staging":
+            raise StorageValidationError("not a staging path")
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            return False
+        return True
+
     def object_path_from_url(self, url: str) -> str:
         """Resolve an application media URL through the same path boundary as reads."""
         if not isinstance(url, str) or not url.startswith("/media/"):

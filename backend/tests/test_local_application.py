@@ -181,8 +181,14 @@ def test_readiness_inspects_local_data_and_provider_configuration_without_networ
     assert response.status_code == 200
     assert response.json() == {
         "status": "ready",
-        "local_data": {"persistence": True, "storage": True},
+        "local_data": {
+            "persistence": True,
+            "migrations": True,
+            "data_directory_writable": True,
+            "storage": True,
+        },
         "provider_capabilities": {"openai": False, "bfl": False},
+        "generation_capability": False,
         "missing_configuration": ["OPENAI_API_KEY", "BFL_API_KEY"],
     }
 
@@ -351,14 +357,12 @@ def test_local_runner_refuses_wider_bind_without_unsupported_override():
         raise AssertionError("wider bind was accepted without an explicit override")
 
 
-def test_background_generation_failure_sets_truthful_status(monkeypatch):
-    """Catches provider failure leaving a chapter permanently marked generating."""
+def test_background_generation_delegates_to_the_durable_run_coordinator(monkeypatch):
+    """Catches the API background task bypassing persisted run failure handling."""
     main = importlib.import_module("main")
-    database = importlib.import_module("database.database")
-    updates = []
-    monkeypatch.setattr(main, "commit_story_choice", lambda *_args: (_ for _ in ()).throw(RuntimeError("secret")))
-    monkeypatch.setattr(database, "update_chapter", lambda chapter_id, values: updates.append((chapter_id, values)))
+    runs = []
+    monkeypatch.setattr(main, "run_generation", runs.append)
 
-    main._run_story_generation("chapter-1", "idea_1")
+    main._run_story_generation("run-1")
 
-    assert updates == [("chapter-1", {"status": "failed"})]
+    assert runs == ["run-1"]
