@@ -3,9 +3,6 @@
 import importlib
 import socket
 import sys
-from types import SimpleNamespace
-from unittest.mock import MagicMock
-
 import httpx
 import pytest
 
@@ -39,8 +36,10 @@ async def test_readiness_reports_all_blockers(monkeypatch):
     assert readiness.status_code == 503
     assert readiness.json() == {
         "status": "not_ready",
+        "local_data": {"persistence": False, "storage": True},
+        "provider_capabilities": {"openai": False, "bfl": False},
         "missing_configuration": ["OPENAI_API_KEY", "BFL_API_KEY"],
-        "blocking_reasons": ["local_persistence_not_migrated"],
+        "blocking_reasons": ["local_persistence_unavailable"],
     }
 
 
@@ -61,7 +60,9 @@ async def test_provider_keys_do_not_hide_unmigrated_persistence(monkeypatch):
     assert readiness.status_code == 503
     assert readiness.json() == {
         "status": "not_ready",
-        "blocking_reasons": ["local_persistence_not_migrated"],
+        "local_data": {"persistence": False, "storage": True},
+        "provider_capabilities": {"openai": True, "bfl": True},
+        "blocking_reasons": ["local_persistence_unavailable"],
     }
 
 
@@ -71,11 +72,7 @@ async def test_bfl_api_key_is_accepted_by_avatar_generation(monkeypatch):
     monkeypatch.setenv("BFL_API_KEY", "test-key")
 
     avatar = importlib.import_module("services.avatar")
-    empty_enrollment = MagicMock()
-    empty_enrollment.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = (
-        SimpleNamespace(data=[])
-    )
-    monkeypatch.setattr(avatar, "supabase", empty_enrollment)
+    monkeypatch.setattr(avatar, "get_classrooms_by_student", lambda _student_id: [])
     monkeypatch.setattr(avatar, "get_student", lambda _student_id: {"id": "student-1", "interests": "space"})
     monkeypatch.setattr(avatar, "_call_black_forest_api", lambda *_args: _async_value("bfl-image"))
     monkeypatch.setattr(avatar, "_upload_avatar_to_storage", lambda *_args: _async_value("stored-image"))

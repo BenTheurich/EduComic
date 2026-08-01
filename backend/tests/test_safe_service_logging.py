@@ -8,6 +8,7 @@ import pytest
 
 class _DownloadResponse:
     content = b"image-bytes"
+    headers = {"content-type": "image/png"}
 
     def raise_for_status(self):
         return None
@@ -37,6 +38,14 @@ class _FailingBucket:
 class _Storage:
     def from_(self, _bucket):
         return _FailingBucket()
+
+
+class _FailingLocalStorage:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+    def stage_bytes(self, *_args, **_kwargs):
+        raise RuntimeError("secret storage response")
 
 
 class _ReviewCompletions:
@@ -86,13 +95,13 @@ async def test_avatar_storage_failure_prints_no_url_identifier_or_exception(
     """Catches avatar URLs, student IDs, or storage errors leaking to stdout."""
     avatar = importlib.import_module("services.avatar")
     image_url = "https://provider.test/private-avatar-token"
-    student_id = "student-private-id"
+    student_id = "11111111-1111-4111-8111-111111111111"
     monkeypatch.setattr(
         avatar.httpx,
         "AsyncClient",
         lambda **kwargs: _AsyncClient(response=_DownloadResponse(), **kwargs),
     )
-    monkeypatch.setattr(avatar, "supabase", SimpleNamespace(storage=_Storage()))
+    monkeypatch.setattr(avatar, "LocalStorage", _FailingLocalStorage)
     capsys.readouterr()
 
     with pytest.raises(RuntimeError, match="^Avatar upload failed$") as raised:
@@ -111,21 +120,18 @@ def test_comic_storage_failure_prints_no_exception_or_generated_url(
     """Catches storage exceptions and generated URLs leaking to stdout."""
     comic_creation = importlib.import_module("services.comic_creation")
     fallback_url = "https://provider.test/private-panel-token"
-    monkeypatch.setattr(comic_creation, "SUPABASE_IMAGES_BUCKET", "Images")
-    monkeypatch.setattr(
-        comic_creation, "supabase", SimpleNamespace(storage=_Storage())
-    )
+    monkeypatch.setattr(comic_creation, "LocalStorage", _FailingLocalStorage)
     capsys.readouterr()
 
-    result = comic_creation.upload_image_and_get_url(
-        b"image", "chapter-private-id", 1, fallback_url
-    )
+    with pytest.raises(RuntimeError, match="^Panel image storage failed$"):
+        comic_creation.upload_image_and_get_url(
+            b"image", "22222222-2222-4222-8222-222222222222", 1, fallback_url
+        )
 
     output = capsys.readouterr().out
-    assert result == fallback_url
     assert "secret storage response" not in output
     assert fallback_url not in output
-    assert "chapter-private-id" not in output
+    assert "22222222-2222-4222-8222-222222222222" not in output
 
 
 def test_panel_review_success_prints_no_provider_url_or_student_name(

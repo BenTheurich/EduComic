@@ -24,7 +24,7 @@ from api_models import (
     StoryChoiceRequest,
     StudentCreateRequest,
 )
-from local_runtime import initialize_local_backend, resolve_local_paths
+from local_runtime import initialize_local_backend, local_readiness, resolve_local_paths
 from local_storage import LocalStorage, StorageValidationError
 from services.avatar import generate_avatar
 from services.comic_creation import commit_story_choice
@@ -116,18 +116,35 @@ async def health_check():
 
 @app.get("/ready")
 async def readiness_check():
-    """Report whether the configuration required for work is present."""
-    required = ("OPENAI_API_KEY",)
-    missing = [name for name in required if not os.getenv(name)]
-    if not os.getenv("BFL_API_KEY"):
-        missing.append("BFL_API_KEY")
+    """Inspect local data and provider configuration without paid calls."""
+    persistence_ready, storage_ready = local_readiness()
+
+    def configured_secret(name: str) -> bool:
+        value = os.getenv(name, "").strip()
+        return bool(value and not value.startswith("<") and not value.startswith("YOUR_"))
+
+    providers = {
+        "openai": configured_secret("OPENAI_API_KEY"),
+        "bfl": configured_secret("BFL_API_KEY"),
+    }
+    missing = [name for name, configured in (("OPENAI_API_KEY", providers["openai"]), ("BFL_API_KEY", providers["bfl"])) if not configured]
     content = {
-        "status": "not_ready",
-        "blocking_reasons": ["local_persistence_not_migrated"],
+        "status": "ready" if persistence_ready and storage_ready else "not_ready",
+        "local_data": {"persistence": persistence_ready, "storage": storage_ready},
+        "provider_capabilities": providers,
     }
     if missing:
         content["missing_configuration"] = missing
-    return JSONResponse(status_code=503, content=content)
+    if not persistence_ready or not storage_ready:
+        content["blocking_reasons"] = [
+            reason
+            for ready, reason in (
+                (persistence_ready, "local_persistence_unavailable"),
+                (storage_ready, "local_storage_unavailable"),
+            )
+            if not ready
+        ]
+    return JSONResponse(status_code=200 if persistence_ready and storage_ready else 503, content=content)
 
 
 @app.get("/media/{object_path:path}")
@@ -273,7 +290,7 @@ async def get_classroom_chapters(classroom_id: UUID):
 @app.post("/students/create")
 async def create_student(request: StudentCreateRequest):
     """
-    Create a new student account (without classroom).
+    Create a local student profile and optional classroom enrollment.
 
     Args:
         name: Student's full name
@@ -282,20 +299,20 @@ async def create_student(request: StudentCreateRequest):
     Returns:
         Created student record
     """
-    from database.database import supabase
+    from database.database import create_student as create_local_student
 
     try:
-        student_data = {
-            "name": request.name,
-            "interests": request.interests,
-        }
-
-        response = supabase.table("students").insert(student_data).execute()
-
-        if not response.data:
-            raise HTTPException(status_code=500, detail="Failed to create student")
-
-        return {"success": True, "student": response.data[0]}
+        student = create_local_student(
+            request.name,
+            request.interests,
+            classroom_id=str(request.classroom_id) if request.classroom_id else None,
+            student_id=str(request.student_id) if request.student_id else None,
+        )
+        return {"success": True, "student": student}
+    except ValueError as exc:
+        if str(exc) == "Classroom not found":
+            raise HTTPException(status_code=404, detail="Classroom not found")
+        raise HTTPException(status_code=409, detail="Student profile conflicts with an existing local profile")
     except HTTPException:
         raise
     except Exception:
@@ -367,16 +384,10 @@ async def get_all_students():
     Returns:
         List of all student records
     """
-    from database.database import supabase
+    from database.database import get_all_students
 
     try:
-        response = (
-            supabase.table("students")
-            .select("*")
-            .order("created_at", desc=True)
-            .execute()
-        )
-        return {"success": True, "students": response.data}
+        return {"success": True, "students": get_all_students()}
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -481,6 +492,17 @@ async def create_avatar_endpoint(student_id: UUID):
 # ============================================
 
 
+def _run_story_generation(chapter_id: str, chosen_idea_id: str) -> None:
+    from database.database import update_chapter
+
+    try:
+        commit_story_choice(chapter_id, chosen_idea_id)
+    except Exception:
+        reference = uuid4().hex
+        logger.error("Story generation failed reference=%s", reference)
+        update_chapter(chapter_id, {"status": "failed"})
+
+
 @app.post("/chapters/commit")
 async def commit_chapter_endpoint(
     request: CommitStoryRequest, background_tasks: BackgroundTasks
@@ -505,7 +527,7 @@ async def commit_chapter_endpoint(
     Returns:
         Immediate success response - use polling to track progress
     """
-    from database.database import get_chapter, supabase
+    from database.database import get_chapter, update_chapter
 
     try:
         # Verify chapter exists
@@ -515,13 +537,11 @@ async def commit_chapter_endpoint(
             raise HTTPException(status_code=404, detail="Chapter not found")
 
         # Update status to indicate generation has started
-        supabase.table("chapters").update({"status": "generating"}).eq(
-            "id", chapter_id
-        ).execute()
+        update_chapter(chapter_id, {"status": "generating"})
 
         # Start the actual comic generation in the background
         background_tasks.add_task(
-            commit_story_choice, chapter_id, request.chosen_idea_id
+            _run_story_generation, chapter_id, request.chosen_idea_id
         )
 
         return {
@@ -556,7 +576,7 @@ async def start_chapter_endpoint(
         get_chapters_by_classroom,
         get_classroom,
         get_students_by_classroom,
-        supabase,
+        create_chapter,
     )
     from services.story_idea import generate_story_ideas
 
@@ -601,8 +621,7 @@ async def start_chapter_endpoint(
             "status": "options_generated",
         }
 
-        response = supabase.table("chapters").insert(data).execute()
-        chapter = response.data[0] if response.data else None
+        chapter = create_chapter(data)
 
         return {"success": True, "chapter": chapter}
 
@@ -624,7 +643,7 @@ async def choose_story_idea(chapter_id: UUID, request: StoryChoiceRequest):
     Returns:
         Updated chapter
     """
-    from database.database import get_chapter, supabase
+    from database.database import get_chapter, update_chapter
 
     try:
         chapter_id = str(chapter_id)
@@ -636,17 +655,11 @@ async def choose_story_idea(chapter_id: UUID, request: StoryChoiceRequest):
 
         update_data = {"chosen_idea_id": idea_id, "status": "idea_chosen"}
 
-        response = (
-            supabase.table("chapters")
-            .update(update_data)
-            .eq("id", chapter_id)
-            .execute()
-        )
-
-        if not response.data:
+        updated = update_chapter(chapter_id, update_data)
+        if not updated:
             raise HTTPException(status_code=500, detail="Failed to update chapter")
 
-        return {"success": True, "chapter": response.data[0]}
+        return {"success": True, "chapter": updated}
 
     except HTTPException:
         raise

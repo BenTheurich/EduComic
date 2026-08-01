@@ -8,7 +8,9 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-from database.database import get_student, supabase, update_student
+from database.database import get_classrooms_by_student, get_student, update_student
+from local_runtime import resolve_local_paths
+from local_storage import LocalStorage, media_url
 
 
 async def generate_avatar(student_id: str) -> Dict[str, Any]:
@@ -32,14 +34,8 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
 
     # Get classroom to retrieve design_style (student can be in multiple classrooms)
     # For avatar generation, we'll use the first classroom or None if not in any
-    response = (
-        supabase.table("student_classrooms")
-        .select("classrooms(*)")
-        .eq("student_id", student_id)
-        .limit(1)
-        .execute()
-    )
-    classroom = response.data[0].get("classrooms") if response.data else None
+    classrooms = get_classrooms_by_student(student_id)
+    classroom = classrooms[0] if classrooms else None
 
     # Get API key
     api_key = os.getenv("BFL_API_KEY")
@@ -51,11 +47,9 @@ async def generate_avatar(student_id: str) -> Dict[str, Any]:
     # Call Black Forest Labs API to generate avatar
     bfl_avatar_url = await _call_black_forest_api(prompt, api_key)
 
-    # Download and upload to Supabase storage
-    supabase_avatar_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
+    avatar_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
 
-    # Update student record with Supabase avatar URL
-    updated_student = update_student(student_id, {"avatar_url": supabase_avatar_url})
+    updated_student = update_student(student_id, {"avatar_url": avatar_url})
 
     return updated_student
 
@@ -148,58 +142,24 @@ async def _call_black_forest_api(prompt: str, api_key: str) -> str:
 
 
 async def _upload_avatar_to_storage(image_url: str, student_id: str) -> str:
-    """
-    Download image from URL and upload to Supabase Avatars bucket.
-
-    Args:
-        image_url: URL of the generated image from Black Forest Labs
-        student_id: UUID of the student (used for filename)
-
-    Returns:
-        Public URL of the uploaded image in Supabase storage
-
-    Raises:
-        httpx.HTTPError: If image download fails
-        Exception: If upload to Supabase fails
-    """
-    print("Downloading avatar")
-
-    # Download the image from Black Forest Labs
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.get(image_url)
-        response.raise_for_status()
-        image_data = response.content
-
-    print(f"Downloaded {len(image_data)} bytes")
-
-    # Generate filename with student ID
-    filename = f"{student_id}.png"
-
+    """Download a provider result and atomically persist it as local media."""
     try:
-        # Upload to Supabase storage in Avatars bucket (with upsert to replace if exists)
-        print("Uploading avatar")
-
-        storage_response = supabase.storage.from_("Avatars").upload(
-            path=filename,
-            file=image_data,
-            file_options={
-                "content-type": "image/png",
-                "cache-control": "3600",
-                "upsert": "true",  # Replace if already exists
-            },
-        )
-
-        # Check for upload errors
-        if hasattr(storage_response, "error") and storage_response.error:
-            raise RuntimeError("Avatar upload failed")
-
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(image_url)
+            response.raise_for_status()
+        suffixes = {
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/webp": ".webp",
+        }
+        content_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
+        suffix = suffixes.get(content_type)
+        if suffix is None:
+            raise ValueError("unsupported avatar media type")
+        storage = LocalStorage(resolve_local_paths().root)
+        staged = storage.stage_bytes(response.content, suffix, max_bytes=10 * 1024 * 1024)
+        object_path = storage.new_object_path("avatars", student_id, suffix)
+        storage.finalize(staged, object_path)
+        return media_url(object_path)
     except Exception:
-        print("Avatar upload failed")
         raise RuntimeError("Avatar upload failed") from None
-
-    # Get public URL
-    public_url = supabase.storage.from_("Avatars").get_public_url(filename)
-
-    print("Avatar upload complete")
-
-    return public_url

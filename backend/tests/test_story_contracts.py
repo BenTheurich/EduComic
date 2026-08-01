@@ -297,7 +297,11 @@ def test_invalid_script_is_rejected_before_panel_deletion_or_image_provider(monk
         def execute(self):
             return None
 
-    monkeypatch.setattr(comic_creation, "supabase", SimpleNamespace(table=lambda *_args: _DeleteQuery()))
+    monkeypatch.setattr(
+        comic_creation,
+        "delete_panels_by_chapter",
+        lambda *_args, **_kwargs: deleted.append("delete"),
+    )
     monkeypatch.setattr(
         comic_creation,
         "call_flux_and_download",
@@ -339,7 +343,7 @@ def test_invalid_panel_review_stops_generation_before_later_side_effects(monkeyp
         def execute(self):
             return None
 
-    monkeypatch.setattr(comic_creation, "supabase", SimpleNamespace(table=lambda *_args: _DeleteQuery()))
+    monkeypatch.setattr(comic_creation, "delete_panels_by_chapter", lambda *_args, **_kwargs: None)
     flux_calls = []
     uploads = []
     panel_writes = []

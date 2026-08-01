@@ -5,7 +5,10 @@ import sys
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect
+from sqlalchemy import select
 
+from database.models import LocalProfile
+from database.session import create_session_factory
 from local_runtime import initialize_local_backend
 from local_storage import LocalStorage, media_url
 
@@ -28,6 +31,17 @@ def test_local_startup_applies_migrations(tmp_path):
     paths = initialize_local_backend(tmp_path)
 
     assert "classrooms" in inspect(create_engine(f"sqlite:///{paths.database.as_posix()}")).get_table_names()
+
+
+def test_local_startup_creates_exactly_one_non_authenticated_teacher_profile(tmp_path):
+    """Catches startup missing or duplicating the concrete local teacher selection."""
+    paths = initialize_local_backend(tmp_path)
+    factory = create_session_factory(f"sqlite:///{paths.database.as_posix()}")
+
+    with factory() as session:
+        profiles = session.scalars(select(LocalProfile)).all()
+
+    assert [(profile.display_name, profile.role) for profile in profiles] == [("Local Teacher", "teacher")]
 
 
 def test_backend_imports_without_supabase_package_or_variables(monkeypatch, tmp_path):

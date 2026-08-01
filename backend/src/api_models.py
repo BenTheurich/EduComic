@@ -29,10 +29,12 @@ class ClassroomCreateRequest(BaseModel):
 class StudentCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    student_id: UUID | None = None
     name: ShortText
     interests: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)
     ]
+    classroom_id: UUID | None = None
 
 
 class LessonPromptRequest(BaseModel):

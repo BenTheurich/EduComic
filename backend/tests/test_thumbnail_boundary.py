@@ -1,7 +1,6 @@
 """Thumbnail removal and story-choice URL boundary regressions."""
 
 import importlib
-from types import SimpleNamespace
 from uuid import uuid4
 
 import httpx
@@ -74,20 +73,11 @@ async def test_choose_idea_accepts_only_a_valid_idea_id(monkeypatch):
     chapter_id = uuid4()
     updates = []
 
-    class Query:
-        def update(self, data):
-            updates.append(data)
-            return self
-
-        def eq(self, *_args):
-            return self
-
-        def execute(self):
-            return SimpleNamespace(data=[{"id": str(chapter_id), **updates[-1]}])
-
     monkeypatch.setattr(database, "get_chapter", lambda _id: {"id": str(chapter_id)})
     monkeypatch.setattr(
-        database, "supabase", SimpleNamespace(table=lambda _name: Query())
+        database,
+        "update_chapter",
+        lambda _chapter_id, data: (updates.append(data) or {"id": str(chapter_id), **data}),
     )
 
     async with httpx.AsyncClient(

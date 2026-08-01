@@ -19,28 +19,14 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
     chapters = {}
     committed = []
 
-    class ChapterQuery:
-        def __init__(self):
-            self.data = None
-            self.chapter_id = None
+    def create_chapter(data):
+        chapter = {"id": str(chapter_id), **data}
+        chapters[str(chapter_id)] = chapter
+        return chapter
 
-        def insert(self, data):
-            self.data = {"id": str(chapter_id), **data}
-            chapters[str(chapter_id)] = self.data
-            return self
-
-        def update(self, data):
-            self.data = data
-            return self
-
-        def eq(self, _field, value):
-            self.chapter_id = value
-            return self
-
-        def execute(self):
-            if self.chapter_id and self.data:
-                chapters[self.chapter_id].update(self.data)
-            return SimpleNamespace(data=[chapters[self.chapter_id]] if self.chapter_id else [self.data])
+    def update_chapter(chapter, data):
+        chapters[chapter].update(data)
+        return chapters[chapter]
 
     monkeypatch.setattr(database, "get_classroom", lambda _id: {"id": str(classroom_id), "story_theme": "space"})
     monkeypatch.setattr(database, "get_students_by_classroom", lambda _id: [])
@@ -51,7 +37,8 @@ async def test_active_story_workflow_starts_chooses_commits_and_reads(monkeypatc
         "get_chapter_with_panels",
         lambda chapter: {**chapters[chapter], "panels": []},
     )
-    monkeypatch.setattr(database, "supabase", SimpleNamespace(table=lambda _name: ChapterQuery()))
+    monkeypatch.setattr(database, "create_chapter", create_chapter)
+    monkeypatch.setattr(database, "update_chapter", update_chapter)
     monkeypatch.setattr(
         story_idea,
         "generate_story_ideas",
@@ -107,7 +94,7 @@ async def test_invalid_story_ideas_do_not_insert_a_chapter(monkeypatch):
     monkeypatch.setattr(database, "get_classroom", lambda _id: {"id": str(classroom_id), "story_theme": "space"})
     monkeypatch.setattr(database, "get_students_by_classroom", lambda _id: [])
     monkeypatch.setattr(database, "get_chapters_by_classroom", lambda _id: [])
-    monkeypatch.setattr(database, "supabase", SimpleNamespace(table=lambda _name: ChapterQuery()))
+    monkeypatch.setattr(database, "create_chapter", lambda data: inserts.append(data))
     monkeypatch.setattr(
         story_idea,
         "generate_story_ideas",

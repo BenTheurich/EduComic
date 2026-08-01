@@ -2,7 +2,6 @@
 
 import importlib
 import logging
-from types import SimpleNamespace
 from uuid import uuid4
 
 import httpx
@@ -29,15 +28,11 @@ async def test_student_creation_requires_bounded_json_body(client, monkeypatch):
     database = importlib.import_module("database.database")
     inserted = {}
 
-    class Query:
-        def insert(self, data):
-            inserted.update(data)
-            return self
+    def create_student(name, interests, **_kwargs):
+        inserted.update({"name": name, "interests": interests})
+        return {"id": str(uuid4()), **inserted}
 
-        def execute(self):
-            return SimpleNamespace(data=[{"id": str(uuid4()), **inserted}])
-
-    monkeypatch.setattr(database, "supabase", SimpleNamespace(table=lambda _name: Query()))
+    monkeypatch.setattr(database, "create_student", create_student)
 
     accepted = await client.post(
         "/students/create",
