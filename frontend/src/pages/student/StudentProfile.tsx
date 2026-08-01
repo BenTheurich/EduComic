@@ -26,6 +26,7 @@ const StudentProfile = () => {
     const [avatarMessage, setAvatarMessage] = useState<string | null>(null);
     const [generatingAvatar, setGeneratingAvatar] = useState(false);
     const [portrait, setPortrait] = useState<File>();
+    const [portraitInputVersion, setPortraitInputVersion] = useState(0);
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState({ name: "", interests: "" });
     const [profileMessage, setProfileMessage] = useState("");
@@ -59,6 +60,7 @@ const StudentProfile = () => {
             const response = await api.avatar.create(studentId, portrait);
             setStudent(response.student);
             setPortrait(undefined);
+            setPortraitInputVersion((version) => version + 1);
             setAvatarMessage("Avatar updated.");
         } catch {
             setAvatarError("Avatar generation failed. Please try again.");
@@ -131,6 +133,7 @@ const StudentProfile = () => {
                                         <Label htmlFor="profile-portrait">Portrait photo (optional)</Label>
                                         <Input
                                             id="profile-portrait"
+                                            key={portraitInputVersion}
                                             type="file"
                                             accept="image/jpeg,image/png,image/webp"
                                             onChange={(event) => setPortrait(event.target.files?.[0])}

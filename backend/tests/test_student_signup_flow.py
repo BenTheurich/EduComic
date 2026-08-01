@@ -167,19 +167,20 @@ async def test_avatar_route_normalizes_photo_and_strips_metadata_before_generati
 @pytest.mark.parametrize(
     ("body", "content_type", "status"),
     [
+        (b"", "image/png", 400),
         (b"not an image", "image/png", 400),
         (_synthetic_png(1, 1), "image/jpeg", 415),
         (b"x" * (8 * 1024 * 1024 + 1), "image/png", 413),
         (_synthetic_png(5000, 5000), "image/png", 413),
         (_synthetic_png(20000, 20000), "image/png", 413),
     ],
-    ids=["corrupt", "false-content-type", "request-too-large", "too-many-pixels", "decompression-bomb"],
+    ids=["empty-image", "corrupt", "false-content-type", "request-too-large", "too-many-pixels", "decompression-bomb"],
 )
 async def test_avatar_route_rejects_invalid_portraits_before_generation(
     monkeypatch, body, content_type, status
 ):
     main = importlib.import_module("main")
-    provider = AsyncMock()
+    provider = AsyncMock(return_value={"id": "student-1", "avatar_url": None})
     monkeypatch.setattr(main, "generate_avatar", provider)
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://test") as client:

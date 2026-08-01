@@ -615,7 +615,8 @@ async def create_avatar_endpoint(student_id: UUID, request: Request):
 
     try:
         body = await request.body()
-        portrait = normalize_portrait(body, request.headers.get("content-type", "").split(";", 1)[0]) if body else None
+        content_type = request.headers.get("content-type", "").split(";", 1)[0]
+        portrait = normalize_portrait(body, content_type) if body or content_type.startswith("image/") else None
         student = await generate_avatar(str(student_id), portrait)
         return {"success": True, "student": student}
     except PortraitRejected as exc:

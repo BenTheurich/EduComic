@@ -30,7 +30,8 @@ it("replaces the visible avatar after photo-guided regeneration succeeds", async
   createAvatar.mockReturnValue(new Promise((resolve) => { finishGeneration = resolve; }));
   render(<MemoryRouter initialEntries={["/student/profile/student-1"]}><Routes><Route path="/student/profile/:studentId" element={<StudentProfile />} /></Routes></MemoryRouter>);
   const portrait = new File(["fictional portrait"], "portrait.webp", { type: "image/webp" });
-  fireEvent.change(await screen.findByLabelText(/portrait photo/i), { target: { files: [portrait] } });
+  const portraitInput = await screen.findByLabelText(/portrait photo/i) as HTMLInputElement;
+  fireEvent.change(portraitInput, { target: { files: [portrait] } });
   expect(screen.getByText(/sent to Black Forest Labs/i)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Regenerate avatar" }));
 
@@ -40,6 +41,7 @@ it("replaces the visible avatar after photo-guided regeneration succeeds", async
     student: { id: "student-1", name: "Mina", interests: "bridges", avatar_url: "/media/avatars/new.png", created_at: "2026-08-01T00:00:00Z" },
   });
   expect(await screen.findByRole("status")).toHaveTextContent("Avatar updated.");
+  expect((screen.getByLabelText(/portrait photo/i) as HTMLInputElement).files).toHaveLength(0);
 });
 
 it("requires confirmation before full profile erasure", async () => {
