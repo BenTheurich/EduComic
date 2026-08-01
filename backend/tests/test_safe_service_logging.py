@@ -145,9 +145,12 @@ def test_panel_review_success_prints_no_provider_url_or_student_name(
         {
             "score": 9.0,
             "dimensions": {
-                "text_accuracy": 9.0,
-                "character_accuracy": 9.0,
-                "layout_readability": 9.0,
+                "exact_visible_text": True,
+                "unexpected_visible_text": False,
+                "bubble_ownership": True,
+                "reference_identity_continuity": True,
+                "requested_action": True,
+                "layout_readability": True,
             },
             "issues": [],
             "suggested_fix_prompt": "",

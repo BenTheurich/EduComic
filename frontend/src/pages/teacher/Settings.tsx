@@ -72,11 +72,19 @@ export default function Settings() {
             <option value="gpt-5.6-luna">Luna — fastest and lowest cost</option>
           </select>
         </label>
+        <label className="block">BFL model
+          <select className="mt-1 min-h-11 w-full rounded-md border bg-background px-3" value={settings.bfl_model}
+            onChange={(event) => setSettings({ ...settings, bfl_model: event.target.value as SettingsData["bfl_model"] })}>
+            <option value="flux-2-pro">Pro — default continuity and cost balance</option>
+            <option value="flux-2-flex">Flex — optional, higher-cost typography choice</option>
+          </select>
+        </label>
         <p>OpenAI: {readiness.openai ? "ready" : "key not configured"}</p><p>BFL: {settings.bfl_model} ({readiness.bfl ? "ready" : "key not configured"})</p></div>
       <label className="flex min-h-11 items-center gap-3">
         <Checkbox checked={settings.automatic_panel_review} onCheckedChange={(checked) => setSettings({ ...settings, automatic_panel_review: checked === true })} />
         Automatically review generated panels
       </label>
+      <p className="text-sm text-muted-foreground">Off by default. Each retry can add one OpenAI vision review and another BFL image generation, increasing duration and BYOK spend. This applies only to new generations.</p>
       <label className="block">Panel review attempts
         <select className="mt-1 min-h-11 w-full rounded-md border bg-background px-3" value={settings.panel_review_attempt_cap}
           onChange={(event) => setSettings({ ...settings, panel_review_attempt_cap: Number(event.target.value) as 1 | 2 | 3 })}>

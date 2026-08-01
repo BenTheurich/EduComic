@@ -1,17 +1,4 @@
-"""
-panel_review.py
-
-Multimodal quality check for generated comic panels.
-
-Given:
-  - image_url (from FLUX / BFL sample URL)
-  - panel script (narration, dialogue, featured students)
-
-It:
-  - Uses an OpenAI vision-capable model to inspect the image
-  - Compares it against the expected text and characters
-  - Returns a JSON score (0–10) plus concrete issues and a suggested fix prompt.
-"""
+"""Structured, opt-in multimodal review for one generated comic panel."""
 
 import json
 import os
@@ -19,10 +6,11 @@ from typing import Any, Dict, List
 
 from dotenv import load_dotenv
 from openai import OpenAI
+
 from provider_clients import LazyClient
 from provider_config import DEFAULT_OPENAI_MODEL, SUPPORTED_OPENAI_MODELS, require_supported_model
-
 from story_contracts import PanelReview
+
 
 load_dotenv()
 
@@ -31,30 +19,28 @@ openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
 
 def _expected_text_from_panel(panel: Dict[str, Any]) -> List[Dict[str, str]]:
-    """
-    Represent narration + dialogue as a structured list so the model can
-    judge text accuracy more easily.
-    """
-    out: List[Dict[str, str]] = []
-
+    expected = []
     narration = (panel.get("narration") or "").strip()
     if narration:
-        out.append({"type": "narration", "text": narration})
-
+        expected.append({"type": "narration", "text": narration})
     for line in panel.get("dialogue") or []:
-        speaker = (line.get("speaker") or "").strip()
         text = (line.get("text") or "").strip()
-        if not text:
-            continue
-        out.append(
-            {
-                "type": "dialogue",
-                "speaker": speaker,
-                "text": text,
-            }
-        )
+        if text:
+            expected.append({"type": "dialogue", "speaker": (line.get("speaker") or "").strip(), "text": text})
+    return expected
 
-    return out
+
+def review_requires_retry(review: Dict[str, Any]) -> bool:
+    """Retry only when a validated, concrete review check says the panel missed."""
+    dimensions = PanelReview.model_validate(review).dimensions
+    return (
+        not dimensions.exact_visible_text
+        or dimensions.unexpected_visible_text
+        or not dimensions.bubble_ownership
+        or not dimensions.reference_identity_continuity
+        or not dimensions.requested_action
+        or not dimensions.layout_readability
+    )
 
 
 def review_panel_image(
@@ -62,172 +48,54 @@ def review_panel_image(
     panel: Dict[str, Any],
     classroom: Dict[str, Any],
     students: List[Dict[str, Any]],
-    min_score: float = 8.0,
     *,
     model: str = DEFAULT_OPENAI_MODEL,
+    reference_images: List[Dict[str, str]] | None = None,
 ) -> Dict[str, Any]:
-    """
-    Ask a multimodal OpenAI model to review a single comic panel image.
-
-    Returns a dict like:
-    {
-      "score": 8.7,
-      "dimensions": {
-        "text_accuracy": 9.0,
-        "character_accuracy": 8.0,
-        "layout_readability": 9.0
-      },
-      "issues": [
-        "Speech bubble for LENA is missing",
-        "Text 'F=ma' is misspelled"
-      ],
-      "suggested_fix_prompt": "Add a speech bubble for LENA saying '...' and correct 'F=ma' text.",
-      "notes": "Additional free-form comments if needed."
-    }
-    """
-
-    print("         🔍 Starting quality review...")
-
+    """Review a rendered panel against its script and role-labeled references."""
+    del classroom, students  # The panel and references are the minimal review context.
     if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_API_KEY_HERE":
         raise RuntimeError("OPENAI_API_KEY not set; cannot run panel review")
 
-    expected_text = _expected_text_from_panel(panel)
-    featured_students = panel.get("featured_students") or []
-    setting = (panel.get("setting") or "").strip()
-    description = (panel.get("description") or "").strip()
-
-    model = require_supported_model(model, SUPPORTED_OPENAI_MODELS, "OpenAI")
+    references = reference_images or []
     review_payload = {
         "panel_index": panel.get("index"),
-        "expected_setting": setting,
-        "expected_visual_description": description,
-        "expected_text": expected_text,
-        "expected_featured_students": featured_students,
+        "expected_setting": (panel.get("setting") or "").strip(),
+        "expected_visual_description": (panel.get("description") or "").strip(),
+        "expected_text": _expected_text_from_panel(panel),
+        "expected_featured_students": panel.get("featured_students") or [],
+        "reference_images": [{"role": item["role"]} for item in references],
     }
-
     system_prompt = (
-        "You are a strict, zero-tolerance art director for kid-friendly educational comic books.\n"
-        "You will be given the expected script for ONE panel (narration, dialogue, "
-        "featured student names) plus the rendered image of that panel.\n"
-        "Your job is to rate how well the image matches the script and suggest simple "
-        "prompt-level fixes so the panel can be regenerated by a text-to-image model.\n\n"
-        "Pay EXTREME attention to speech bubbles and text correctness:\n"
-        "- Each bubble's tail MUST clearly point to the correct speaker.\n"
-        "- No character may speak lines that belong to someone else.\n"
-        "- Characters must not speak about themselves in an unnatural way "
-        "(for example, referring to themselves in the third person or addressing "
-        "themselves by name) unless the script explicitly requires it.\n"
-        "- Text in narration and bubbles MUST match the expected text EXACTLY.\n"
-        "- ANY spelling error, garbled word, missing word, extra word, or paraphrasing "
-        "counts as a serious error.\n\n"
-        "Scoring rules for each dimension (0–10):\n"
-        "- text_accuracy:\n"
-        "  * 10 = every word in narration and speech bubbles is perfectly legible and "
-        "    exactly matches the expected text (no differences at all).\n"
-        "  * 5–9 = reserved ONLY for very minor visual imperfections (e.g. slightly odd "
-        "    font rendering) while the text content still matches exactly.\n"
-        "  * 0–3 = ANY mistake in content (spelling differences, missing or extra words, "
-        "    nonsense text, garbled text, or any line belonging to the wrong speaker). "
-        "    If you see even a single such issue, text_accuracy MUST be 3 or lower.\n"
-        "- character_accuracy:\n"
-        "  * 10 = all named students that should appear are clearly present, not merged, "
-        "    consistent with each other, and the bubbles attached to them are correct.\n"
-        "  * 5–9 = only very minor stylistic deviations, but the cast and bubble "
-        "    assignments are still clearly correct.\n"
-        "  * 0–3 = any missing required character, wrong character speaking a line, or "
-        "    bubble tails pointing at the wrong person. If you see any such issue, "
-        "    character_accuracy MUST be 3 or lower.\n"
-        "- layout_readability:\n"
-        "  * 10 = composition is clean, speech bubbles / narration boxes do not overlap "
-        "    faces, text is not cropped, and the panel is easy to read for kids.\n"
-        "  * Lower scores for clutter, overlapping text, tiny text, or cropped bubbles.\n\n"
-        "Overall 'score' must be a weighted average with MUCH more weight on "
-        "text_accuracy and character_accuracy than layout_readability.\n"
-        "If there is ANY text mistake, garbled text, or misaligned bubble (bubble tail "
-        "clearly pointing to the wrong character), the overall score MUST NOT exceed 5, "
-        "and can be as low as 0 for very poor matches.\n"
+        "Review one kid-friendly educational comic panel against its script and role-labeled references. "
+        "Judge exact expected lettering, unexpected lettering, speech-bubble owner and tail, identity and continuity, "
+        "requested action, and readable layout independently. A spelling difference, missing or added word, or wrong "
+        "bubble owner fails its check. Use score 0-5 when text or bubble checks fail; otherwise use 0-10. "
+        "Give a short, concrete regeneration fix only when needed."
     )
-
-    print("         → Building review prompt...")
-    print(f"         → Expected students: {len(featured_students)}")
-    print(f"         → Expected text lines: {len(expected_text)}")
-
-    user_prompt_text = (
-        "Here is the structured description of what this panel SHOULD contain.\n"
-        "Then you see the actual rendered image.\n\n"
-        "Tasks:\n"
-        "1) Carefully compare the text in the image (narration, bubbles, labels) to the "
-        "expected text. Note any missing, added, paraphrased, or unreadable words.\n"
-        "2) Check speech-bubble alignment:\n"
-        "   - For each dialogue line, is there a bubble whose tail clearly points to the "
-        "     correct character?\n"
-        "   - Are there any bubbles pointing to the wrong character, or characters speaking "
-        "     even though they have no dialogue defined for this panel?\n"
-        "   - Does any character talk in an obviously wrong way, such as referring to "
-        "     themselves in the third person or addressing themselves by name?\n"
-        "3) Check whether all named students that are supposed to appear are clearly present "
-        "   and consistent with their roles.\n"
-        "4) Check whether the layout makes the text easy to read (no cropping, no weird "
-        "   overlaps, text big enough for kids).\n\n"
-        "Then respond ONLY with a single JSON object with this structure:\n"
-        "{\n"
-        '  "score": float,                 // 0–10 overall\n'
-        '  "dimensions": {\n'
-        '    "text_accuracy": float,       // 0–10 (include correctness of text AND who says it)\n'
-        '    "character_accuracy": float,  // 0–10 (include whether bubbles attach to correct characters)\n'
-        '    "layout_readability": float   // 0–10\n'
-        "  },\n"
-        '  "issues": [ "string", ... ],    // list of concrete problems (mention bubble misalignment explicitly)\n'
-        '  "suggested_fix_prompt": "short text prompt to append to the image model prompt, '
-        "max 2–3 sentences, focusing on the most important fixes such as moving specific "
-        "bubbles to the right character, correcting mis-written text, or adding/removing "
-        'bubbles.",\n'
-        '  "notes": "extra comments, or an empty string"\n'
-        "}\n\n"
-        "Be concise and practical in 'issues' and 'suggested_fix_prompt'. For example, you "
-        "might say: \"Move the bubble with 'F = ma' so the tail points to LENA on the left; "
-        "replace the current text with 'F = m · a'; remove the extra bubble above the teacher.\"\n"
-        "If everything already looks perfect, you can still report a high score (e.g. 9.5–10) "
-        "and leave 'issues' empty and 'suggested_fix_prompt' as an empty string.\n\n"
-        f"PANEL SPEC JSON:\n{json.dumps(review_payload, ensure_ascii=False)}"
-    )
-
-    print("         → Calling panel review provider...")
+    content = [
+        {"type": "text", "text": f"PANEL SPEC:\n{json.dumps(review_payload, ensure_ascii=False)}"},
+        {"type": "image_url", "image_url": {"url": image_url}},
+    ]
+    for reference in references:
+        content.extend(
+            [
+                {"type": "text", "text": f"Reference: {reference['role']}"},
+                {"type": "image_url", "image_url": {"url": reference["url"]}},
+            ]
+        )
 
     try:
-        resp = openai_client.chat.completions.parse(
-            model=model,
+        response = openai_client.chat.completions.parse(
+            model=require_supported_model(model, SUPPORTED_OPENAI_MODELS, "OpenAI"),
             response_format=PanelReview,
             max_completion_tokens=2048,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_prompt_text},
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": image_url},
-                        },
-                    ],
-                },
-            ],
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": content}],
         )
     except Exception:
         raise RuntimeError("Panel review request failed") from None
 
-    parsed = resp.choices[0].message.parsed
+    parsed = response.choices[0].message.parsed
     if parsed is None:
         raise RuntimeError("Panel review returned invalid response")
-    data = parsed.model_dump()
-    dims = data["dimensions"]
-
-    print("         ✓ Review complete!")
-    print(f"         → Overall score: {data['score']:.1f}/10")
-    print(f"         → Text accuracy: {dims['text_accuracy']:.1f}/10")
-    print(f"         → Character accuracy: {dims['character_accuracy']:.1f}/10")
-    print(f"         → Layout readability: {dims['layout_readability']:.1f}/10")
-    if data['issues']:
-        print(f"         → Issues found: {len(data['issues'])}")
-
-    return data
+    return parsed.model_dump()

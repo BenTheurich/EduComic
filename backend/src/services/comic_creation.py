@@ -41,7 +41,7 @@ from provider_clients import LazyClient
 from provider_config import DEFAULT_BFL_MODEL, DEFAULT_OPENAI_MODEL, SUPPORTED_OPENAI_MODELS, require_supported_model
 
 # NEW: quality review helper
-from panel_review import review_panel_image
+from panel_review import review_panel_image, review_requires_retry
 
 
 logger = logging.getLogger("educomic.comic_creation")
@@ -278,7 +278,10 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
                 panel=panel,
                 classroom=classroom,
                 students=students,
-                min_score=PANEL_REVIEW_MIN_SCORE,
+                reference_images=[
+                    {"role": "previous successful panel" if index == 0 else "current avatar", "url": url}
+                    for index, url in enumerate(reference_images)
+                ],
             )
             score = float(review.get("score", 0.0))
             print(f"      ✓ Quality score: {score:.1f}/10 (threshold: {PANEL_REVIEW_MIN_SCORE})")
@@ -294,7 +297,7 @@ def commit_story_choice(chapter_id: str, chosen_idea_id: str) -> Dict[str, Any]:
                 best_review = review
 
             # If we passed the quality threshold, stop retrying
-            if score >= PANEL_REVIEW_MIN_SCORE:
+            if not review_requires_retry(review):
                 print(f"      ✅ Panel passed quality threshold! (score {score:.1f} >= {PANEL_REVIEW_MIN_SCORE})")
                 break
 
@@ -509,48 +512,15 @@ def generate_full_script_and_panels(
     payload["chosen_idea"] = chosen_idea
 
     system_prompt = (
-        "You write scripts for short educational comics. "
-        f"Target: kids 6–16, clear and simple language, exactly {panel_count} panels per chapter. "
-        "Always respond with a single JSON object following the requested schema. "
+        f"Write one {panel_count}-panel educational comic script in clear language for the supplied grade level. "
+        "Ground every learning fact in the teacher outline and selected material; make the chosen idea engaging and concrete. "
         f"{UNTRUSTED_SOURCE_SYSTEM_RULE}"
     )
-
     user_prompt = (
-        "Using the given classroom, students, teacher_outline and chosen_idea, write a single comic chapter.\n\n"
-                "Constraints:\n"
-        f"- Exactly {panel_count} panels total.\n"
-        "- Panels 1–3: introduce the situation and characters.\n"
-        "- Middle panels: show a small challenge or question related to the learning topic.\n"
-        "- Final panels: resolve the situation and recap the key learning objective.\n"
-        "- Each panel should have at most 1 narration box and at most 2 speech bubbles.\n"
-        "- Each narration or dialogue line must be very short (max 10 words).\n"
-        "- Each panel should be visually distinct and move the story forward.\n"
-        "- Use the students' names in dialogue sometimes to make it personal.\n"
-        "- Do NOT have characters speak about themselves in the third person.\n"
-        "- Do NOT have a character address themselves by name in their own speech bubble.\n"
-        "- Make sure the story helps understand the subject in a concrete way.\n"
-        "- The 'speaker' field must always be either a student name from this classroom\n"
-        "  or 'Teacher' / 'Narrator'.\n\n"
-        "Return ONLY a JSON object with this structure (no extra text):\n"
-        "{\n"
-        '  "episode_title": "short, fun title",\n'
-        '  "learning_objectives": ["objective 1", "objective 2", ...],\n'
-        '  "panels": [\n'
-        "    {\n"
-        '      "index": 1,\n'
-        '      "setting": "location and time",\n'
-        '      "description": "what we see in the drawing, including characters and actions",\n'
-        '      "narration": "optional narrator text or empty string",\n'
-        '      "dialogue": [\n'
-        '        {"speaker": "Name", "text": "line of dialogue"},\n'
-        "        ...\n"
-        "      ],\n"
-        '      "featured_students": ["Name1", "Name2", ...]\n'
-        "    },\n"
-        "    ...\n"
-        "  ]\n"
-        "}\n\n"
-        f"INPUT:\n{json.dumps(payload, ensure_ascii=False)}"
+        f"Create exactly {panel_count} sequential panels: introduce, investigate a learning challenge, then resolve and recap. "
+        "Use only known student names plus Teacher or Narrator as speakers. Keep each narration or speech line to ten words, "
+        "with at most two dialogue lines per panel; give speakers only their own lines. Make every panel visually distinct.\n\n"
+        f"CONTEXT:\n{json.dumps(payload, ensure_ascii=False)}"
         f"\n\n{grounding_prompt(materials or [])}"
     )
 

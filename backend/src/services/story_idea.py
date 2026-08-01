@@ -1,32 +1,27 @@
-"""Generate story ideas for the active chapter-start route."""
+"""Generate three grounded story ideas for a chapter-start request."""
 
 import json
 import os
 from typing import Any, Dict, List
 
 from dotenv import load_dotenv
-from materials import UNTRUSTED_SOURCE_SYSTEM_RULE, grounding_prompt
 from openai import OpenAI
+
+from materials import UNTRUSTED_SOURCE_SYSTEM_RULE, grounding_prompt
 from provider_clients import LazyClient
 from provider_config import DEFAULT_OPENAI_MODEL, SUPPORTED_OPENAI_MODELS, require_supported_model
-
 from story_contracts import StoryIdeasResponse
+
 
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY_HERE")
 openai_client = LazyClient(lambda: OpenAI(api_key=OPENAI_API_KEY))
 
-if not OPENAI_API_KEY or OPENAI_API_KEY == "YOUR_OPENAI_API_KEY_HERE":
-    print("[WARN] OPENAI_API_KEY not set; OpenAI calls will fail until you configure it.")
-
 
 def _classroom_context_dict(
-    classroom: Dict[str, Any],
-    students: List[Dict[str, Any]],
-    teacher_outline: str,
+    classroom: Dict[str, Any], students: List[Dict[str, Any]], teacher_outline: str
 ) -> Dict[str, Any]:
-    """Compact JSON context that we send to OpenAI."""
     return {
         "classroom": {
             "name": classroom["name"],
@@ -36,77 +31,47 @@ def _classroom_context_dict(
             "design_style": classroom["design_style"],
             "duration": classroom["duration"],
         },
-        "students": [
-            {
-                "name": s["name"],
-                "interests": s.get("interests", ""),
-            }
-            for s in students
-        ],
+        "students": [{"name": student["name"], "interests": student.get("interests", "")} for student in students],
         "teacher_outline": teacher_outline,
     }
 
 
 def generate_story_ideas(
     classroom: Dict[str, Any],
-    students: List[Dict[str, Any]],
+    students: List[Dict[str, Any],],
     teacher_outline: str,
     *,
     model: str = DEFAULT_OPENAI_MODEL,
     materials: list[dict[str, Any]] | None = None,
 ) -> List[Dict[str, Any]]:
-    """
-    Ask OpenAI for 3 story ideas for this classroom + outline.
-
-    Returns:
-      [
-        {"id": "idea_1", "title": "...", "summary": "..."},
-        {"id": "idea_2", ...},
-        {"id": "idea_3", ...}
-      ]
-    """
+    """Return exactly three age-appropriate, structured chapter ideas."""
     model = require_supported_model(model, SUPPORTED_OPENAI_MODELS, "OpenAI")
     payload = _classroom_context_dict(classroom, students, teacher_outline)
-
-    system_prompt = (
-        "You create fun, age-appropriate ideas for short educational comic chapters "
-        "for kids roughly between 6 and 16 years old. Always respond with a single JSON object. "
-        f"{UNTRUSTED_SOURCE_SYSTEM_RULE}"
-    )
-
-    user_prompt = (
-        "You are given classroom and student info plus a short outline from the teacher.\n"
-        "Propose exactly 3 different comic chapter ideas that match the outline and help "
-        "students learn the subject.\n\n"
-        "IMPORTANT: Each idea should feature different students or combinations of students from the class. "
-        "Use their names and interests to make the stories personal and engaging. "
-        "Vary which students are featured across the 3 ideas.\n\n"
-        "Return ONLY a JSON object with this structure (no extra text):\n"
-        "{\n"
-        '  "ideas": [\n'
-        '    { "title": "string", "summary": "2–3 sentence description" },\n'
-        "    ... (3 items total)\n"
-        "  ]\n"
-        "}\n\n"
-        f"INPUT:\n{json.dumps(payload, ensure_ascii=False)}"
-        f"\n\n{grounding_prompt(materials or [])}"
-    )
-
-    resp = openai_client.chat.completions.parse(
+    response = openai_client.chat.completions.parse(
         model=model,
         response_format=StoryIdeasResponse,
         max_completion_tokens=2048,
         messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
+            {
+                "role": "system",
+                "content": (
+                    "Create three distinct, fun educational comic ideas using language suitable for the classroom grade level. "
+                    "Make every idea teach the teacher's outline and selected materials, with varied student combinations. "
+                    f"{UNTRUSTED_SOURCE_SYSTEM_RULE}"
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Create exactly three chapter ideas. Give each a short title and a 2-3 sentence summary; "
+                    "keep the learning concrete, age-appropriate, and personal to the named students.\n\n"
+                    f"CONTEXT:\n{json.dumps(payload, ensure_ascii=False)}"
+                    f"\n\n{grounding_prompt(materials or [])}"
+                ),
+            },
         ],
     )
-
-    parsed = resp.choices[0].message.parsed
+    parsed = response.choices[0].message.parsed
     if parsed is None:
         raise RuntimeError("OpenAI returned no validated story ideas")
-
-    return [
-        {"id": f"idea_{idx}", **idea.model_dump()}
-        for idx, idea in enumerate(parsed.ideas, start=1)
-    ]
+    return [{"id": f"idea_{index}", **idea.model_dump()} for index, idea in enumerate(parsed.ideas, start=1)]

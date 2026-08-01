@@ -13,7 +13,7 @@ from local_storage import LocalStorage, media_url
 
 def test_new_settings_accept_current_models_but_not_historical_model():
     from api_models import SettingsUpdateRequest
-    from provider_config import SUPPORTED_OPENAI_MODELS, require_supported_model
+    from provider_config import SUPPORTED_BFL_MODELS, SUPPORTED_OPENAI_MODELS, require_supported_model
 
     for model in ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"):
         assert SettingsUpdateRequest(openai_model=model).openai_model == model
@@ -21,6 +21,8 @@ def test_new_settings_accept_current_models_but_not_historical_model():
         SettingsUpdateRequest(openai_model="gpt-5.1")
 
     assert require_supported_model("gpt-5.1", SUPPORTED_OPENAI_MODELS, "OpenAI") == "gpt-5.1"
+    assert SettingsUpdateRequest(bfl_model="flux-2-flex").bfl_model == "flux-2-flex"
+    assert require_supported_model("flux-2-flex", SUPPORTED_BFL_MODELS, "BFL") == "flux-2-flex"
 
 
 def test_migration_updates_local_setting_without_rewriting_historical_snapshot(tmp_path):

@@ -129,9 +129,12 @@ def test_panel_review_requires_complete_bounded_scores_and_text():
     valid = {
         "score": 9.0,
         "dimensions": {
-            "text_accuracy": 9.0,
-            "character_accuracy": 8.0,
-            "layout_readability": 9.0,
+            "exact_visible_text": True,
+            "unexpected_visible_text": False,
+            "bubble_ownership": True,
+            "reference_identity_continuity": True,
+            "requested_action": True,
+            "layout_readability": True,
         },
         "issues": ["A speech bubble is slightly cropped."],
         "suggested_fix_prompt": "Move the bubble away from the edge.",
@@ -142,6 +145,7 @@ def test_panel_review_requires_complete_bounded_scores_and_text():
     for invalid in (
         {key: value for key, value in valid.items() if key != "notes"},
         {**valid, "score": 11.0},
+        {**valid, "score": 9.0, "dimensions": {**valid["dimensions"], "exact_visible_text": False}},
         {**valid, "issues": ["I" * 401]},
         {**valid, "suggested_fix_prompt": "F" * 1001},
     ):
@@ -208,6 +212,8 @@ def test_story_idea_service_uses_structured_parse_and_redacts_non_narrative_data
     prompt = _all_message_text(call)
     assert "private-classroom-id" not in prompt
     assert "private-avatar-token" not in prompt
+    assert "grade_level" in prompt
+    assert "Return ONLY a JSON object with this structure" not in prompt
 
 
 def test_comic_service_uses_structured_parse_and_contextual_cast_validation(monkeypatch):
@@ -228,6 +234,8 @@ def test_comic_service_uses_structured_parse_and_contextual_cast_validation(monk
     prompt = _all_message_text(call)
     assert "private-classroom-id" not in prompt
     assert "private-avatar-token" not in prompt
+    assert "grade_level" in prompt
+    assert "Return ONLY a JSON object with this structure" not in prompt
 
 
 def test_panel_review_uses_strict_parse_and_omits_classroom_and_student_profiles(monkeypatch):
@@ -236,9 +244,12 @@ def test_panel_review_uses_strict_parse_and_omits_classroom_and_student_profiles
         {
             "score": 9.0,
             "dimensions": {
-                "text_accuracy": 9.0,
-                "character_accuracy": 9.0,
-                "layout_readability": 9.0,
+                "exact_visible_text": True,
+                "unexpected_visible_text": False,
+                "bubble_ownership": True,
+                "reference_identity_continuity": True,
+                "requested_action": True,
+                "layout_readability": True,
             },
             "issues": [],
             "suggested_fix_prompt": "",
@@ -254,6 +265,7 @@ def test_panel_review_uses_strict_parse_and_omits_classroom_and_student_profiles
         _script()["panels"][0],
         {**_classroom(), "subject": "private subject", "story_theme": "private theme"},
         [{**_students()[0], "interests": "private interest"}],
+        reference_images=[{"role": "previous successful panel", "url": "/media/story-images/fake.png"}],
     )
 
     assert result["score"] == 9.0
@@ -266,6 +278,31 @@ def test_panel_review_uses_strict_parse_and_omits_classroom_and_student_profiles
     assert "private-avatar-token" not in prompt
     assert "private subject" not in prompt
     assert "private theme" not in prompt
+    assert "previous successful panel" in prompt
+    assert "Return ONLY with a single JSON object" not in prompt
+
+
+def test_panel_review_retry_ignores_a_false_high_overall_score_for_visible_text():
+    """Catches a misspelling being accepted because an unconstrained score is high."""
+    panel_review = importlib.import_module("panel_review")
+    review = PanelReview.model_validate(
+        {
+            "score": 5.0,
+            "dimensions": {
+                "exact_visible_text": False,
+                "unexpected_visible_text": False,
+                "bubble_ownership": True,
+                "reference_identity_continuity": True,
+                "requested_action": True,
+                "layout_readability": True,
+            },
+            "issues": ["The narration is misspelled."],
+            "suggested_fix_prompt": "Use the exact narration.",
+            "notes": "",
+        }
+    )
+
+    assert panel_review.review_requires_retry(review.model_dump()) is True
 
 
 def test_invalid_script_is_rejected_before_panel_deletion_or_image_provider(monkeypatch):

@@ -59,7 +59,7 @@ class SettingsUpdateRequest(BaseModel):
     story_length: Literal[12, 20] | None = None
     default_design_style: Literal["manga", "comic", "cartoon"] | None = None
     openai_model: Literal["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] | None = None
-    bfl_model: Literal["flux-2-pro"] | None = None
+    bfl_model: Literal["flux-2-pro", "flux-2-flex"] | None = None
     automatic_panel_review: bool | None = None
     panel_review_attempt_cap: Literal[1, 2, 3] | None = None
     reader_preferences: dict[str, bool] | None = None

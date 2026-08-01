@@ -13,7 +13,7 @@ import requests
 from database import database
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
-from panel_review import review_panel_image
+from panel_review import review_panel_image, review_requires_retry
 from provider_config import DEFAULT_BFL_MODEL, SUPPORTED_BFL_MODELS, require_supported_model
 from services import comic_creation
 
@@ -23,6 +23,29 @@ MAX_IMAGE_BYTES = 20 * 1024 * 1024
 MAX_PNG_DIMENSION = 4096
 MAX_PNG_PIXELS = 16 * 1024 * 1024
 MAX_PNG_DECODED_BYTES = 64 * 1024 * 1024
+
+
+def ordered_panel_references(
+    previous_url: str | None, panel: dict, students: list[dict]
+) -> list[dict[str, str]]:
+    """Keep BFL and reviewer references coherent and deterministic."""
+    references = []
+    if previous_url:
+        references.append({"role": "previous successful panel", "url": previous_url})
+    students_by_name = {student.get("name"): student for student in students}
+    for name in panel.get("featured_students") or []:
+        avatar_url = (students_by_name.get(name) or {}).get("avatar_url")
+        if avatar_url and all(item["url"] != avatar_url for item in references):
+            references.append({"role": f"current avatar for {name}", "url": avatar_url})
+    return references[:8]
+
+
+def _reference_instructions(references: list[dict[str, str]]) -> str:
+    if not references:
+        return ""
+    return " Reference image order: " + "; ".join(
+        f"{index}: {reference['role']}" for index, reference in enumerate(references, 1)
+    ) + "."
 
 
 def _bfl_headers() -> dict[str, str]:
@@ -258,16 +281,17 @@ def run_generation(run_id: str) -> None:
         previous_url = None
         for prompt in prompts:
             panel = panels_by_index[prompt["index"]]
+            references = ordered_panel_references(previous_url, panel, students)
             review_enabled = run["settings_snapshot"]["automatic_panel_review"]
             attempts = run["settings_snapshot"]["panel_review_attempt_cap"] if review_enabled else 1
-            candidate_prompt = prompt["prompt"]
+            candidate_prompt = prompt["prompt"] + _reference_instructions(references)
             for attempt in range(attempts):
                 stage = "submit"
                 database.set_generation_stage(run_id, "bfl_submit")
                 polling_url = submit_bfl_generation(
                     candidate_prompt,
                     prompt["aspect_ratio"],
-                    [previous_url] if previous_url else [],
+                    [reference["url"] for reference in references],
                     model=run["settings_snapshot"]["bfl_model"],
                 )
                 stage = "poll"
@@ -287,8 +311,9 @@ def run_generation(run_id: str) -> None:
                     classroom,
                     students,
                     model=run["settings_snapshot"]["openai_model"],
+                    reference_images=references,
                 )
-                if review["score"] >= 9 or attempt == attempts - 1:
+                if not review_requires_retry(review) or attempt == attempts - 1:
                     break
                 candidate_prompt = f"{prompt['prompt']} Correction: {review.get('suggested_fix_prompt', '')}"
             stage = "finalization"

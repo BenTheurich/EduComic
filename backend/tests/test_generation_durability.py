@@ -171,7 +171,20 @@ def test_snapshotted_panel_review_setting_reviews_each_selected_panel_once(monke
     monkeypatch.setattr(
         generation,
         "review_panel_image",
-        lambda *_args, **_kwargs: reviews.append(1) or {"score": 10, "suggested_fix_prompt": ""},
+        lambda *_args, **_kwargs: reviews.append(1) or {
+            "score": 10,
+            "dimensions": {
+                "exact_visible_text": True,
+                "unexpected_visible_text": False,
+                "bubble_ownership": True,
+                "reference_identity_continuity": True,
+                "requested_action": True,
+                "layout_readability": True,
+            },
+            "issues": [],
+            "suggested_fix_prompt": "",
+            "notes": "",
+        },
         raising=False,
     )
     run, _created = database.begin_generation_run(chapter_id, "idea_1", "review-enabled")
@@ -180,6 +193,25 @@ def test_snapshotted_panel_review_setting_reviews_each_selected_panel_once(monke
 
     assert len(reviews) == 12
     assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
+
+
+def test_generation_orders_previous_panel_then_featured_avatar_references():
+    """Catches unrelated avatars or reversed continuity references reaching BFL."""
+    generation = importlib.import_module("services.generation")
+
+    references = generation.ordered_panel_references(
+        "/media/story-images/previous.png",
+        {"featured_students": ["Ada"]},
+        [
+            {"name": "Ada", "avatar_url": "/media/avatars/ada.png"},
+            {"name": "Bea", "avatar_url": "/media/avatars/bea.png"},
+        ],
+    )
+
+    assert references == [
+        {"role": "previous successful panel", "url": "/media/story-images/previous.png"},
+        {"role": "current avatar for Ada", "url": "/media/avatars/ada.png"},
+    ]
 
 
 def test_successful_swap_does_not_retire_historical_media(monkeypatch, tmp_path):

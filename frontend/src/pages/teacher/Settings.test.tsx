@@ -53,6 +53,20 @@ it("explains and saves a current OpenAI model choice", async () => {
   await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ openai_model: "gpt-5.6-sol" })));
 });
 
+it("explains the paid review retry cost and saves the optional Flex model", async () => {
+  render(<MemoryRouter><Settings /></MemoryRouter>);
+  await screen.findByRole("heading", { name: "Settings" });
+
+  expect(screen.getByText(/each retry can add one OpenAI vision review and another BFL image generation/i)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("BFL model"), { target: { value: "flux-2-flex" } });
+  fireEvent.click(screen.getByLabelText("Automatically review generated panels"));
+  fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+  await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({
+    bfl_model: "flux-2-flex", automatic_panel_review: true,
+  })));
+});
+
 it("requires a confirmation dialog before resetting local data", async () => {
   render(<MemoryRouter><Settings /></MemoryRouter>);
   await screen.findByRole("heading", { name: "Settings" });
