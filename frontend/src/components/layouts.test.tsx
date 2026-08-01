@@ -5,6 +5,17 @@ import { StudentLayout } from "./student/StudentLayout";
 import { TeacherLayout } from "./teacher/TeacherLayout";
 
 describe("responsive app layouts", () => {
+  it("labels the local teacher exit without implying authentication", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TeacherLayout>Teacher content</TeacherLayout>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: "Exit Teacher View" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /log\s*out/i })).not.toBeInTheDocument();
+  });
+
   it.each([
     ["teacher", TeacherLayout, "Teacher content"],
     ["student", StudentLayout, "Student content"],

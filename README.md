@@ -1,6 +1,6 @@
 # EduComic
 
-EduComic is an educational comic application built with React and FastAPI. Phase 1 provides the SQLite and local-file foundation without a hosted database or object-storage account. Existing classroom, student, and generation paths still fail closed at a compatibility boundary until Phase 2 converts them; this is not yet the complete private application.
+EduComic is a local/private educational comic application built with React and FastAPI. Classroom, student-profile, enrollment, chapter, reader, avatar, and export data use SQLite and validated local media rather than a hosted database or object-storage account.
 
 ## Local setup
 
@@ -17,7 +17,7 @@ EduComic is an educational comic application built with React and FastAPI. Phase
 
    ```bash
    cd backend
-   uv run uvicorn --app-dir src main:app --reload --host 127.0.0.1 --port 8000
+   uv run python src/run_local.py --reload
    ```
 
    First startup creates `backend/data/`, applies the checked-in Alembic migrations, and serves local media through `/media/...` URLs.
@@ -30,7 +30,7 @@ EduComic is an educational comic application built with React and FastAPI. Phase
    npm run dev
    ```
 
-Changing the backend bind address exposes an unauthenticated local application and is unsupported for the private release.
+The supported launcher binds to `127.0.0.1`. A wider bind is refused unless both `--host` and `--allow-unsupported-exposure` are supplied; that override is unsupported because local profile selection is not authentication.
 
 ## Tests
 

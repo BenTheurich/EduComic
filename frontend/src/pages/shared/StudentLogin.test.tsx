@@ -12,7 +12,7 @@ vi.mock("@/lib/api", () => ({
 const LocationProbe = () => <output aria-label="Current path">{useLocation().pathname}</output>;
 
 const renderLogin = () => render(
-  <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/student/login"]}>
+  <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/student/select"]}>
     <LocationProbe />
     <Routes><Route path="*" element={<StudentLogin />} /></Routes>
   </MemoryRouter>,
@@ -35,22 +35,24 @@ describe("StudentLogin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
 
     await waitFor(() => expect(getAllStudents).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText("No students found")).toBeInTheDocument();
+    expect(await screen.findByText("No student profiles found")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("uses a focusable named button for each student account", async () => {
+  it("uses truthful local-profile language and a focusable named button", async () => {
     getAllStudents.mockResolvedValue({
       students: [{ id: "student-1", name: "Ada", interests: "Robotics", avatar_url: null, created_at: "2026-01-01" }],
     });
 
     renderLogin();
 
-    const account = await screen.findByRole("button", { name: /Continue as Ada/ });
-    expect(account.tagName).toBe("BUTTON");
-    account.focus();
-    expect(account).toHaveFocus();
-    fireEvent.click(account);
+    expect(screen.getByRole("heading", { name: "Choose a Student Profile" })).toBeInTheDocument();
+    expect(screen.queryByText(/account|log in|sign in/i)).not.toBeInTheDocument();
+    const profile = await screen.findByRole("button", { name: /Continue as Ada/ });
+    expect(profile.tagName).toBe("BUTTON");
+    profile.focus();
+    expect(profile).toHaveFocus();
+    fireEvent.click(profile);
 
     expect(localStorage.getItem("studentId")).toBe("student-1");
     expect(screen.getByLabelText("Current path")).toHaveTextContent("/student/dashboard/student-1");

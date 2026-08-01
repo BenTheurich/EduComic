@@ -53,8 +53,8 @@ const Landing = () => {
               variant="outline"
               className="w-full sm:w-auto text-lg px-8 py-6"
             >
-              <Link to="/student/signup">
-                Join as Student
+              <Link to="/student/select">
+                Choose Student Profile
               </Link>
             </Button>
           </div>

@@ -98,7 +98,7 @@ const StudentProfile = () => {
                                     {avatarError && <p role="alert" className="text-sm text-destructive">{avatarError}</p>}
                                 </div>
 
-                                {/* Account Details */}
+                                {/* Local profile details */}
                                 <div className="flex-1 space-y-6">
                                     <div>
                                         <h2 className="text-2xl font-bold text-foreground mb-1">{student.name}</h2>
@@ -128,7 +128,7 @@ const StudentProfile = () => {
                                         <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
                                             <Mail className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                                             <div className="flex-1">
-                                                <p className="text-sm font-medium text-muted-foreground">Member Since</p>
+                                                <p className="text-sm font-medium text-muted-foreground">Profile Created</p>
                                                 <p className="text-foreground">
                                                     {new Date(student.created_at).toLocaleDateString('en-US', {
                                                         year: 'numeric',

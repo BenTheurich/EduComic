@@ -11,7 +11,7 @@ import { TeacherLayout } from "./components/teacher/TeacherLayout";
 
 const Landing = lazy(() => import("./pages/shared/Landing"));
 const NotFound = lazy(() => import("./pages/shared/NotFound"));
-const StudentLogin = lazy(() => import("./pages/shared/StudentLogin"));
+const StudentProfilePicker = lazy(() => import("./pages/shared/StudentLogin"));
 const StudentSignup = lazy(() => import("./pages/shared/StudentSignup"));
 const JoinClassroom = lazy(() => import("./pages/student/JoinClassroom"));
 const StudentAllStories = lazy(() => import("./pages/student/StudentAllStories"));
@@ -48,7 +48,7 @@ const App = () => (
             <Route path="/teacher/story/:id" element={<TeacherLayout><StoryViewer /></TeacherLayout>} />
 
             <Route path="/student/signup" element={<StudentSignup />} />
-            <Route path="/student/login" element={<StudentLogin />} />
+            <Route path="/student/select" element={<StudentProfilePicker />} />
             <Route path="/student/join" element={<JoinClassroom />} />
             <Route path="/student/join/:classroomCode" element={<JoinClassroom />} />
             <Route path="/student/dashboard/:studentId" element={<StudentLayout><StudentDashboard /></StudentLayout>} />

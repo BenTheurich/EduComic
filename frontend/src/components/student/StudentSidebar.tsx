@@ -163,10 +163,10 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
               </motion.span>
             </Link>
 
-            {/* Logout */}
+            {/* Return to local role selection */}
             <Link
               to="/"
-              aria-label="Logout"
+              aria-label="Exit Student View"
               className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
             >
               <LogOut className="text-foreground h-5 w-5 flex-shrink-0" />
@@ -177,7 +177,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                 }}
                 className="text-foreground text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
               >
-                Logout
+                Exit Student View
               </motion.span>
             </Link>
           </div>

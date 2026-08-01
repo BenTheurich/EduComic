@@ -28,7 +28,7 @@ export function TeacherSidebar({ open, setOpen }: TeacherSidebarProps) {
       icon: <LayoutDashboard className="text-foreground h-5 w-5 flex-shrink-0" />,
     },
     {
-      label: "Logout",
+      label: "Exit Teacher View",
       href: "/",
       icon: <LogOut className="text-foreground h-5 w-5 flex-shrink-0" />,
     },

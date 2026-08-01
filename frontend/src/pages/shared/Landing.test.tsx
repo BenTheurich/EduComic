@@ -12,6 +12,6 @@ describe("Landing", () => {
     );
 
     expect(screen.getByRole("link", { name: "Get Started as Teacher" })).toHaveAttribute("href", "/teacher/dashboard");
-    expect(screen.getByRole("link", { name: "Join as Student" })).toHaveAttribute("href", "/student/signup");
+    expect(screen.getByRole("link", { name: "Choose Student Profile" })).toHaveAttribute("href", "/student/select");
   });
 });

@@ -6,7 +6,7 @@ import type { Student } from "@/types/student";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || (
   import.meta.env.DEV || import.meta.env.MODE === 'test'
-    ? 'http://localhost:8000'
+    ? 'http://127.0.0.1:8000'
     : (() => { throw new Error('VITE_API_URL must be set for production builds.'); })()
 );
 
@@ -51,7 +51,7 @@ export async function apiFetch<T>(
  */
 export const api = {
   // Health check
-  health: () => apiFetch<{ status: string; supabase_configured: boolean }>('/health'),
+  health: () => apiFetch<{ status: string }>('/health'),
 
   // Classrooms
   classrooms: {
@@ -206,7 +206,7 @@ export const api = {
         }>;
       }>('/students'),
 
-    create: (name: string, interests: string) =>
+    create: (name: string, interests: string, classroomId?: string, studentId?: string) =>
       apiFetch<{
         success: boolean;
         student: {
@@ -218,7 +218,7 @@ export const api = {
         };
       }>('/students/create', {
         method: 'POST',
-        body: JSON.stringify({ name, interests }),
+        body: JSON.stringify({ name, interests, classroom_id: classroomId, student_id: studentId }),
       }),
 
     joinClassroom: (studentId: string, classroomId: string) =>

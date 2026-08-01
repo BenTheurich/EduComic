@@ -15,6 +15,7 @@ const StudentSignup = () => {
   const [lastName, setLastName] = useState("");
   const [interests, setInterests] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requestStudentId] = useState(() => crypto.randomUUID());
   const [pendingClassroom, setPendingClassroom] = useState<{id: string, name: string} | null>(null);
 
   useEffect(() => {
@@ -37,24 +38,20 @@ const StudentSignup = () => {
 
     try {
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
-      toast.info("👤 Creating your account...");
+      toast.info("Creating your local profile...");
       
       const response = await api.students.create(
         fullName,
         interests.trim(),
+        pendingClassroom?.id,
+        requestStudentId,
       );
       
       const studentId = response.student.id;
 
-      // Enroll before avatar generation so the classroom design style is available.
       if (pendingClassroom) {
-        toast.info(`🏫 Joining ${pendingClassroom.name}...`);
-        await api.students.joinClassroom(studentId, pendingClassroom.id);
-        
-        // Clear session storage
         sessionStorage.removeItem('pendingClassroomId');
         sessionStorage.removeItem('pendingClassroomName');
-        
         toast.success(`Joined ${pendingClassroom.name}!`);
       }
 
@@ -63,19 +60,19 @@ const StudentSignup = () => {
         await api.avatar.create(studentId);
         toast.success("Avatar generated!");
       } catch {
-        toast.error("Your account is ready, but avatar generation failed. You can retry from your profile.");
+        toast.error("Your profile was saved locally, but avatar generation failed. You can retry from your profile.");
       }
 
-      toast.success("✅ Account created successfully!");
+      toast.success("Profile created locally!");
 
-      // Store student ID in localStorage for future logins
+      // Remember this local preview selection on this device.
       localStorage.setItem('studentId', studentId);
 
       // Navigate to student dashboard
       navigate(`/student/dashboard/${studentId}`);
     } catch (error) {
       // Show detailed error message
-      const errorMessage = error instanceof Error ? error.message : "Failed to create account";
+      const errorMessage = error instanceof Error ? error.message : "Failed to create profile";
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -99,7 +96,7 @@ const StudentSignup = () => {
             <div className="text-center">
               <div className="text-6xl mb-4">✨</div>
               <h1 className="text-3xl font-bold text-foreground mb-2">
-                Create Your Account
+                Create a Student Profile
               </h1>
               {pendingClassroom ? (
                 <p className="text-muted-foreground">
@@ -172,10 +169,10 @@ const StudentSignup = () => {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating Account...
+                    Creating Profile...
                   </>
                 ) : (
-                  `Create Account${pendingClassroom ? ` & Join ${pendingClassroom.name}` : ''}`
+                  `Create Profile${pendingClassroom ? ` & Join ${pendingClassroom.name}` : ''}`
                 )}
               </Button>
 
@@ -188,10 +185,10 @@ const StudentSignup = () => {
 
             <div className="pt-4 border-t border-border/30 text-center">
               <p className="text-sm text-muted-foreground mb-3">
-                Already have an account?
+                Already created a local profile?
               </p>
-              <Button onClick={() => navigate("/student/login")} variant="outline" size="sm">
-                Sign In
+              <Button onClick={() => navigate("/student/select")} variant="outline" size="sm">
+                Choose Profile
               </Button>
             </div>
           </CardContent>

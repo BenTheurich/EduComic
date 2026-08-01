@@ -15,7 +15,7 @@ interface Student {
     created_at: string;
 }
 
-const StudentLogin = () => {
+const StudentProfilePicker = () => {
     const navigate = useNavigate();
     const [students, setStudents] = useState<Student[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +40,7 @@ const StudentLogin = () => {
     };
 
     const handleStudentClick = (studentId: string) => {
-        // Store student ID in localStorage for session persistence
+        // Remember the selected local preview profile on this device.
         localStorage.setItem('studentId', studentId);
         navigate(`/student/dashboard/${studentId}`);
     };
@@ -61,9 +61,9 @@ const StudentLogin = () => {
                     <CardContent className="pt-8 pb-8 space-y-6">
                         <div className="text-center">
                             <div className="text-6xl mb-4">🎓</div>
-                            <h1 className="text-3xl font-bold text-foreground mb-2">Welcome Back!</h1>
+                            <h1 className="text-3xl font-bold text-foreground mb-2">Choose a Student Profile</h1>
                             <p className="text-muted-foreground">
-                                Select your account to continue
+                                This selects a local preview only. It does not authenticate anyone.
                             </p>
                         </div>
 
@@ -80,9 +80,9 @@ const StudentLogin = () => {
                                 </div>
                             ) : students.length === 0 ? (
                                 <div className="text-center py-12">
-                                    <p className="text-muted-foreground mb-4">No students found</p>
+                                    <p className="text-muted-foreground mb-4">No student profiles found</p>
                                     <p className="text-sm text-muted-foreground">
-                                        Create a new account to get started
+                                        Create a local profile to get started
                                     </p>
                                 </div>
                             ) : (
@@ -126,7 +126,7 @@ const StudentLogin = () => {
                                 New to the platform?
                             </p>
                             <Button onClick={() => navigate("/student/signup")} variant="outline" size="sm">
-                                Create Account
+                                Create Student Profile
                             </Button>
                         </div>
                     </CardContent>
@@ -136,4 +136,4 @@ const StudentLogin = () => {
     );
 };
 
-export default StudentLogin;
+export default StudentProfilePicker;

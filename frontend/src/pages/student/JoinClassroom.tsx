@@ -94,11 +94,11 @@ const JoinClassroom = () => {
     const handleJoin = () => {
         if (!agreedToTerms) return;
 
-        // Check if student is already logged in (has student ID in localStorage)
+        // Reuse the locally selected preview profile when present.
         const studentId = localStorage.getItem('studentId');
         
         if (studentId) {
-            // Student already has account, join classroom directly
+            // A local profile is already selected, so join directly.
             joinClassroomDirectly(studentId);
         } else {
             // Store classroom ID in session storage and navigate to signup

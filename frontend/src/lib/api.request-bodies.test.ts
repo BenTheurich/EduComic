@@ -51,7 +51,7 @@ describe("active POST request bodies", () => {
     await send();
 
     expect(fetchMock).toHaveBeenCalledWith(
-      `http://localhost:8000${path}`,
+      `http://127.0.0.1:8000${path}`,
       expect.objectContaining({ method: "POST", body: JSON.stringify(body) }),
     );
   });

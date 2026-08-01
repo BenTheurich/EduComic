@@ -30,8 +30,8 @@ uv sync --locked
 cd src
 
 echo -e "${GREEN}✓ Backend dependencies installed${NC}"
-echo -e "${BLUE}🔧 Starting backend server on http://localhost:8000${NC}"
-uv run uvicorn main:app --reload > ../../backend.log 2>&1 &
+echo -e "${BLUE}🔧 Starting backend server on http://127.0.0.1:8000${NC}"
+uv run python run_local.py --reload > ../../backend.log 2>&1 &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start
@@ -68,9 +68,9 @@ echo ""
 echo "============================================"
 echo -e "${GREEN}✅ Both servers are running!${NC}"
 echo "============================================"
-echo -e "${BLUE}Backend:${NC}  http://localhost:8000"
-echo -e "${BLUE}API Docs:${NC} http://localhost:8000/docs"
-echo -e "${BLUE}Frontend:${NC} http://localhost:5173"
+echo -e "${BLUE}Backend:${NC}  http://127.0.0.1:8000"
+echo -e "${BLUE}API Docs:${NC} http://127.0.0.1:8000/docs"
+echo -e "${BLUE}Frontend:${NC} http://127.0.0.1:8080"
 echo ""
 echo -e "${BLUE}Logs:${NC}"
 echo "  Backend:  tail -f backend.log"
