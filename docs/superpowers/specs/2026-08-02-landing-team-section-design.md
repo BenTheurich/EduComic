@@ -20,9 +20,9 @@ This order alternates the portraits' visual characteristics and places Anastasia
 
 ## Portrait treatment
 
-- Generate one age-appropriate illustrated avatar from each supplied photo.
-- Generate each portrait independently, using the same prompt, shoulder-up crop, expression, lighting, line treatment, and pale blue background.
-- Match the friendly comic style of the student avatar bubbles without making the adults look like children.
+- Generate one school-age illustrated avatar from each supplied adult photo, imagining each teammate at approximately 10 to 12 years old.
+- Generate each portrait independently, using the same prompt, shoulder-up crop, expression, lighting, line treatment, pale blue background, and existing student-avatar style reference.
+- Preserve recognizable features from each teammate while matching the friendly cartoon proportions and finish of the student avatar bubbles.
 - Present every avatar in an equal circular frame with a white rim and restrained shadow.
 - Do not add cards, biographies, roles, badges, or decorative props.
 - Do not place the original photographs in the public application assets.

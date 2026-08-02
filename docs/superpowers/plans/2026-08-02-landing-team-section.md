@@ -12,7 +12,7 @@
 
 - Preserve the existing hero, scrolling process section, copy, sticky behavior, and product imagery.
 - Add no dependency and no content-management abstraction.
-- Generate each adult avatar independently from one supplied photo with consistent shoulder-up framing and a pale blue background.
+- Generate each school-age avatar independently from one supplied adult photo with consistent shoulder-up framing, a pale blue background, and the existing student-avatar artwork as a style-only reference.
 - Use no provider logos and do not imply sponsorship, partnership, or endorsement.
 - All five teammates receive equal visual weight.
 - The entrance animation applies to the group together and is disabled for reduced motion.
@@ -37,7 +37,7 @@
 Use one image-edit request per source photo with this shared direction:
 
 ```text
-Create a square, shoulder-up adult avatar portrait of the person in the reference photo. Preserve their recognizable facial structure, hairstyle, skin tone, eye color, and distinguishing features. Use the friendly polished comic illustration style of EduComic: clean dark linework, softly painted color, expressive but natural eyes, warm approachable expression, and subtle dimensional shading. Keep the subject age-appropriate and recognizably adult. Center the face and shoulders precisely left-to-right with even breathing room around the hair. Use a plain pale blue-gray circular-avatar background with no text, props, logos, scenery, border, or frame. Keep the composition consistent with the other team portraits.
+Create a square, shoulder-up cartoon avatar imagining the adult identity reference as a child approximately 10 to 12 years old. Preserve recognizable facial structure, hairstyle, skin tone, eye color, glasses when present, and distinguishing features while translating them into natural school-age proportions. Match only the rendering style of the supplied EduComic student-avatar reference: clean dark linework, softly painted color, large expressive eyes, a warm approachable expression, and subtle dimensional shading. Do not copy the style-reference child's identity. Center the face and shoulders precisely left-to-right with even breathing room around the hair. Use a plain pale blue-gray circular-avatar background with no text, props, logos, scenery, border, or frame. Keep the composition consistent with the other team portraits.
 ```
 
 Run it once for each exact source:
@@ -52,7 +52,7 @@ C:/Users/benth/Downloads/BenTheurich.jpg
 
 - [ ] **Step 2: Inspect the five assets as one set**
 
-Confirm that every output is square, centered horizontally, recognizably adult, free of text or logos, and consistent in crop and background. Make at most one corrective edit for any portrait that fails those checks; do not regenerate acceptable portraits.
+Confirm that every output is square, centered horizontally, recognizably based on its teammate, visibly school-age, free of text or logos, and consistent in crop and background. Make at most one corrective edit for any portrait that fails those checks; do not regenerate acceptable portraits.
 
 - [ ] **Step 3: Place the accepted assets at the five paths above**
 
