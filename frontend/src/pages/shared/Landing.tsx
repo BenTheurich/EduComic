@@ -81,7 +81,7 @@ const Landing = () => (
                 />
               </figure>
 
-              <figure className="absolute bottom-0 left-0 z-[60] w-[31%] rotate-6 border-[7px] border-card bg-card shadow-[0_22px_38px_-18px_hsl(222_47%_11%/0.82)] sm:border-[9px] lg:bottom-[1.5%] lg:left-[39.5%] lg:w-[15%] lg:max-w-[215px] lg:-rotate-[7deg]">
+              <figure className="absolute bottom-0 left-0 z-[60] w-[31%] rotate-6 border-[7px] border-card bg-card shadow-[0_22px_38px_-18px_hsl(222_47%_11%/0.82)] sm:border-[9px] lg:bottom-[1.5%] lg:left-[39.5%] lg:w-[15%] lg:max-w-[215px] lg:rotate-[5deg]">
                 <img
                   src="/demo/maya-fictional-portrait.png"
                   alt="Fictional portrait of Maya Rivers"
@@ -104,16 +104,16 @@ const Landing = () => (
                 aria-hidden="true"
               >
                 <path
-                  d="M8 12C17 57 43 73 82 71C102 70 117 61 129 49"
+                  d="M8 12C17 55 42 72 80 71C102 70 118 61 130 49"
                   stroke="currentColor"
-                  strokeWidth="5.5"
+                  strokeWidth="5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
-                  d="M112 46C119 47 125 48 133 48C128 54 124 59 121 65"
+                  d="M115 43L133 48L122 64"
                   stroke="currentColor"
-                  strokeWidth="5.5"
+                  strokeWidth="5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
