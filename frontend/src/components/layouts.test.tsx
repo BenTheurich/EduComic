@@ -5,6 +5,23 @@ import { StudentLayout } from "./student/StudentLayout";
 import { TeacherLayout } from "./teacher/TeacherLayout";
 
 describe("responsive app layouts", () => {
+  it("centers teacher navigation targets while the sidebar is collapsed", () => {
+    render(
+      <MemoryRouter initialEntries={["/teacher/settings"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <TeacherLayout>Teacher content</TeacherLayout>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByRole("link", { name: "Settings" })[0]).toHaveClass(
+      "relative",
+      "left-1/2",
+      "w-11",
+      "-translate-x-1/2",
+      "justify-center",
+      "px-0",
+    );
+  });
+
   it("labels the local teacher exit without implying authentication", () => {
     render(
       <MemoryRouter initialEntries={["/teacher/settings"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

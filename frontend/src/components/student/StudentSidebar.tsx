@@ -21,6 +21,9 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
   const [classroomsExpanded, setClassroomsExpanded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const navigationAlignment = open
+    ? "w-full justify-start gap-2 px-2"
+    : "relative left-1/2 w-11 -translate-x-1/2 justify-center px-0";
 
   useEffect(() => {
     const loadClassrooms = async () => {
@@ -51,7 +54,8 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
               aria-label="Dashboard"
               aria-current={location.pathname === `/student/dashboard/${studentId}` ? "page" : undefined}
               className={cn(
-                "flex min-h-11 items-center justify-start gap-2 py-2 px-2 rounded-md hover:bg-accent transition-colors",
+                "flex min-h-11 items-center rounded-md py-2 hover:bg-accent transition-colors",
+                navigationAlignment,
                 location.pathname === `/student/dashboard/${studentId}` && "bg-accent font-medium",
               )}
             >
@@ -74,7 +78,10 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                 aria-label="My Classrooms"
                 aria-expanded={classroomsExpanded}
                 onClick={() => setClassroomsExpanded(!classroomsExpanded)}
-                className="flex min-h-11 w-full items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+                className={cn(
+                  "flex min-h-11 w-full items-center rounded-md py-2 hover:bg-accent transition-colors",
+                  navigationAlignment,
+                )}
               >
                 <Users className="text-foreground h-5 w-5 flex-shrink-0" />
                 <motion.span
@@ -143,7 +150,8 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
               aria-label="All Stories"
               aria-current={location.pathname === `/student/stories/${studentId}` ? "page" : undefined}
               className={cn(
-                "flex min-h-11 items-center justify-start gap-2 py-2 px-2 rounded-md hover:bg-accent transition-colors",
+                "flex min-h-11 items-center rounded-md py-2 hover:bg-accent transition-colors",
+                navigationAlignment,
                 location.pathname === `/student/stories/${studentId}` && "bg-accent font-medium",
               )}
             >
@@ -165,7 +173,8 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
               aria-label="Profile"
               aria-current={location.pathname === `/student/profile/${studentId}` ? "page" : undefined}
               className={cn(
-                "flex min-h-11 items-center justify-start gap-2 py-2 px-2 rounded-md hover:bg-accent transition-colors",
+                "flex min-h-11 items-center rounded-md py-2 hover:bg-accent transition-colors",
+                navigationAlignment,
                 location.pathname === `/student/profile/${studentId}` && "bg-accent font-medium",
               )}
             >
@@ -185,7 +194,10 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             <Link
               to="/"
               aria-label="Exit Student View"
-              className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+              className={cn(
+                "flex min-h-11 items-center rounded-md py-2 hover:bg-accent transition-colors",
+                navigationAlignment,
+              )}
             >
               <LogOut className="text-foreground h-5 w-5 flex-shrink-0" />
               <motion.span

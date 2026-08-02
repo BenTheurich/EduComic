@@ -19,6 +19,23 @@ describe("StudentSidebar", () => {
     vi.unstubAllGlobals();
   });
 
+  it("centers student navigation targets while the sidebar is collapsed", () => {
+    render(
+      <MemoryRouter initialEntries={["/student/dashboard/student-1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <StudentSidebar studentId="student-1" open={false} setOpen={() => undefined} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByRole("link", { name: "Dashboard" })[0]).toHaveClass(
+      "relative",
+      "left-1/2",
+      "w-11",
+      "-translate-x-1/2",
+      "justify-center",
+      "px-0",
+    );
+  });
+
   it("names collapsed links and exposes classroom disclosure state", () => {
     render(
       <MemoryRouter initialEntries={["/student/dashboard/student-1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

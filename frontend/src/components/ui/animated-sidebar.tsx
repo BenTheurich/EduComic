@@ -233,7 +233,10 @@ export const SidebarLink = ({
       aria-label={link.label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-11 items-center justify-start gap-2 py-2 px-2 rounded-md hover:bg-accent transition-colors",
+        "flex min-h-11 items-center rounded-md py-2 hover:bg-accent transition-colors",
+        animate && !open
+          ? "relative left-1/2 w-11 -translate-x-1/2 justify-center px-0"
+          : "w-full justify-start gap-2 px-2",
         active && "bg-accent font-medium text-foreground",
         className
       )}
