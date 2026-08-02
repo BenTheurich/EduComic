@@ -13,7 +13,9 @@ build/
 
 # Local temporary files
 /tmp/
+/tmp_test_runs/
 /output/
+/.impeccable/mocks/
 .playwright-cli/
 backend/data/
 
