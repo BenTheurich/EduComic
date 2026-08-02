@@ -290,6 +290,8 @@ OpenAI and BFL defaults are current, configurable, cost-aware, and selected usin
 - Keep Chat Completions structured parsing unless a bounded Responses trial produces a measured benefit.
 - Use current `api.bfl.ai` submission and provider-returned polling URLs.
 - Compare pinned BFL production and preview endpoints only through explicit evaluation.
+- Restore exactly three story-idea previews through server-owned BFL jobs with bounded concurrency, validated local storage, local media URLs, and per-preview retry that preserves valid text ideas.
+- Replace the fixed short BFL abandonment window with bounded, observable status handling; do not repeat paid requests automatically without an explicit cap.
 - Set child-appropriate safety defaults and keep automatic panel review disabled unless its measured quality gain justifies its cost.
 - Retain synthetic cached artifacts and a human visual rubric for prompt/model changes.
 
@@ -305,7 +307,7 @@ OpenAI and BFL defaults are current, configurable, cost-aware, and selected usin
 - Model selections have recorded fictional evaluation results.
 - Structured-contract failure rates and cost/latency observations are documented.
 - Provider errors remain sanitized and correlated.
-- BFL results are durable before ready state.
+- Story-idea previews and final panel results are durable local media before ready state, and no caller-controlled URL reaches a backend fetch.
 - A future model change can rerun the same fixture corpus for comparison.
 
 ## Phase 8: Add selective panel regeneration and accept the private app
@@ -323,6 +325,7 @@ The complete local application passes its product acceptance gate, including saf
 - Verify PDF export after selective regeneration.
 - Run a clean-checkout local setup and all teacher/student workflows using fictional data.
 - Verify backup, reset, restart persistence, provider readiness, failure recovery, and local data deletion.
+- Verify all three idea previews survive restart, selected idea metadata remains canonical across story cards, and preview files follow chapter/reset cleanup.
 - Record any remaining issue as a release blocker or a later hosted concern.
 
 ### Acceptance gate
@@ -331,6 +334,7 @@ The complete local application passes its product acceptance gate, including saf
 - Failed correction keeps the old panel and story readable.
 - Clean setup requires no Supabase account, Docker, hosted database, or object-storage configuration.
 - SQLite, materials, photos, avatars, stories, settings, and local files survive restart and delete correctly.
+- Exactly three successful idea previews return as local media URLs; idea summaries are complete and the selected summary/preview become the story description/thumbnail.
 - PDF export produces a complete file and fails closed when a required image is unavailable.
 - The private application is accepted before visual redesign or demo implementation begins.
 
@@ -342,25 +346,30 @@ Both role journeys have a documented product context, measured UX and technical 
 
 ### Work
 
-- Create `PRODUCT.md` with audience, teacher/student goals, product vocabulary, tone, privacy constraints, and success criteria.
-- Document the incumbent visual system before choosing refinement or redesign.
+- Use `PRODUCT.md`, `DESIGN.md`, `.impeccable/design.json`, and the Authored Comic Workshop specification as the shared product and visual context.
+- Apply the founder-selected **Authored Comic Workshop** direction as a restrained refinement; preserve routes, role workflows, palette family, shared controls, and verified accessibility behavior.
 - Run an independent UX critique and implementation assessment across every primary teacher and student flow.
 - Score usability heuristics, cognitive load, error prevention/recovery, user control, terminology, product specificity, and high-stakes moments.
 - Run the technical audit for accessibility, keyboard completion, contrast, reduced motion, responsive layouts, zoom/long content, loading/error/empty states, performance, theming, and implementation integrity.
 - Preserve the cleanup's verified accessibility and responsive improvements.
+- Show three server-owned local story-idea previews, complete unclamped summaries, and accessible per-preview loading/failure/retry states.
+- Use the selected idea title, summary, and preview as canonical story-card content; keep the teacher lesson prompt as labelled secondary provenance.
+- Keep the current generation loading composition and reveal validated local temporary panel previews progressively without weakening atomic final publication.
+- Fix EduComic naming, mobile reader fit-to-width, meaningful comic text alternatives, landmarks/accessibility names, useful reduced-motion status, and repeated copy/metadata defects.
 - Fix blocking and major findings, plus repeated minor defects in shared components.
 - Inspect desktop and mobile in one batch, make one grouped correction pass, and run one confirmation batch.
 - Document the final shared tokens, components, interaction patterns, status language, and responsive rules.
 
 ### Implementation discretion
 
-The audit determines whether the incumbent interface needs refinement or a broader redesign. The implementing agents may make visual and interaction decisions within the approved product context, but factual product behavior and privacy disclosures remain fixed.
+The refinement direction is fixed; implementing agents retain code-level discretion within `DESIGN.md` and the approved specification. They should not replace the information architecture, introduce a new component framework, or expand the phase beyond named audit findings and shared repeated patterns.
 
 ### Acceptance gate
 
 - The audit report includes evidence, severity, positive findings, and prioritized remediation.
 - Teacher and student primary flows complete with keyboard and representative mobile layouts.
 - Blocking and major audit findings are fixed and confirmed.
+- Story idea comparison, canonical story metadata, local thumbnails, and progressive generation previews satisfy the approved content/status contracts.
 - Error, loading, empty, destructive, and simulated states use consistent language and components.
 - The public demo can reuse the same components without a parallel theme or page implementation.
 

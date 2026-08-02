@@ -23,6 +23,7 @@ The public fictional demo comes later. It will reuse the private application's s
 10. The fictional demo uses the polished private application as its visual and interaction source.
 11. Story generation defaults to exactly 12 panels and offers an explicit exactly-20-panel `Full comic` option.
 12. Full student erasure is distinct from classroom removal. It deletes the student's profile, classroom memberships, source photo, avatar, and other student-owned local files. Already completed stories remain unchanged as historical artifacts, including their character depictions and panel media.
+13. The UI/UX direction is **Authored Comic Workshop**. Exactly three server-owned BFL idea previews are stored locally; the selected idea title, complete summary, and preview become the story's canonical title, description, and card thumbnail.
 
 ## Scope
 
@@ -34,6 +35,7 @@ The local application includes these real workflows:
 - create and regenerate an existing avatar;
 - upload, extract, select, and delete lesson PDFs;
 - generate story options with OpenAI;
+- generate three server-owned local story-idea previews with Black Forest Labs;
 - choose an option and generate comic panels with OpenAI and Black Forest Labs;
 - monitor truthful generation states;
 - read stories in teacher and student views;
@@ -129,7 +131,7 @@ The local schema contains:
 - `student_classrooms`: many-to-many classroom enrollment;
 - `materials`: source filename, local object path, extraction state, content hash, page-aware extracted text, and timestamps;
 - `chapter_materials`: the exact materials selected for a chapter;
-- `chapters`: prompt, chosen idea, title, status, revision, and timestamps;
+- `chapters`: prompt, three ideas and their preview state/local media ownership, chosen idea, status, revision, and timestamps;
 - `panels`: chapter revision, panel number, dialogue, description, speakers, and local image path;
 - `generation_runs`: idempotency key, chapter, target revision, job state, error reference, and timestamps;
 - `settings`: generation defaults, retention choices, model selections, and non-secret application preferences.
@@ -143,6 +145,8 @@ Provider keys are not stored in any table.
 - Classroom and student edits use one transaction.
 - Enrollment changes use a unique `(student_id, classroom_id)` constraint.
 - Story replacement keeps the current revision until every new panel and image is valid.
+- Story-idea previews are generated only from stored server-owned context, are persisted locally before publication, and are cleaned with their chapter or a full reset.
+- The selected idea is the single source for derived story title, description, and thumbnail fields. Clients do not independently select fallback content.
 - The panel-row swap is one database transaction.
 - A failed replacement leaves the previous revision readable.
 - File deletion occurs through recorded local object paths. Failed cleanup remains retryable and does not produce a false success message.
@@ -247,7 +251,13 @@ Tests and prompt evaluation use synthetic portraits only.
 
 Story and panel generation use strict provider-output contracts. Invalid OpenAI output cannot create a generation run, delete panels, or call BFL.
 
+After exactly three valid story ideas are stored, the server may start their three independent BFL preview jobs with bounded concurrency. The server constructs every prompt, uses only BFL-returned polling URLs, validates and saves successful images locally, and exposes local media URLs. The browser never supplies a polling or image URL. A preview failure preserves the text idea and can retry only that preview.
+
+Idea choices show their complete summaries. Once selected, the idea title, summary, and local preview become the chapter's derived story title, canonical story description, and story-card thumbnail. The original lesson prompt remains labelled teacher provenance and never substitutes for the story description.
+
 A generation run has one idempotency key and target chapter revision. Images first enter staging. The application validates every panel and moves every image to final local storage before swapping the chapter revision in one database transaction.
+
+Validated temporary panel images may be exposed through a read-only generation-preview response so the existing loading screen can reveal real progress. Temporary previews do not make a chapter readable or ready, and are removed on failure. Final publication remains atomic.
 
 If the process stops during generation, startup marks the unfinished run failed or resumes only a step that is safe to repeat. It never deletes the previous readable revision.
 
@@ -297,6 +307,8 @@ The private application is functionally complete before UI redesign or demo work
 - setup needs only the documented OpenAI and BFL keys beyond normal language/package tooling;
 - teacher and student local-mode workflows work after restart;
 - generated files survive provider delivery URL expiry;
+- all three successful story-idea previews survive restart as local media, and no caller-controlled URL is fetched;
+- story cards consistently use the selected idea title, complete summary, and preview while the lesson prompt remains secondary teacher detail;
 - failed generation preserves the previous story;
 - editing and deletion change both SQLite and local files correctly;
 - materials demonstrably influence a story generated from fictional fixtures;
@@ -308,11 +320,11 @@ The private application is functionally complete before UI redesign or demo work
 
 ## UI/UX audit and remediation gate
 
-UI/UX work starts after private application acceptance so the audit observes complete, truthful workflows rather than placeholders.
+UI/UX evidence may be gathered earlier, but visual remediation and system freeze begin only after discovered private-application blockers are resolved or explicitly gated. This keeps the implementation grounded in complete, truthful workflows rather than placeholders.
 
 ### Product context
 
-Create `PRODUCT.md` with the approved audience, teacher and student goals, tone, privacy constraints, and product vocabulary. Document the incumbent visual system before deciding whether to refine or replace it.
+Use `PRODUCT.md`, `DESIGN.md`, and `.impeccable/design.json` as the durable context. The approved direction is **Authored Comic Workshop**, a restrained refinement that preserves the recognizable route structure, palette family, existing controls, and verified accessibility improvements.
 
 ### UX critique
 
@@ -345,6 +357,8 @@ Measure and verify:
 ### Remediation and visual-system freeze
 
 Fix all blocking and major findings before demo work. Fix minor issues that affect a repeated component or primary workflow. Run one desktop/mobile inspection batch, apply one grouped fix pass, and run one confirmation batch.
+
+The remediation includes complete story-idea summaries, three truthful local preview states, selected-idea canonical story metadata, progressive temporary panel previews, EduComic naming, mobile reader fit-to-width, meaningful comic text alternatives, accessible landmarks/names, useful reduced-motion status, and removal of repeated generic template signals.
 
 After the fixes, document the shared visual tokens, components, interaction patterns, status language, and responsive rules. The fictional demo must import and reuse these components. It must not maintain a parallel visual implementation.
 

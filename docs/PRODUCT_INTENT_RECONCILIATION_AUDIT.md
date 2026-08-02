@@ -103,7 +103,8 @@ The ledger groups all material effects of the 43 cleanup commits; documentation-
 | Production API URL (`56462b2`, `8fb0d4f`) | Production silently fell back to localhost; callers constructed URLs separately. | Centralized URL resolution and failed builds without production URL. | Avoid misconfigured deployments. | **Keep**. | Separate private and school backend URLs. | Demo build points to read-only fixture service or contains local fixtures. | Client configuration is not an authorization boundary. |
 | PDF export (`c6fc9e8`, `626ad1b`) | Duplicated callers could save blank/partial PDFs after failed image fetch/embed. | One fail-closed exporter with timeouts, full image validation/decode, aspect preservation, and success only after save. | Reliability, integrity, advisory remediation. | **Keep**. | Private app exports through local media routes. Hosted mode later uses authorized signed assets. | Export bundled same-origin fictional panels; this is real client work, not simulation. | Every required image must remain available through the export; no silent partial output. |
 | Request validation, safe errors/logs, and CORS (`da122f5`, `8a9b294`, `59a9776`) | Scalar query mutations, weak bounds, raw exception/provider data, wildcard credentialed CORS, sensitive logging. | Bounded JSON/Pydantic models, UUID/style checks, origin allowlist, error references, redacted logs/review output. | Trust-boundary hardening. | **Keep**. | Extend to every recovered upload/edit/delete endpoint. | Server rejects disabled routes regardless of UI. | CORS is not authentication; file contents and model outputs remain untrusted. |
-| Story-option thumbnails and arbitrary URL fetch (`8ec8452`, `b9642c2`) | Optional BFL thumbnails worked, but used legacy provider configuration and sent a caller-controlled URL to a backend fetch that could reach private networks. | Deleted thumbnail generation, fetch, second key name, and request field. | Remove SSRF, excess paid calls, and duplicate provider path. | Old fetch/implementation **Keep deleted**; thumbnail capability **Founder decision required**. | Defer by default. If retained, create previews server-side from an owned provider job/result, or reuse a final panel/cover. | Use bundled covers only. | Never restore caller-supplied server fetch; this optional feature adds provider cost and story-choice latency. |
+| Story-option thumbnails and arbitrary URL fetch (`8ec8452`, `b9642c2`) | Optional BFL thumbnails worked, but used legacy provider configuration and sent a caller-controlled URL to a backend fetch that could reach private networks. | Deleted thumbnail generation, fetch, second key name, and request field. | Remove SSRF, excess paid calls, and duplicate provider path. | Old fetch/implementation **Keep deleted**; three-preview capability **Restore and implement** + **Full-app only**; **Demo implementation**. | Generate one preview for each of the exactly three stored ideas through server-owned BFL jobs, save validated images locally, and return only local media URLs. Keep text ideas usable during per-preview pending/failure states. | Bundle three fictional idea previews; no provider call or public upload. | Never restore caller-supplied URL fetching or persist provider delivery URLs. Bound concurrency, cost, polling, retry, local cleanup, and partial failure. |
+| Story idea and story-card content hierarchy | Idea cards showed summaries but clamped them. Story cards often displayed the teacher lesson prompt because no canonical selected-idea description or durable thumbnail was available. | Cleanup retained text-only choices and left `thumbnail_url` empty while preserving prompt fallbacks. | The cleanup focused on unsafe media boundaries, not the final content hierarchy. | **Restore and implement** + **Keep** the safe boundary. | Show complete idea summaries. Derive the story title, description, and thumbnail from the selected idea; expose the teacher prompt only as labelled secondary provenance. | Use the same canonical fixture fields and bundled images. | Legacy chapters need safe derived fields. Do not let clients independently infer different titles/descriptions or substitute the prompt when the summary is absent. |
 | Parallel story APIs/helpers (`635317b`, `6f20437`) | One endpoint returned success while saying unimplemented; two generation paths duplicated the active chapter path; relationship helpers were duplicated. | Kept one start→choose→commit→read chain and rejected stale routes under all methods. | One truthful implementation. | **Keep deleted**. | Extend the canonical chapter API only. | Demo mirrors canonical response shapes with fixtures. | Avoid compatibility routes until an actual external consumer exists. |
 | Materials CRUD removal (`350392c`, `91ab256`) | Upload/list/delete UI and Supabase CRUD/storage could operate if remotely provisioned, but no extraction or generation service read the material. Caller MIME was trusted. | Removed all material UI/routes/helpers/storage claims. | The feature misrepresented grounding and enlarged an unsafe surface. | Old CRUD **Keep deleted**; capability **Restore and implement** + **Full-app only**; **Demo implementation**. | Verified local PDF upload, extraction, selected sources, prompt grounding/provenance, retention, and file deletion. | Bundled fictional PDF(s), visible extracted snippets, deterministic grounded output; no public upload. | Local path safety, parser limits, prompt-injection treatment, extraction failure UX, and migrations. Hosted auth/storage comes later. |
 | Dead frontend modules/dependencies (`4a53b1f`) | Large scaffold contained 38 unreachable modules and 28 unused dependencies. | Removed them, kept all active routes, lazy-loaded pages; main bundle fell to about 403.87 kB. | Reduce unowned code and attack/update surface. | **Keep deleted**. | Re-add a primitive only when a recovered feature uses it. | Same. | Do not restore whole UI scaffold to build forms; use native/existing components first. |
@@ -265,9 +266,11 @@ Exit criterion: synthetic fixture tests cover upload validation, consent require
 2. Evaluate current OpenAI Sol versus Terra on a checked-in fictional corpus for schema conformance, educational grounding, age-appropriate language, cast distribution, prompt-injection resistance, latency, and recorded token/cost estimates. Keep tests offline by default and require an explicit cost acknowledgement for live fixture runs.
 3. Keep `chat.completions.parse` if it wins on simplicity/reliability; trial Responses on one flow with `store: false` where appropriate rather than performing a broad API churn.
 4. Use BFL `flux-2-pro` as the pinned baseline, compare preview models only in explicit evaluation, use structured multi-reference prompts, and set a reviewed child-appropriate safety tolerance.
-5. Retain cached fictional evaluation artifacts and human visual rubrics; never use real student data in prompt/image evaluation.
+5. Restore exactly three story-idea preview images through server-owned BFL jobs. Use bounded concurrency, returned provider polling URLs, validated local storage, and local media URLs only; preserve valid text ideas when one preview fails.
+6. Replace the fixed short BFL abandonment window with bounded, observable provider handling that distinguishes pending, timeout, provider failure, download, validation, and local-finalization failures without automatic unbounded paid retries.
+7. Retain cached fictional evaluation artifacts and human visual rubrics; never use real student data in prompt/image evaluation.
 
-Exit criterion: model/default choices are backed by recorded fictional eval results, not “latest” branding; provider delivery URLs never reach persisted ready records; prompt/model changes require eval comparison.
+Exit criterion: model/default choices are backed by recorded fictional eval results, not “latest” branding; all three successful idea previews and final panels are durable local media; provider delivery URLs never reach persisted ready records; prompt/model changes require eval comparison.
 
 Non-blocking carry-forward ledger from the Phase 4 review:
 
@@ -297,14 +300,24 @@ Exit criterion: the local application is functionally complete, persistent, trut
 
 ### Phase 11: Run the UI/UX audit and remediation gate
 
-1. Create `PRODUCT.md` with the approved audience, teacher/student goals, product vocabulary, tone, and privacy constraints. Document the incumbent visual system before choosing refinement or redesign.
+1. Use `PRODUCT.md`, root `DESIGN.md`, and `.impeccable/design.json` as the durable product and visual context. The founder-selected direction is **Authored Comic Workshop**, a restrained refinement rather than a route or identity replacement.
 2. Run an independent UX critique across both full role journeys. Score Nielsen heuristics, cognitive load, error recovery, user control, terminology, product specificity, and high-stakes moments such as photo sharing, generation, and deletion.
 3. Run a technical audit for accessibility, keyboard completion, contrast, reduced motion, responsive behavior, text zoom, long content, empty/error/loading states, image and route performance, theming, and implementation drift.
 4. Fix all blocking and major findings plus repeated-component minor findings. Preserve the cleanup pass's verified accessibility improvements.
-5. Inspect desktop and mobile once as a batch, apply one grouped fix pass, then run one confirmation batch.
-6. Document and freeze shared tokens, components, interaction patterns, responsive rules, and truthful status language.
+5. Show all three local idea previews and complete unclamped summaries; use the selected title, summary, and preview as the canonical story-card content while keeping the lesson prompt secondary.
+6. Keep the generation loading experience and reveal validated local temporary panel previews progressively without weakening atomic final publication.
+7. Inspect desktop and mobile once as a batch, apply one grouped fix pass, then run one confirmation batch.
+8. Document and freeze shared tokens, components, interaction patterns, responsive rules, and truthful status language.
 
 Exit criterion: teacher and student primary flows pass the approved usability and technical quality thresholds, and the shared UI system is the sole visual source for the demo.
+
+#### UI/UX audit result and selected direction (2026-08-02)
+
+The independent design assessment scored the current usability **24/40** across Nielsen's heuristics. The independent technical assessment scored **13/20** across accessibility, performance, responsive behavior, theming, and implementation integrity. The deterministic Impeccable scan reported one warning for generic Inter typography; representative desktop/mobile browser checks reported no console errors or horizontal overflow.
+
+The founder selected **Authored Comic Workshop**: preserve the recognizable application, route structure, blue palette family, and working controls while using real comic imagery, restrained editorial typography, crisp panel rules, and flatter paper-like surfaces to remove early-template signals.
+
+Blocking or repeated remediation includes BFL job reliability, server-owned idea previews, canonical selected-idea metadata, progressive temporary panel previews, mobile reader fit-to-width, meaningful comic text alternatives, EduComic naming, accessible landmarks/names, useful reduced-motion status, and repeated copy/metadata fixes. The detailed contract lives in `docs/superpowers/specs/2026-08-02-authored-comic-workshop-design.md`; `PRODUCT.md`, `DESIGN.md`, and `.impeccable/design.json` provide durable context for future design agents.
 
 ### Phase 12: Derive the public fictional demo
 
@@ -343,6 +356,9 @@ After the private app and public demo are complete, use the same SQLAlchemy sche
 - Hosted authentication, Supabase/PostgreSQL, object storage, and school operations are deferred.
 - The UI/UX audit and remediation gate occurs before the fictional demo.
 - The fictional demo reuses the audited private application's components and visual system.
+- The UI/UX direction is **Authored Comic Workshop**: preserve the recognizable application while letting real comic imagery and restrained editorial details carry the identity.
+- Exactly three server-owned BFL idea previews return as validated local media URLs. Caller-controlled URL fetching remains deleted.
+- Complete idea summaries are visible. The selected idea title, summary, and preview become the story title, canonical description, and card thumbnail; the lesson prompt is secondary teacher provenance.
 - Stories default to 12 panels with an explicit 20-panel `Full comic` option.
 - Full student erasure removes all profile/likeness inputs and affected revisions/assets while preserving chapter shells and selected ideas for regeneration.
 
@@ -364,9 +380,6 @@ Only choices that change implementation or data risk remain here.
 
 5. **Public repository history and license?**
    Recommendation: preserve this repository privately as the historical archive, publish a fresh-history sanitized source repository, and choose an explicit license before release. Do not expose the current secret-bearing ancestry or invent a license in docs.
-
-8. **Should story-option choices regain generated thumbnail previews?**  
-   Recommendation: defer them. Text choices are sufficient for the first complete app, and three extra BFL calls add cost and latency before selection. If previews return, create them from server-owned jobs/results or use a low-cost approved model. Never restore the caller-supplied URL fetch.
 
 ## 9. Risk-controlled Git recovery strategy
 
