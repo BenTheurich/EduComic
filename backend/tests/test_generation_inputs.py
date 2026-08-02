@@ -103,6 +103,28 @@ def test_polling_waits_longer_than_one_minute_for_a_queued_bfl_job(monkeypatch):
     assert polls == 81
 
 
+@pytest.mark.parametrize("status", ["Request Moderated", "Content Moderated"])
+def test_polling_stops_immediately_when_bfl_moderates_a_job(monkeypatch, status):
+    """Catches a terminal moderation response being misreported as a timeout."""
+    generation = __import__("services.generation", fromlist=["generation"])
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"status": status, "result": None, "details": {"Moderation Reasons": ["Protected Content"]}}
+
+    clock = iter([0, 0, 121])
+    monkeypatch.setattr(generation.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(generation.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(generation.requests, "get", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(generation, "_bfl_headers", lambda: {"x-key": "test"})
+
+    with pytest.raises(RuntimeError, match="moderated"):
+        generation.poll_bfl_generation("https://poll.invalid/job")
+
+
 def test_valid_png_subset_is_fully_decoded():
     generation = __import__("services.generation", fromlist=["generation"])
 

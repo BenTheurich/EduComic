@@ -111,12 +111,15 @@ def poll_bfl_generation(
         response = requests.get(polling_url, headers=_bfl_headers(), timeout=30)
         response.raise_for_status()
         payload = response.json()
-        if payload.get("status") == "Ready":
+        status = payload.get("status")
+        if status == "Ready":
             delivery_url = (payload.get("result") or {}).get("sample")
             if not delivery_url:
                 raise RuntimeError("BFL result was incomplete")
             return delivery_url
-        if payload.get("status") in {"Error", "Failed"}:
+        if status in {"Request Moderated", "Content Moderated"}:
+            raise RuntimeError("BFL generation was moderated")
+        if status in {"Error", "Failed"}:
             raise RuntimeError("BFL generation failed")
     raise TimeoutError("BFL generation timed out")
 
@@ -423,6 +426,8 @@ def run_generation(run_id: str) -> None:
         remaining = _delete_artifacts(storage, old_paths)
         database.replace_generation_artifacts(run_id, remaining)
     except Exception:
+        # TODO(educomic): persist a dedicated moderation code for stories and avatars,
+        # then offer teachers a clear revise-or-retry action instead of a generic failure.
         error_codes = {
             "script": "script_invalid",
             "submit": "bfl_submit_failed",
