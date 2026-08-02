@@ -77,6 +77,32 @@ def test_download_stops_after_limit_and_closes_stream(monkeypatch):
     assert response.closed is True
 
 
+def test_polling_waits_longer_than_one_minute_for_a_queued_bfl_job(monkeypatch):
+    """Catches a healthy slow FLUX job being abandoned before it becomes ready."""
+    generation = __import__("services.generation", fromlist=["generation"])
+    clock = iter(range(200))
+    polls = 0
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            nonlocal polls
+            polls += 1
+            if polls == 81:
+                return {"status": "Ready", "result": {"sample": "https://delivery.invalid/panel.png"}}
+            return {"status": "Pending"}
+
+    monkeypatch.setattr(generation.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(generation.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(generation.requests, "get", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(generation, "_bfl_headers", lambda: {"x-key": "test"})
+
+    assert generation.poll_bfl_generation("https://poll.invalid/job") == "https://delivery.invalid/panel.png"
+    assert polls == 81
+
+
 def test_valid_png_subset_is_fully_decoded():
     generation = __import__("services.generation", fromlist=["generation"])
 

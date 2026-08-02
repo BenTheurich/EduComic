@@ -103,7 +103,7 @@ def submit_bfl_generation(
 
 
 def poll_bfl_generation(
-    polling_url: str, *, poll_interval: float = 0.75, timeout_seconds: float = 60
+    polling_url: str, *, poll_interval: float = 0.75, timeout_seconds: float = 120
 ) -> str:
     started = time.monotonic()
     while time.monotonic() - started <= timeout_seconds:
