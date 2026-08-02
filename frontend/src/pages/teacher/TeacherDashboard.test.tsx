@@ -31,6 +31,7 @@ describe("TeacherDashboard", () => {
     expect(await screen.findByRole("heading", { name: "My Classrooms" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Create classroom" })).toHaveAttribute("href", "/teacher/classroom/new");
     expect(screen.getByRole("link", { name: "Open Physics Lab" })).toHaveAttribute("href", "/teacher/classroom/classroom-1");
+    expect(screen.getByRole("link", { name: "Open Physics Lab" })).toHaveClass("bg-primary");
     expect(screen.getAllByRole("link").every((link) => Boolean(link.getAttribute("aria-label") || link.textContent?.trim()))).toBe(true);
   });
 });

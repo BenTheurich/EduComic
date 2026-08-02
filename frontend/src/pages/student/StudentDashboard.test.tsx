@@ -89,6 +89,7 @@ describe("StudentDashboard", () => {
       "/media/story-images/ready/preview.png",
     );
     expect(screen.getByRole("link", { name: "Read Now" })).toHaveAttribute("href", "/student/story/ready/student-1");
+    expect(screen.getByRole("link", { name: "View Classroom" })).toHaveClass("bg-primary");
     expect(screen.queryByText("Still Generating")).not.toBeInTheDocument();
     expect(screen.queryByText("Failed Story")).not.toBeInTheDocument();
     expect(screen.getByText("Grade 5")).toBeInTheDocument();

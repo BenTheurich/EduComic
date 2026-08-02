@@ -115,7 +115,7 @@ const TeacherDashboard = () => {
                       </div>
                     </div>
 
-                    <Button asChild variant="outline" className="mt-auto w-full">
+                    <Button asChild className="mt-auto w-full">
                       <Link to={`/teacher/classroom/${classroom.id}`} aria-label={`Open ${classroom.name}`}>
                         Open classroom
                       </Link>
