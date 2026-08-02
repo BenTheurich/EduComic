@@ -106,14 +106,14 @@ const Landing = () => (
                 <path
                   d="M8 12C17 55 42 72 80 71C102 70 118 61 130 49"
                   stroke="currentColor"
-                  strokeWidth="5"
+                  strokeWidth="5.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
                 <path
-                  d="M115 43L133 48L122 64"
+                  d="M115 52L133 48L128 66"
                   stroke="currentColor"
-                  strokeWidth="5"
+                  strokeWidth="5.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -123,7 +123,7 @@ const Landing = () => (
         </div>
 
         <ol className="relative z-40 grid h-20 grid-cols-3 divide-x border-t bg-card text-foreground">
-          {["Lesson", "Character", "Comic"].map((label, index) => (
+          {["Photo", "Character", "Comic"].map((label, index) => (
             <li key={label} className="relative overflow-visible">
               <span className="absolute left-[30%] top-1/2 -translate-y-1/2 font-mono text-xs font-bold uppercase tracking-[0.12em] sm:text-sm">
                 {label}
