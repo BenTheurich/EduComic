@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, Users, BookOpen, User, LogOut, ChevronDown, ChevronRight } from "lucide-react";
 import { Sidebar, SidebarBody } from "@/components/ui/animated-sidebar";
+import { BrandMark, BrandWordmark } from "@/components/shared/Brand";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
@@ -209,15 +210,15 @@ const Logo = ({ open }: { open: boolean }) => {
     <Link
       to="/"
       aria-label="EduComic student home"
-      className="font-normal flex min-h-11 space-x-2 items-center text-sm py-1 relative z-20"
+      className="relative z-20 flex min-h-11 items-center gap-2 py-1"
     >
-      <div className="h-5 w-6 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
+      <BrandMark />
       <motion.span
         initial={{ opacity: 0 }}
-        animate={{ opacity: open ? 1 : 0 }}
-        className="font-medium text-foreground whitespace-pre"
+        animate={{ display: open ? "inline-flex" : "none", opacity: open ? 1 : 0 }}
+        className="whitespace-pre"
       >
-        EduComic Student
+        <BrandWordmark role="Student" />
       </motion.span>
     </Link>
   );

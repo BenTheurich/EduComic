@@ -1,5 +1,6 @@
 import { ArrowRight, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
+import { BrandMark, BrandWordmark } from "@/components/shared/Brand";
 import { Button } from "@/components/ui/button";
 
 const Landing = () => (
@@ -11,10 +12,11 @@ const Landing = () => (
       >
         <Link
           to="/"
-          className="font-serif text-2xl font-semibold tracking-[-0.02em] text-foreground"
+          className="flex items-center gap-2 text-foreground"
           aria-label="EduComic home"
         >
-          EduComic
+          <BrandMark className="size-7" />
+          <BrandWordmark className="text-2xl" />
         </Link>
 
         <div className="flex min-h-11 items-center text-sm font-semibold text-primary">
