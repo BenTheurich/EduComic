@@ -129,6 +129,12 @@ Keep the current generation-loading composition. As each panel image becomes a v
 - Correct pluralization, subject-color normalization, grade labels, and other visible content seams.
 - Avoid invented claims, testimonials, schools, metrics, or curriculum guarantees.
 
+#### Landing proof panel: The Condensation Jar
+
+The landing artwork should demonstrate a real teaching beat rather than merely showing students taking a measurement. Use one uncluttered comic panel with exactly three fictional classmates behind a classroom lab table. Maya stands at the center and points directly to visible water droplets forming beneath a cold tray holding several ice cubes above a wide transparent jar with a shallow layer of warm water. The other students watch the same phenomenon.
+
+Keep the generated dialogue short and exact: **“COOLING MAKES DROPLETS!”** Pair the artwork with an HTML caption that supplies the precise lesson: **“Water vapor cools and condenses into droplets—the same process that helps form clouds and rain.”** The image should contain no rain gauge, umbrella, sign, test tube, secondary experiment, loose water outside the jar, extra characters, labels, or additional text. Preserve Maya's established avatar appearance and the existing BFL comic style.
+
 ### Teacher story workflow
 
 - Make the lesson input, optional material grounding, three complete story choices, preview generation, selection, comic generation, review, correction, and export feel like one authored production sequence.
