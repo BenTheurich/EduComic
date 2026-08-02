@@ -120,7 +120,7 @@ it("credits the five creators and the tools used to build EduComic", () => {
     "href",
     "https://www.linkedin.com/in/ben-theurich/",
   );
-  expect(within(team)).toHaveTextContent(
+  expect(team).toHaveTextContent(
     "Built with FLUX by Black Forest Labs for artwork and OpenAI for story generation.",
   );
 });

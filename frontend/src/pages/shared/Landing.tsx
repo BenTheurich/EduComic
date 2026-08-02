@@ -1,10 +1,189 @@
-import { ArrowRight, FileText } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Check, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BrandMark, BrandWordmark } from "@/components/shared/Brand";
 import { Button } from "@/components/ui/button";
+import "./Landing.css";
 
-const Landing = () => (
-  <div className="min-h-screen bg-background">
+const processSteps = [
+  {
+    title: "Upload your lesson.",
+    body: "Add PDFs, worksheets, or lesson notes. EduComic uses your materials to ground the story.",
+  },
+  {
+    title: "Bring in the whole class.",
+    body: "Every student creates an avatar. Together, they become the recurring cast of the comic.",
+  },
+  {
+    title: "Turn learning into a story.",
+    body: "EduComic combines the lesson and class cast into an educational comic for the teacher to review.",
+  },
+  {
+    title: "Let students see themselves learning.",
+    body: "Students read a story where they and their classmates are part of the adventure.",
+  },
+] as const;
+
+const visualLabels = [
+  "A teacher's lesson materials ready for upload",
+  "Eight student avatars joining the comic cast",
+  "A printable twelve-panel EduComic page ready for review",
+  "Three students reading their printed class comic together",
+] as const;
+
+const avatarPaths = Array.from(
+  { length: 8 },
+  (_, index) => `/demo/how-it-works/avatar-${String(index + 1).padStart(2, "0")}.png`,
+);
+
+const teamMembers = [
+  {
+    name: "Florian Schwieren",
+    avatar: "/demo/team/florian-avatar.png",
+    linkedin: "https://www.linkedin.com/in/florian-schwieren-618750215/",
+  },
+  {
+    name: "Pouya Shekarchizadeh",
+    avatar: "/demo/team/pouya-avatar.png",
+    linkedin: "https://www.linkedin.com/in/pooyash1998/",
+  },
+  {
+    name: "Anastasia Koslova",
+    avatar: "/demo/team/anastasia-avatar.png",
+    linkedin: "https://www.linkedin.com/in/anastasia-koslova-a329091b7/",
+  },
+  {
+    name: "Tim Gaydoul",
+    avatar: "/demo/team/tim-avatar.png",
+    linkedin: "https://www.linkedin.com/in/tim-gaydoul-048788174/",
+  },
+  {
+    name: "Ben Theurich",
+    avatar: "/demo/team/ben-avatar.png",
+    linkedin: "https://www.linkedin.com/in/ben-theurich/",
+  },
+] as const;
+
+type ProcessStep = 1 | 2 | 3 | 4;
+
+const PdfLabel = ({ children }: { children: string }) => (
+  <div className="landing-pdf-label">
+    <span className="landing-pdf-icon"><FileText aria-hidden="true" /></span>
+    {children}
+  </div>
+);
+
+const LessonVisual = () => (
+  <div className="landing-document-scene">
+    <article className="landing-paper landing-paper-back-a" aria-hidden="true">
+      <span className="landing-back-sheet-type">Vocabulary worksheet</span>
+      <strong>Cloud vocabulary</strong>
+      <p>Match each weather word to its meaning.</p>
+      <div className="landing-answer-lines"><span /><span /><span /><span /></div>
+      <footer>Student handout · Page 2</footer>
+    </article>
+    <article className="landing-paper landing-paper-back-b" aria-hidden="true">
+      <span className="landing-back-sheet-type">Science handout</span>
+      <strong>Water cycle diagram</strong>
+      <p>Label how water moves through the atmosphere.</p>
+      <div className="landing-cycle-diagram">
+        <span>Evaporation</span><span>Condensation</span><span>Rain</span>
+      </div>
+      <footer>Student handout · Page 3</footer>
+    </article>
+    <article className="landing-paper landing-paper-front">
+      <PdfLabel>Lesson material</PdfLabel>
+      <h3>How clouds make rain</h3>
+      <p className="landing-paper-grade">Grade 5 science</p>
+      <hr />
+      <p className="landing-paper-section-label">Key ideas</p>
+      <ul>
+        <li>Water vapor rises and cools.</li>
+        <li>Cooling forms liquid droplets.</li>
+        <li>Droplets gather and fall as rain.</li>
+      </ul>
+      <footer className="landing-paper-footer">
+        <span>Clouds &amp; weather</span>
+        <span>Page 1</span>
+      </footer>
+    </article>
+    <div className="landing-upload-note">
+      <Check aria-hidden="true" />
+      3 teaching files uploaded
+    </div>
+  </div>
+);
+
+const CastVisual = () => (
+  <div className="landing-cast-scene is-balanced">
+    {avatarPaths.map((src, index) => (
+      <figure key={src} className={`landing-avatar landing-avatar-${index + 1}`}>
+        <img src={src} alt="" loading="lazy" />
+      </figure>
+    ))}
+    <div className="landing-cast-caption">8 students · 8 characters</div>
+  </div>
+);
+
+const ComicVisual = () => (
+  <div className="landing-comic-scene is-enlarged">
+    <div className="landing-comic-shadow-page" />
+    <figure className="landing-comic-page">
+      <img src="/demo/how-it-works/educomic-12-panel-pdf.png" alt="" loading="lazy" />
+    </figure>
+  </div>
+);
+
+const ReaderVisual = () => (
+  <div className="landing-reader-scene">
+    <figure className="landing-reader-photo">
+      <img src="/demo/how-it-works/group-reading-paper-back.png" alt="" loading="lazy" />
+    </figure>
+    <div className="landing-reader-note">
+      <strong>Their class. Their story.</strong>
+      <span>Inside the finished comic</span>
+    </div>
+  </div>
+);
+
+const ProcessVisual = ({ step, active }: { step: ProcessStep; active: boolean }) => (
+  <div
+    className={`landing-process-visual${step === 2 ? " landing-process-visual-cast" : ""}${active ? " is-active" : ""}`}
+    aria-hidden={!active}
+    aria-label={visualLabels[step - 1]}
+    role="img"
+  >
+    {step === 1 && <LessonVisual />}
+    {step === 2 && <CastVisual />}
+    {step === 3 && <ComicVisual />}
+    {step === 4 && <ReaderVisual />}
+  </div>
+);
+
+const Landing = () => {
+  const [activeStep, setActiveStep] = useState<ProcessStep>(1);
+  const stepElements = useRef<Array<HTMLElement | null>>([]);
+
+  useEffect(() => {
+    if (!("IntersectionObserver" in window)) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const focusedStep = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]?.target as HTMLElement | undefined;
+
+        if (focusedStep) setActiveStep(Number(focusedStep.dataset.step) as ProcessStep);
+      },
+      { rootMargin: "-28% 0px -28% 0px", threshold: [0, 0.2, 0.35] },
+    );
+
+    stepElements.current.forEach((element) => element && observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+  <div className="educomic-landing min-h-screen bg-background">
     <header className="border-b bg-card">
       <nav
         aria-label="Primary navigation"
@@ -145,76 +324,99 @@ const Landing = () => (
         </ol>
       </section>
 
-      <section id="how-it-works" className="scroll-mt-4 bg-card py-16 sm:py-20">
-        <div className="container mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="max-w-2xl">
-            <h2 className="font-serif text-3xl font-semibold leading-tight tracking-[-0.02em] sm:text-4xl">
-              From lesson material to finished story.
-            </h2>
-            <p className="mt-4 text-lg leading-8 text-muted-foreground">
-              The lesson sets the science. A fictional classroom becomes the cast. The comic brings both together.
-            </p>
+      <section id="how-it-works" aria-labelledby="how-it-works-title" className="landing-process-section">
+        <header className="landing-process-header">
+          <h2 id="how-it-works-title" className="landing-process-title">
+            Your lesson. Their characters. One shared story.
+          </h2>
+        </header>
+
+        <div className="landing-process-story">
+          <div className="landing-process-visual-column" aria-live="polite">
+            <div className="landing-process-sticky">
+              <div className="landing-process-stage">
+                {processSteps.map((_, index) => (
+                  <ProcessVisual
+                    key={index}
+                    step={(index + 1) as ProcessStep}
+                    active={activeStep === index + 1}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
-          <ol className="mt-10 border-y lg:grid lg:grid-cols-3 lg:divide-x">
-            <li className="py-8 lg:pr-8">
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-primary">Lesson material</p>
-              <div className="mt-5 border bg-background p-5 shadow-sm">
-                <div className="flex items-center gap-3 border-b pb-4">
-                  <FileText className="size-6 text-primary" aria-hidden="true" />
-                  <div>
-                    <p className="font-semibold">How clouds make rain</p>
-                    <p className="mt-0.5 text-sm text-muted-foreground">Grade 5 science</p>
+          <div className="landing-process-steps">
+            {processSteps.map((step, index) => (
+              <article
+                key={step.title}
+                ref={(element) => { stepElements.current[index] = element; }}
+                data-step={index + 1}
+                className="landing-process-step"
+              >
+                <div className="landing-process-step-inner">
+                  <div className="landing-process-sequence">
+                    {String(index + 1).padStart(2, "0")} of 04
+                  </div>
+                  <h3>{step.title}</h3>
+                  <p>{step.body}</p>
+                  <div className="landing-process-mobile-visual" aria-hidden="true">
+                    <ProcessVisual step={(index + 1) as ProcessStep} active />
                   </div>
                 </div>
-                <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-                  <li>Water vapor rises and cools.</li>
-                  <li>Cooling forms liquid droplets.</li>
-                  <li>Droplets gather and fall as rain.</li>
-                </ul>
-              </div>
-            </li>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
-            <li className="border-t py-8 lg:border-t-0 lg:px-8">
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-primary">Fictional student</p>
-              <figure className="mt-5 grid grid-cols-[1fr_0.78fr] overflow-hidden border bg-background shadow-sm">
-                <img
-                  src="/demo/maya-fictional-portrait.png"
-                  alt=""
-                  loading="lazy"
-                  className="aspect-square h-full w-full object-cover"
-                />
-                <img
-                  src="/demo/maya-avatar-bfl.jpg"
-                  alt=""
-                  loading="lazy"
-                  className="aspect-square h-full w-full border-l object-cover"
-                />
-                <figcaption className="col-span-2 border-t px-4 py-3 text-sm text-muted-foreground">
-                  Maya Rivers · fictional classroom sample
-                </figcaption>
-              </figure>
-            </li>
+      <section className="landing-team-section" aria-labelledby="landing-team-title">
+        <div className="landing-team-inner">
+          <h2 id="landing-team-title" className="landing-team-title">
+            Meet the team behind EduComic.
+          </h2>
 
-            <li className="border-t py-8 lg:border-t-0 lg:pl-8">
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.08em] text-primary">Finished story</p>
-              <figure className="mt-5 overflow-hidden border-2 border-foreground bg-background shadow-sm">
-                <img
-                  src="/demo/condensation-jar.png"
-                  alt="Condensation experiment panel from the fictional story"
-                  loading="lazy"
-                  className="aspect-[4/3] w-full object-cover"
-                />
-                <figcaption className="border-t-2 border-foreground px-4 py-3 text-sm leading-6 text-muted-foreground">
-                  Water vapor cools and condenses into droplets—the same process that helps form clouds and rain.
-                </figcaption>
-              </figure>
-            </li>
-          </ol>
+          <div className="landing-team-grid">
+            {teamMembers.map((member) => (
+              <article key={member.name} className="landing-team-member">
+                <div className="landing-team-avatar">
+                  <img
+                    src={member.avatar}
+                    alt={`Illustrated portrait of ${member.name}`}
+                    width="640"
+                    height="640"
+                    loading="lazy"
+                  />
+                </div>
+                <h3 data-testid="team-member-name">{member.name}</h3>
+                <a
+                  href={member.linkedin}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${member.name} on LinkedIn`}
+                >
+                  LinkedIn
+                </a>
+              </article>
+            ))}
+          </div>
+
+          <p className="landing-team-credit">
+            Built with{" "}
+            <a href="https://bfl.ai/" target="_blank" rel="noreferrer">
+              FLUX by Black Forest Labs
+            </a>{" "}
+            for artwork and{" "}
+            <a href="https://openai.com/" target="_blank" rel="noreferrer">
+              OpenAI
+            </a>{" "}
+            for story generation.
+          </p>
         </div>
       </section>
     </main>
   </div>
-);
+  );
+};
 
 export default Landing;
