@@ -19,7 +19,7 @@ describe("StudentSidebar", () => {
     vi.unstubAllGlobals();
   });
 
-  it("centers student navigation targets while the sidebar is collapsed", () => {
+  it("keeps student navigation targets fluid while centering their icons when collapsed", () => {
     render(
       <MemoryRouter initialEntries={["/student/dashboard/student-1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <StudentSidebar studentId="student-1" open={false} setOpen={() => undefined} />
@@ -27,12 +27,14 @@ describe("StudentSidebar", () => {
     );
 
     expect(screen.getAllByRole("link", { name: "Dashboard" })[0]).toHaveClass(
-      "relative",
+      "w-full",
+      "justify-center",
+      "px-0",
+    );
+    expect(screen.getAllByRole("link", { name: "Dashboard" })[0]).not.toHaveClass(
       "left-1/2",
       "w-11",
       "-translate-x-1/2",
-      "justify-center",
-      "px-0",
     );
   });
 

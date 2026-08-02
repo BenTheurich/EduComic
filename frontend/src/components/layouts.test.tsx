@@ -5,7 +5,7 @@ import { StudentLayout } from "./student/StudentLayout";
 import { TeacherLayout } from "./teacher/TeacherLayout";
 
 describe("responsive app layouts", () => {
-  it("centers teacher navigation targets while the sidebar is collapsed", () => {
+  it("keeps teacher navigation targets fluid while centering their icons when collapsed", () => {
     render(
       <MemoryRouter initialEntries={["/teacher/settings"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <TeacherLayout>Teacher content</TeacherLayout>
@@ -13,12 +13,14 @@ describe("responsive app layouts", () => {
     );
 
     expect(screen.getAllByRole("link", { name: "Settings" })[0]).toHaveClass(
-      "relative",
+      "w-full",
+      "justify-center",
+      "px-0",
+    );
+    expect(screen.getAllByRole("link", { name: "Settings" })[0]).not.toHaveClass(
       "left-1/2",
       "w-11",
       "-translate-x-1/2",
-      "justify-center",
-      "px-0",
     );
   });
 

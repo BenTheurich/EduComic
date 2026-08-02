@@ -23,7 +23,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
   const [reloadKey, setReloadKey] = useState(0);
   const navigationAlignment = open
     ? "w-full justify-start gap-2 px-2"
-    : "relative left-1/2 w-11 -translate-x-1/2 justify-center px-0";
+    : "w-full justify-center px-0";
 
   useEffect(() => {
     const loadClassrooms = async () => {
