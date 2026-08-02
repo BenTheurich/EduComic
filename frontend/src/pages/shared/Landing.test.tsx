@@ -144,37 +144,43 @@ describe("Landing", () => {
     );
 
     const team = screen.getByRole("region", { name: "Meet the team behind EduComic." });
-    const names = within(team).getAllByTestId("team-member-name").map((node) => node.textContent);
-    expect(names).toEqual([
+    const expectedNames = [
       "Florian Schwieren",
       "Pouya Shekarchizadeh",
       "Anastasia Koslova",
       "Tim Gaydoul",
       "Ben Theurich",
-    ]);
+    ];
+    const names = within(team).getAllByTestId("team-member-name").map((node) => node.textContent);
+    expect(names).toEqual(expectedNames);
 
-    expect(within(team).getByRole("link", { name: "Florian Schwieren on LinkedIn" })).toHaveAttribute(
+    expect(within(team).getByRole("link", { name: "Florian Schwieren" })).toHaveAttribute(
       "href",
       "https://www.linkedin.com/in/florian-schwieren-618750215/",
     );
-    expect(within(team).getByRole("link", { name: "Pouya Shekarchizadeh on LinkedIn" })).toHaveAttribute(
+    expect(within(team).getByRole("link", { name: "Pouya Shekarchizadeh" })).toHaveAttribute(
       "href",
       "https://www.linkedin.com/in/pooyash1998/",
     );
-    expect(within(team).getByRole("link", { name: "Anastasia Koslova on LinkedIn" })).toHaveAttribute(
+    expect(within(team).getByRole("link", { name: "Anastasia Koslova" })).toHaveAttribute(
       "href",
       "https://www.linkedin.com/in/anastasia-koslova-a329091b7/",
     );
-    expect(within(team).getByRole("link", { name: "Tim Gaydoul on LinkedIn" })).toHaveAttribute(
+    expect(within(team).getByRole("link", { name: "Tim Gaydoul" })).toHaveAttribute(
       "href",
       "https://www.linkedin.com/in/tim-gaydoul-048788174/",
     );
-    expect(within(team).getByRole("link", { name: "Ben Theurich on LinkedIn" })).toHaveAttribute(
+    expect(within(team).getByRole("link", { name: "Ben Theurich" })).toHaveAttribute(
       "href",
       "https://www.linkedin.com/in/ben-theurich/",
     );
+    expectedNames.forEach((name) => {
+      const link = within(team).getByRole("link", { name });
+      expect(link.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
+    });
     expect(team).toHaveTextContent(
       "Built with FLUX by Black Forest Labs for artwork and OpenAI for story generation.",
     );
+    expect(within(team).queryByText("LinkedIn")).not.toBeInTheDocument();
   });
 });

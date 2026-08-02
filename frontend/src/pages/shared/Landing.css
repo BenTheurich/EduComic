@@ -553,7 +553,7 @@
 .landing-team-inner {
   max-width: 1500px;
   margin: 0 auto;
-  padding: clamp(5rem, 7vw, 7rem) clamp(2rem, 3.5vw, 3.5rem) clamp(3.5rem, 5vw, 5rem);
+  padding: clamp(6rem, 8vw, 8rem) clamp(2rem, 3.5vw, 3.5rem) clamp(1.75rem, 2.5vw, 2.25rem);
 }
 
 .landing-team-title {
@@ -600,34 +600,39 @@
 }
 
 .landing-team-member h3 {
-  min-height: 2.8em;
-  margin: 1.25rem 0 0;
+  margin: 1.15rem 0 0;
   font-size: 1.08rem;
   font-weight: 650;
   line-height: 1.4;
   text-wrap: balance;
 }
 
-.landing-team-member > a {
-  display: inline-flex;
+.landing-team-member h3 a {
+  display: inline-block;
   min-height: 44px;
-  align-items: center;
-  padding: 0 0.35rem;
-  color: hsl(var(--primary-foreground) / 0.86);
-  font-size: 0.88rem;
-  font-weight: 600;
+  padding: 0.5rem 0.25rem;
+  color: inherit;
   text-decoration: underline;
-  text-decoration-color: hsl(var(--primary-foreground) / 0.45);
+  text-decoration-color: hsl(var(--primary-foreground) / 0.62);
   text-underline-offset: 4px;
   transition: color 180ms ease, text-decoration-color 180ms ease;
 }
 
-.landing-team-member > a:hover {
+.landing-team-member h3 a svg {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin-left: 0.18rem;
+  stroke-width: 2;
+  vertical-align: -0.12em;
+}
+
+.landing-team-member h3 a:hover {
   color: hsl(var(--primary-foreground));
   text-decoration-color: currentColor;
 }
 
-.landing-team-member > a:focus-visible,
+.landing-team-member h3 a:focus-visible,
 .landing-team-credit a:focus-visible {
   border-radius: 4px;
   outline: 2px solid hsl(var(--primary-foreground));
@@ -636,8 +641,8 @@
 
 .landing-team-credit {
   max-width: 760px;
-  margin: clamp(3.25rem, 5vw, 4.5rem) auto 0;
-  padding-top: clamp(1.75rem, 3vw, 2.5rem);
+  margin: clamp(4.75rem, 6vw, 6rem) auto 0;
+  padding-top: clamp(1.5rem, 2.5vw, 2rem);
   border-top: 1px solid hsl(var(--primary-foreground) / 0.28);
   color: hsl(var(--primary-foreground) / 0.78);
   font-size: 0.9rem;

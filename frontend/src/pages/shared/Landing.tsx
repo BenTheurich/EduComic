@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, FileText } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BrandMark, BrandWordmark } from "@/components/shared/Brand";
 import { Button } from "@/components/ui/button";
@@ -388,15 +388,12 @@ const Landing = () => {
                     loading="lazy"
                   />
                 </div>
-                <h3 data-testid="team-member-name">{member.name}</h3>
-                <a
-                  href={member.linkedin}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`${member.name} on LinkedIn`}
-                >
-                  LinkedIn
-                </a>
+                <h3 data-testid="team-member-name">
+                  <a href={member.linkedin} target="_blank" rel="noreferrer">
+                    {member.name}
+                    <ArrowUpRight aria-hidden="true" />
+                  </a>
+                </h3>
               </article>
             ))}
           </div>
