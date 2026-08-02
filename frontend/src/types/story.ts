@@ -6,6 +6,23 @@ export interface Panel {
   created_at: string;
 }
 
+export type StoryPreviewStatus = 'pending' | 'generating' | 'ready' | 'failed';
+
+export interface StoryIdea {
+  id: string;
+  title: string;
+  summary: string;
+  theme: string;
+  preview_status: StoryPreviewStatus;
+  preview_url: string | null;
+  preview_error_reference?: string | null;
+}
+
+export interface TemporaryPanelPreview {
+  index: number;
+  image: string;
+}
+
 export type ChapterStatus =
   | 'draft'
   | 'awaiting_choice'
@@ -23,7 +40,10 @@ export interface Chapter {
   chapter_outline: string | null;
   original_prompt: string;
   thumbnail_url: string | null;
-  story_title?: string;
+  story_title: string;
+  story_description: string;
+  story_ideas?: StoryIdea[];
+  temporary_panel_previews?: TemporaryPanelPreview[];
   status: ChapterStatus;
   created_at: string;
   grounded_sources?: Array<{

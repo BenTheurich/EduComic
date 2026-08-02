@@ -185,6 +185,10 @@ def test_student_erasure_blocks_active_run_then_clears_affected_option_output(mo
             "id": "idea_1",
             "title": "Classroom story",
             "summary": "Create a new story with the current classroom.",
+            "theme": None,
+            "preview_status": "failed",
+            "preview_url": None,
+            "preview_error_reference": None,
         }
     ]
     assert shell["chosen_idea_id"] == "idea_1"

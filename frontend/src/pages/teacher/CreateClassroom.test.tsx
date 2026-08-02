@@ -14,12 +14,16 @@ describe("CreateClassroom", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole("progressbar", { name: "Classroom setup progress" })).toHaveAttribute("aria-valuenow", "1");
+
     fireEvent.change(screen.getByLabelText("Classroom Name *"), { target: { value: "Physics" } });
     fireEvent.click(screen.getByRole("combobox", { name: "Subject *" }));
     fireEvent.click(screen.getByRole("option", { name: "physics" }));
     fireEvent.click(screen.getByRole("combobox", { name: "Grade Level *" }));
     fireEvent.click(screen.getByRole("option", { name: "Grade 8" }));
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+    expect(screen.getByRole("progressbar", { name: "Classroom setup progress" })).toHaveAttribute("aria-valuenow", "2");
 
     const manga = screen.getByRole("radio", { name: "Manga" });
     await waitFor(() => expect(manga).toBeChecked());

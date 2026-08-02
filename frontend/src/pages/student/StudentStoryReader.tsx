@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -71,7 +71,7 @@ const StudentStoryReader = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
+      <div className="flex h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground">Loading story...</p>
       </div>
     );
@@ -79,7 +79,7 @@ const StudentStoryReader = () => {
 
   if (loadError || !chapter) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
+      <div className="flex h-screen items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <p role="alert" className="text-muted-foreground">{loadError || "Chapter not found"}</p>
           <Button onClick={() => navigate(-1)}>Back to stories</Button>
@@ -89,8 +89,8 @@ const StudentStoryReader = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/90 shadow-sm backdrop-blur-lg">
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-50 border-b bg-background/95">
             <div className="container mx-auto px-4 py-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 {/* Left: Back button and title */}
@@ -104,7 +104,7 @@ const StudentStoryReader = () => {
                     <ChevronLeft className="w-4 h-4 mr-1" />
                     Back
                   </Button>
-                  <h1 className="text-lg font-semibold text-foreground truncate">
+                  <h1 className="truncate font-serif text-xl font-semibold text-foreground">
                     {chapter.story_title || `Chapter ${chapter.index}`}
                   </h1>
                 </div>
@@ -112,7 +112,7 @@ const StudentStoryReader = () => {
                 {/* Right: Layout toggle and Image size control */}
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                   {/* Layout Toggle */}
-                  <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg border border-border/30">
+                  <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
                     <Button
                       variant={layoutMode === 'webtoon' ? 'default' : 'ghost'}
                       size="sm"
@@ -158,7 +158,11 @@ const StudentStoryReader = () => {
       {/* Story panels - conditional layout based on mode */}
       {layoutMode === 'webtoon' ? (
         /* Webtoon format: vertical flow, zero gaps */
-        <div className="flex flex-col items-center" style={{ width: `${imageScale}%`, margin: '0 auto' }}>
+        <main
+          aria-label="Comic panels"
+          className="reader-strip mx-auto flex flex-col items-center"
+          style={{ "--reader-scale": `${imageScale}%` } as CSSProperties}
+        >
           {panels.length === 0 ? (
             <div className="text-center py-24">
               <div className="text-8xl mb-4">🔍</div>
@@ -166,7 +170,7 @@ const StudentStoryReader = () => {
               <p className="text-muted-foreground text-sm mt-2">This story is still being generated.</p>
             </div>
           ) : (
-            panels
+            [...panels]
               .sort((a, b) => a.index - b.index)
               .map((panel) => (
                 <div
@@ -176,7 +180,7 @@ const StudentStoryReader = () => {
                 >
                   <img
                     src={panel.image}
-                    alt={`Panel ${panel.index}`}
+                    alt={`Panel ${panel.index} from ${chapter.story_title || `Chapter ${chapter.index}`}`}
                     className="w-full h-auto block"
                     loading="lazy"
                     style={{ margin: 0, padding: 0, display: 'block' }}
@@ -184,7 +188,7 @@ const StudentStoryReader = () => {
                 </div>
               ))
           )}
-        </div>
+        </main>
       ) : (
         /* Grid layout: responsive grid with direct images */
         <div className="container mx-auto px-4 pb-8">
@@ -203,14 +207,14 @@ const StudentStoryReader = () => {
                         'grid-cols-1'
                 }`}
             >
-              {panels
+              {[...panels]
                 .sort((a, b) => a.index - b.index)
                 .map((panel) => (
                   <img
                     key={panel.id}
                     src={panel.image}
-                    alt={`Panel ${panel.index}`}
-                    className="w-full h-auto"
+                    alt={`Panel ${panel.index} from ${chapter.story_title || `Chapter ${chapter.index}`}`}
+                    className="h-auto w-full border-2 border-foreground/15"
                     loading="lazy"
                   />
                 ))}

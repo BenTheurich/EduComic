@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, User, Loader2 } from "lucide-react";
+import { ChevronLeft, User, Loader2, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,7 @@ const StudentProfilePicker = () => {
     };
 
     return (
-        <div className="min-h-screen bg-muted/20">
+        <div className="min-h-screen">
             <header className="bg-background border-b">
                 <div className="container mx-auto px-4 py-4">
                     <Button variant="ghost" onClick={() => navigate("/")}>
@@ -56,12 +56,12 @@ const StudentProfilePicker = () => {
                 </div>
             </header>
 
-            <div className="container mx-auto px-4 py-12 max-w-2xl">
-                <Card className="backdrop-blur-lg bg-card/70 border-2 border-border/50">
-                    <CardContent className="pt-8 pb-8 space-y-6">
+            <main className="container mx-auto max-w-2xl px-4 py-8 sm:py-12">
+                <Card>
+                    <CardContent className="space-y-6 py-8">
                         <div className="text-center">
-                            <div className="text-6xl mb-4">🎓</div>
-                            <h1 className="text-3xl font-bold text-foreground mb-2">Choose a Student Profile</h1>
+                            <GraduationCap className="mx-auto mb-4 h-10 w-10 text-primary" aria-hidden="true" />
+                            <h1 className="mb-2 font-serif text-3xl font-semibold text-foreground">Choose a Student Profile</h1>
                             <p className="text-muted-foreground">
                                 This selects a local preview only. It does not authenticate anyone.
                             </p>
@@ -91,7 +91,7 @@ const StudentProfilePicker = () => {
                                         key={student.id}
                                         type="button"
                                         aria-label={`Continue as ${student.name}`}
-                                        className="w-full rounded-lg border-2 bg-card text-left text-card-foreground shadow-sm transition-all hover:bg-accent hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                        className="w-full rounded-lg border bg-card text-left text-card-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                         onClick={() => handleStudentClick(student.id)}
                                     >
                                         <CardContent className="pt-4 pb-4">
@@ -131,7 +131,7 @@ const StudentProfilePicker = () => {
                         </div>
                     </CardContent>
                 </Card>
-            </div>
+            </main>
         </div>
     );
 };

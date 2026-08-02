@@ -108,18 +108,19 @@ const StudentProfile = () => {
     }
 
     return (
-        <div className="min-h-screen bg-muted/20">
-            <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <div className="min-h-screen">
+            <div className="container mx-auto max-w-4xl px-4 py-8 sm:py-12">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5 }}
                 >
-                    <h1 className="text-4xl font-bold text-foreground mb-8">My Profile</h1>
+                    <p className="mb-2 font-mono text-xs font-bold tracking-wide text-primary">STUDENT PROFILE</p>
+                    <h1 className="mb-8 font-serif text-4xl font-semibold tracking-tight text-foreground">My Profile</h1>
 
                     {/* Profile Card */}
-                    <Card className="backdrop-blur-lg bg-card/70 border-2 border-border/50 mb-6">
-                        <CardContent className="pt-8 pb-8">
+                    <Card className="mb-6">
+                        <CardContent className="py-8">
                             <div className="flex flex-col md:flex-row gap-8 items-start">
                                 {/* Avatar Section */}
                                 <div className="flex flex-col items-center space-y-4">
@@ -154,7 +155,7 @@ const StudentProfile = () => {
                                 {/* Local profile details */}
                                 <div className="flex-1 space-y-6">
                                     <div>
-                                        <h2 className="text-2xl font-bold text-foreground mb-1">{student.name}</h2>
+                                        <h2 className="mb-1 font-serif text-2xl font-semibold text-foreground">{student.name}</h2>
                                         <Badge variant="outline" className="mt-2">Student</Badge>
                                         <Button variant="outline" className="ml-3" onClick={() => { setDraft({ name: student.name, interests: student.interests }); setEditing(true); }}>Edit profile</Button>
                                     </div>
@@ -167,7 +168,7 @@ const StudentProfile = () => {
 
                                     <div className="space-y-4">
                                         {/* Student ID */}
-                                        <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
+                                        <div className="flex items-start gap-3 border-t py-4">
                                             <User className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                                             <div className="flex-1">
                                                 <p className="text-sm font-medium text-muted-foreground">Student ID</p>
@@ -176,7 +177,7 @@ const StudentProfile = () => {
                                         </div>
 
                                         {/* Interests */}
-                                        <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
+                                        <div className="flex items-start gap-3 border-t py-4">
                                             <Heart className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                                             <div className="flex-1">
                                                 <p className="text-sm font-medium text-muted-foreground">Interests & Hobbies</p>
@@ -185,7 +186,7 @@ const StudentProfile = () => {
                                         </div>
 
                                         {/* Member Since */}
-                                        <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
+                                        <div className="flex items-start gap-3 border-y py-4">
                                             <Mail className="w-5 h-5 text-muted-foreground mt-0.5 flex-shrink-0" />
                                             <div className="flex-1">
                                                 <p className="text-sm font-medium text-muted-foreground">Profile Created</p>
@@ -210,7 +211,7 @@ const StudentProfile = () => {
                         </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction onClick={eraseProfile}>Confirm full erasure</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                     </AlertDialog>
-                    {profileMessage && <p role="status" className="mt-3">{profileMessage}</p>}
+                    {profileMessage && <p role="status" className="mt-3 rounded-md border bg-card p-3 text-sm">{profileMessage}</p>}
 
                 </motion.div>
             </div>

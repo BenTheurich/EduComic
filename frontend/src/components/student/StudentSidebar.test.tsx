@@ -21,12 +21,15 @@ describe("StudentSidebar", () => {
 
   it("names collapsed links and exposes classroom disclosure state", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={["/student/dashboard/student-1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <StudentSidebar studentId="student-1" open={false} setOpen={() => undefined} />
       </MemoryRouter>,
     );
 
     expect(screen.getByRole("link", { name: "Dashboard" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "EduComic student home" })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Dashboard" })[0]).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByText(/StoryClass/)).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Exit Student View" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /log\s*out/i })).not.toBeInTheDocument();
     const disclosure = screen.getAllByRole("button", { name: "My Classrooms" })[0];

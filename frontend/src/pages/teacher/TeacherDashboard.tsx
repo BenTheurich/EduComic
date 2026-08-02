@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { formatGradeLevel } from "@/lib/utils";
 
 interface Classroom {
   id: string;
@@ -15,16 +16,6 @@ interface Classroom {
   student_count: number;
   story_count: number;
 }
-
-const subjectColors: Record<string, string> = {
-  Physics: "bg-blue-500",
-  Math: "bg-purple-500",
-  History: "bg-amber-500",
-  English: "bg-green-500",
-  Chemistry: "bg-cyan-500",
-  Biology: "bg-emerald-500",
-  Science: "bg-teal-500",
-};
 
 const TeacherDashboard = () => {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
@@ -50,13 +41,12 @@ const TeacherDashboard = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-12">
+    <div className="min-h-screen">
+      <div className="container mx-auto max-w-6xl px-4 py-8 sm:py-12">
         {isLoading ? (
           /* Loading State */
-          <div className="flex flex-col items-center justify-center py-24 space-y-6">
-            <Loader2 className="w-16 h-16 text-primary animate-spin" />
+          <div className="flex flex-col items-center justify-center py-24 space-y-4" role="status">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" aria-hidden="true" />
             <p className="text-muted-foreground">Loading classrooms...</p>
           </div>
         ) : loadError ? (
@@ -65,47 +55,56 @@ const TeacherDashboard = () => {
           </div>
         ) : classrooms.length === 0 ? (
           /* Empty State */
-          <div className="flex flex-col items-center justify-center py-24 space-y-6">
-            <div className="w-32 h-32 rounded-full bg-muted flex items-center justify-center">
-              <BookOpen className="w-16 h-16 text-muted-foreground" />
+          <div className="mx-auto flex max-w-lg flex-col items-center justify-center py-24 text-center space-y-5">
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg border bg-card">
+              <BookOpen className="h-8 w-8 text-primary" aria-hidden="true" />
             </div>
-            <h2 className="text-2xl font-bold text-foreground">No classrooms yet</h2>
+            <div className="space-y-2">
+              <h1 className="font-serif text-3xl font-semibold text-foreground">Start your comic workshop</h1>
+              <p className="text-muted-foreground">Create a classroom, invite students, and turn a lesson into a visual story.</p>
+            </div>
             <Button asChild size="lg">
               <Link to="/teacher/classroom/new">
                 <Plus className="w-5 h-5 mr-2" />
-                Create Your First Classroom
+                Create your first classroom
               </Link>
             </Button>
           </div>
         ) : (
           /* Classroom Grid */
           <>
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-foreground">My Classrooms</h1>
-              <p className="text-muted-foreground mt-1">Manage your classes and generate stories</p>
+            <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <p className="mb-2 font-mono text-xs font-bold tracking-wide text-primary">TEACHER WORKSPACE</p>
+                <h1 className="font-serif text-4xl font-semibold tracking-tight text-foreground">My Classrooms</h1>
+                <p className="mt-2 text-muted-foreground">Manage students, lesson materials, and classroom stories.</p>
+              </div>
+              <Button asChild>
+                <Link to="/teacher/classroom/new">
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  Create classroom
+                </Link>
+              </Button>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {classrooms.map((classroom) => (
-                <Card 
-                  key={classroom.id} 
-                  className="hover:shadow-lg transition-all hover:scale-[1.02] cursor-pointer border-2"
-                >
-                  <CardContent className="pt-6 space-y-4">
+                <Card key={classroom.id} className="border">
+                  <CardContent className="flex h-full flex-col gap-5 pt-6">
                     <div className="space-y-2">
-                      <h3 className="text-2xl font-bold text-foreground">
+                      <h2 className="text-xl font-semibold text-foreground">
                         {classroom.name}
-                      </h3>
+                      </h2>
                       <div className="flex gap-2 items-center flex-wrap">
-                        <Badge className={`${subjectColors[classroom.subject] || 'bg-gray-500'} text-white`}>
+                        <Badge variant="outline">
                           {classroom.subject}
                         </Badge>
                         <span className="text-sm text-muted-foreground">
-                          Grade {classroom.grade_level}
+                          {formatGradeLevel(classroom.grade_level)}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex gap-4 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap gap-4 border-y py-3 font-mono text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Users className="w-4 h-4" />
                         <span>{classroom.student_count} students</span>
@@ -116,9 +115,9 @@ const TeacherDashboard = () => {
                       </div>
                     </div>
 
-                    <Button asChild className="w-full">
-                      <Link to={`/teacher/classroom/${classroom.id}`}>
-                        View Details
+                    <Button asChild variant="outline" className="mt-auto w-full">
+                      <Link to={`/teacher/classroom/${classroom.id}`} aria-label={`Open ${classroom.name}`}>
+                        Open classroom
                       </Link>
                     </Button>
                   </CardContent>
@@ -129,18 +128,6 @@ const TeacherDashboard = () => {
         )}
       </div>
 
-      {/* Floating Add Button */}
-      {!loadError && classrooms.length > 0 && (
-        <Button
-          asChild
-          size="lg"
-          className="fixed bottom-8 right-8 w-14 h-14 rounded-full shadow-lg z-50"
-        >
-          <Link to="/teacher/classroom/new">
-            <Plus className="w-6 h-6" />
-          </Link>
-        </Button>
-      )}
     </div>
   );
 };

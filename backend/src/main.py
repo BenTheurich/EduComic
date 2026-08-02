@@ -24,6 +24,7 @@ from api_models import (
     LessonPromptRequest,
     PanelRegenerationRequest,
     StoryChoiceRequest,
+    StoryPreviewRetryRequest,
     StudentCreateRequest,
     StudentUpdateRequest,
     SettingsUpdateRequest,
@@ -33,7 +34,7 @@ from local_storage import LocalStorage, StorageValidationError
 from materials import MAX_PDF_BYTES, MaterialRejected, extract_pdf
 from provider_config import configured_secret
 from services.avatar import PortraitRejected, ProviderConfigurationError, generate_avatar, normalize_portrait
-from services.generation import run_generation
+from services.generation import run_generation, run_story_previews, run_story_previews_for_chapter
 from services.panel_regeneration import run_panel_regeneration
 
 # Load environment variables
@@ -710,7 +711,7 @@ async def commit_chapter_endpoint(
 
 @app.post("/classrooms/{classroom_id}/chapters/start")
 async def start_chapter_endpoint(
-    classroom_id: UUID, request: LessonPromptRequest
+    classroom_id: UUID, request: LessonPromptRequest, background_tasks: BackgroundTasks
 ):
     """
     Start a new chapter by generating story options.
@@ -774,10 +775,12 @@ async def start_chapter_endpoint(
                     "title": idea.get("title", ""),
                     "summary": idea.get("summary", ""),
                     "theme": classroom.get("story_theme", ""),
+                    "preview_status": "pending",
                 }
             )
 
         chapter = complete_story_options(chapter["id"], formatted_ideas)
+        background_tasks.add_task(run_story_previews_for_chapter, chapter["id"])
 
         return {"success": True, "chapter": chapter}
 
@@ -871,6 +874,37 @@ async def delete_chapter_endpoint(chapter_id: UUID, confirm: bool = False):
         return {"success": True, "message": "Chapter deleted"}
     except HTTPException:
         raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@app.post(
+    "/chapters/{chapter_id}/story-ideas/{idea_id}/preview/retry",
+    status_code=202,
+)
+async def retry_story_preview(
+    chapter_id: UUID,
+    idea_id: str,
+    _request: StoryPreviewRetryRequest,
+    background_tasks: BackgroundTasks,
+):
+    from database.database import GenerationConflict, begin_story_previews, get_chapter
+
+    if idea_id not in {"idea_1", "idea_2", "idea_3"}:
+        raise HTTPException(status_code=422, detail="Story preview choice is invalid")
+    try:
+        jobs = begin_story_previews(str(chapter_id), [idea_id])
+        if not jobs:
+            raise HTTPException(status_code=409, detail="Story preview is already active or ready")
+        background_tasks.add_task(run_story_previews, jobs)
+        return {"success": True, "chapter": get_chapter(str(chapter_id))}
+    except HTTPException:
+        raise
+    except GenerationConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        status_code = 404 if str(exc) == "Chapter not found" else 400
+        raise HTTPException(status_code=status_code, detail=str(exc))
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 

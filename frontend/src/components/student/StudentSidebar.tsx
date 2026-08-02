@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { LayoutDashboard, Users, BookOpen, User, LogOut, ChevronDown, ChevronRight } from "lucide-react";
 import { Sidebar, SidebarBody } from "@/components/ui/animated-sidebar";
 import { motion } from "framer-motion";
@@ -15,6 +15,7 @@ interface StudentSidebarProps {
 type StudentClassroom = Awaited<ReturnType<typeof api.students.getClassrooms>>["classrooms"][number];
 
 export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps) {
+  const location = useLocation();
   const [classrooms, setClassrooms] = useState<StudentClassroom[]>([]);
   const [classroomsExpanded, setClassroomsExpanded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -47,7 +48,11 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             <Link
               to={`/student/dashboard/${studentId}`}
               aria-label="Dashboard"
-              className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+              aria-current={location.pathname === `/student/dashboard/${studentId}` ? "page" : undefined}
+              className={cn(
+                "flex min-h-11 items-center justify-start gap-2 py-2 px-2 rounded-md hover:bg-accent transition-colors",
+                location.pathname === `/student/dashboard/${studentId}` && "bg-accent font-medium",
+              )}
             >
               <LayoutDashboard className="text-foreground h-5 w-5 flex-shrink-0" />
               <motion.span
@@ -55,7 +60,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                   display: open ? "inline-block" : "none",
                   opacity: open ? 1 : 0,
                 }}
-                className="text-foreground text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+                className="text-foreground text-sm whitespace-pre inline-block !p-0 !m-0"
               >
                 Dashboard
               </motion.span>
@@ -117,7 +122,11 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                     <Link
                       key={classroom.id}
                       to={`/student/classroom/${classroom.id}/${studentId}`}
-                      className="flex min-h-11 items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent/50 transition-colors text-sm text-muted-foreground hover:text-foreground"
+                      aria-current={location.pathname === `/student/classroom/${classroom.id}/${studentId}` ? "page" : undefined}
+                      className={cn(
+                        "flex min-h-11 items-center gap-2 py-1.5 px-2 rounded-md hover:bg-accent/50 transition-colors text-sm text-muted-foreground hover:text-foreground",
+                        location.pathname === `/student/classroom/${classroom.id}/${studentId}` && "bg-accent text-foreground font-medium",
+                      )}
                     >
                       <ChevronRight className="h-3 w-3 flex-shrink-0" />
                       <span className="truncate">{classroom.name}</span>
@@ -131,7 +140,11 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             <Link
               to={`/student/stories/${studentId}`}
               aria-label="All Stories"
-              className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+              aria-current={location.pathname === `/student/stories/${studentId}` ? "page" : undefined}
+              className={cn(
+                "flex min-h-11 items-center justify-start gap-2 py-2 px-2 rounded-md hover:bg-accent transition-colors",
+                location.pathname === `/student/stories/${studentId}` && "bg-accent font-medium",
+              )}
             >
               <BookOpen className="text-foreground h-5 w-5 flex-shrink-0" />
               <motion.span
@@ -139,7 +152,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                   display: open ? "inline-block" : "none",
                   opacity: open ? 1 : 0,
                 }}
-                className="text-foreground text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+                className="text-foreground text-sm whitespace-pre inline-block !p-0 !m-0"
               >
                 All Stories
               </motion.span>
@@ -149,7 +162,11 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
             <Link
               to={`/student/profile/${studentId}`}
               aria-label="Profile"
-              className="flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors"
+              aria-current={location.pathname === `/student/profile/${studentId}` ? "page" : undefined}
+              className={cn(
+                "flex min-h-11 items-center justify-start gap-2 py-2 px-2 rounded-md hover:bg-accent transition-colors",
+                location.pathname === `/student/profile/${studentId}` && "bg-accent font-medium",
+              )}
             >
               <User className="text-foreground h-5 w-5 flex-shrink-0" />
               <motion.span
@@ -157,7 +174,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                   display: open ? "inline-block" : "none",
                   opacity: open ? 1 : 0,
                 }}
-                className="text-foreground text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+                className="text-foreground text-sm whitespace-pre inline-block !p-0 !m-0"
               >
                 Profile
               </motion.span>
@@ -175,7 +192,7 @@ export function StudentSidebar({ studentId, open, setOpen }: StudentSidebarProps
                   display: open ? "inline-block" : "none",
                   opacity: open ? 1 : 0,
                 }}
-                className="text-foreground text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+                className="text-foreground text-sm whitespace-pre inline-block !p-0 !m-0"
               >
                 Exit Student View
               </motion.span>
@@ -191,7 +208,7 @@ const Logo = ({ open }: { open: boolean }) => {
   return (
     <Link
       to="/"
-      aria-label="StoryClass Student home"
+      aria-label="EduComic student home"
       className="font-normal flex min-h-11 space-x-2 items-center text-sm py-1 relative z-20"
     >
       <div className="h-5 w-6 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
@@ -200,7 +217,7 @@ const Logo = ({ open }: { open: boolean }) => {
         animate={{ opacity: open ? 1 : 0 }}
         className="font-medium text-foreground whitespace-pre"
       >
-        StoryClass Student
+        EduComic Student
       </motion.span>
     </Link>
   );

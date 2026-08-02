@@ -3,12 +3,13 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StoryGenerator from "./StoryGenerator";
 
-const { chooseIdea, commitChapter, getChapter, getClassroom, getMaterials, startChapter } = vi.hoisted(() => ({
+const { chooseIdea, commitChapter, getChapter, getClassroom, getMaterials, retryPreview, startChapter } = vi.hoisted(() => ({
   chooseIdea: vi.fn(),
   commitChapter: vi.fn(),
   getChapter: vi.fn(),
   getClassroom: vi.fn(),
   getMaterials: vi.fn(),
+  retryPreview: vi.fn(),
   startChapter: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ vi.mock("@/lib/api", () => ({
       startChapter,
       chooseIdea,
       commitChapter,
+      retryPreview,
     },
     chapters: { getById: getChapter },
   },
@@ -32,10 +34,10 @@ const chapterResponse = (status: string, panels: unknown[] = []) => ({
   chapter: { id: "chapter-1", status, panels },
 });
 
-const renderGenerator = () => render(
+const renderGenerator = (initialEntry = "/teacher/classroom/classroom-1/story/new") => render(
   <MemoryRouter
     future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-    initialEntries={["/teacher/classroom/classroom-1/story/new"]}
+    initialEntries={[initialEntry]}
   >
     <Routes>
       <Route path="/teacher/classroom/:classroomId/story/new" element={<StoryGenerator />} />
@@ -77,6 +79,7 @@ describe("StoryGenerator", () => {
       classroom: { name: "Science", subject: "Physics", grade_level: "8" },
     });
     getMaterials.mockReset().mockResolvedValue({ success: true, materials: [] });
+    retryPreview.mockReset();
     vi.stubGlobal("fetch", vi.fn());
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -160,6 +163,92 @@ describe("StoryGenerator", () => {
     await waitFor(() => expect(chooseIdea).toHaveBeenCalledWith("chapter-1", "idea_1"));
     expect(fetch).not.toHaveBeenCalled();
     expect(console.log).not.toHaveBeenCalled();
+  });
+
+  it("shows a durable local idea preview and keeps the complete summary readable", async () => {
+    const summary = "Students repair a tumbling satellite, compare forces, and use evidence from the lesson to settle on a safe orbit.";
+    startChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        story_ideas: [{
+          id: "idea_1",
+          title: "The Orbit Workshop",
+          summary,
+          theme: "Space",
+          preview_status: "ready",
+          preview_url: "/media/story-images/chapter-1/preview.png",
+        }],
+      },
+    });
+
+    renderGenerator();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Newton's laws" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate Story Options" }));
+
+    expect(await screen.findByText(summary)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "The Orbit Workshop story preview" })).toHaveAttribute(
+      "src",
+      "/media/story-images/chapter-1/preview.png",
+    );
+  });
+
+  it("resumes paid story options from their durable chapter after a refresh", async () => {
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        classroom_id: "classroom-1",
+        status: "options_generated",
+        original_prompt: "Teach orbits",
+        story_ideas: [{
+          id: "idea_1",
+          title: "The Orbit Workshop",
+          summary: "A complete durable story direction.",
+          theme: "Space",
+          preview_status: "ready",
+          preview_url: "/media/story-images/chapter-1/preview.png",
+        }],
+        grounded_sources: [],
+        panels: [],
+      },
+    });
+
+    renderGenerator("/teacher/classroom/classroom-1/story/new?chapter=chapter-1");
+
+    expect(await screen.findByText("A complete durable story direction.")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "The Orbit Workshop story preview" })).toHaveAttribute(
+      "src",
+      "/media/story-images/chapter-1/preview.png",
+    );
+  });
+
+  it("retries only a failed preview without blocking story selection", async () => {
+    const failedIdea = {
+      id: "idea_1", title: "Orbit", summary: "A lesson", theme: "Space",
+      preview_status: "failed", preview_url: null,
+    };
+    startChapter.mockResolvedValue({
+      success: true,
+      chapter: { id: "chapter-1", story_ideas: [failedIdea] },
+    });
+    retryPreview.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        story_ideas: [{ ...failedIdea, preview_status: "generating" }],
+      },
+    });
+
+    renderGenerator();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Newton's laws" } });
+    fireEvent.click(screen.getByRole("button", { name: "Generate Story Options" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Retry Orbit preview" }));
+
+    await waitFor(() => expect(retryPreview).toHaveBeenCalledWith("chapter-1", "idea_1"));
+    expect(chooseIdea).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Select This Story" })).toBeEnabled();
+    expect(screen.getByText("Creating preview…")).toBeInTheDocument();
   });
 
   it("retries an ambiguous commit directly with the same idempotency key", async () => {
@@ -255,5 +344,25 @@ describe("StoryGenerator", () => {
     expect(screen.getByText("1 panel completed")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveClass("animate-pulse");
     expect(screen.queryByText(/\/ 12/)).not.toBeInTheDocument();
+  });
+
+  it("shows durable temporary panel images while the final revision is still generating", async () => {
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        status: "generating",
+        panels: [],
+        temporary_panel_previews: [{ index: 1, image: "/media/story-images/chapter-1/panel-1.png" }],
+      },
+    });
+
+    await startGeneration();
+
+    expect(screen.getByText("1 panel completed")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Generated panel 1 preview" })).toHaveAttribute(
+      "src",
+      "/media/story-images/chapter-1/panel-1.png",
+    );
   });
 });

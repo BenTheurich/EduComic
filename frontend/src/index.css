@@ -17,7 +17,7 @@ All colors MUST be HSL.
     --card: 210 40% 98%;
     --card-foreground: 222 47% 11%;
 
-    --popover: 214 31% 91%;
+    --popover: 210 40% 98%;
     --popover-foreground: 222 47% 11%;
 
     --primary: 200 98% 32%;
@@ -26,10 +26,10 @@ All colors MUST be HSL.
     --secondary: 215 24% 26%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 215 20% 65%;
-    --muted-foreground: 222 47% 11%;
+    --muted: 212 26% 90%;
+    --muted-foreground: 215 16% 38%;
 
-    --accent: 210 40% 98%;
+    --accent: 212 32% 92%;
     --accent-foreground: 215 19% 34%;
 
     --destructive: 0 72% 43%;
@@ -38,6 +38,8 @@ All colors MUST be HSL.
     --border: 212 26% 83%;
     --input: 212 26% 83%;
     --ring: 200 98% 32%;
+
+    --story-spark: 58 100% 78%;
 
     --radius: 0.5rem;
 
@@ -104,14 +106,33 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: hsl(var(--story-spark));
+    color: hsl(var(--foreground));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-spin,
-  .animate-pulse {
-    animation-duration: 0.01ms;
-    animation-iteration-count: 1;
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.reader-strip {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .reader-strip {
+    width: var(--reader-scale);
   }
 }

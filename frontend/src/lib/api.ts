@@ -1,7 +1,7 @@
 /**
  * API client configuration and utilities
  */
-import type { Chapter, ChapterPreview, ChapterStatus, ChapterWithPanels } from "@/types/story";
+import type { Chapter, ChapterPreview, ChapterStatus, ChapterWithPanels, StoryIdea } from "@/types/story";
 import type { Student } from "@/types/student";
 
 export interface Material {
@@ -183,12 +183,7 @@ export const api = {
       apiFetch<{
         success: boolean;
         chapter: Chapter & {
-          story_ideas: Array<{
-            id: string;
-            title: string;
-            summary: string;
-            theme: string;
-          }>;
+          story_ideas: StoryIdea[];
           chosen_idea_id: string | null;
         };
       }>(`/classrooms/${classroomId}/chapters/start`, {
@@ -203,6 +198,15 @@ export const api = {
       }>(`/chapters/${chapterId}/choose-idea`, {
         method: 'POST',
         body: JSON.stringify({ idea_id: ideaId }),
+      }),
+
+    retryPreview: (chapterId: string, ideaId: string) =>
+      apiFetch<{
+        success: boolean;
+        chapter: Chapter & { story_ideas: StoryIdea[] };
+      }>(`/chapters/${chapterId}/story-ideas/${ideaId}/preview/retry`, {
+        method: 'POST',
+        body: JSON.stringify({}),
       }),
 
     commitChapter: (chapterId: string, ideaId: string, idempotencyKey: string) =>

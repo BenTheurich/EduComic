@@ -112,7 +112,7 @@ const Logo = ({ open }: { open: boolean }) => {
   return (
     <Link
       to="/teacher/dashboard"
-      aria-label="StoryClass dashboard"
+      aria-label="EduComic dashboard"
       className="font-normal flex min-h-11 space-x-2 items-center text-sm py-1 relative z-20"
     >
       <div className="h-5 w-6 bg-primary rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
@@ -121,7 +121,7 @@ const Logo = ({ open }: { open: boolean }) => {
         animate={{ opacity: open ? 1 : 0 }}
         className="font-medium text-foreground whitespace-pre"
       >
-        StoryClass
+        EduComic
       </motion.span>
     </Link>
   );

@@ -28,7 +28,14 @@ describe("StudentDashboard", () => {
         avatar_url: null,
         created_at: "2026-07-01T00:00:00Z",
       },
-      classrooms: [],
+      classrooms: [{
+        id: "classroom-1",
+        name: "Weather Lab",
+        subject: "Science",
+        grade_level: "Grade 5",
+        story_theme: "Weather Detectives",
+        design_style: "comic",
+      }],
     });
     getChapters.mockReset().mockResolvedValue({
       success: true,
@@ -50,9 +57,10 @@ describe("StudentDashboard", () => {
           status: "ready",
           story_title: "Ready Story",
           index: 1,
-          chapter_outline: "A complete story",
-          original_prompt: "Lesson",
-          thumbnail_url: null,
+          chapter_outline: "Legacy outline",
+          original_prompt: "Teacher lesson prompt",
+          story_description: "Students solve a fictional orbital rescue.",
+          thumbnail_url: "/media/story-images/ready/preview.png",
           classroom_name: "Science",
           created_at: "2026-07-31T01:00:00Z",
         },
@@ -73,8 +81,17 @@ describe("StudentDashboard", () => {
     );
 
     expect(await screen.findByText("Ready Story")).toBeInTheDocument();
+    expect(screen.getByText("Students solve a fictional orbital rescue.")).toBeInTheDocument();
+    expect(screen.queryByText("Legacy outline")).not.toBeInTheDocument();
+    expect(screen.queryByText("Teacher lesson prompt")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Ready Story story preview" })).toHaveAttribute(
+      "src",
+      "/media/story-images/ready/preview.png",
+    );
     expect(screen.getByRole("link", { name: "Read Now" })).toHaveAttribute("href", "/student/story/ready/student-1");
     expect(screen.queryByText("Still Generating")).not.toBeInTheDocument();
     expect(screen.queryByText("Failed Story")).not.toBeInTheDocument();
+    expect(screen.getByText("Grade 5")).toBeInTheDocument();
+    expect(screen.queryByText("Grade Grade 5")).not.toBeInTheDocument();
   });
 });

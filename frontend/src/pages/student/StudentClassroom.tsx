@@ -9,6 +9,7 @@ import { ClassPictureBanner } from "@/components/shared/ClassPictureBanner";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import type { Chapter } from "@/types/story";
+import { formatGradeLevel } from "@/lib/utils";
 
 type Classroom = Awaited<ReturnType<typeof api.classrooms.getById>>["classroom"];
 type Student = Classroom["students"][number];
@@ -54,15 +55,6 @@ const StudentClassroom = () => {
     fetchClassroomData();
   }, [classroomId, reloadKey]);
 
-  const subjectColors: Record<string, string> = {
-    Physics: "bg-blue-500",
-    Math: "bg-purple-500",
-    History: "bg-amber-500",
-    English: "bg-green-500",
-    Chemistry: "bg-cyan-500",
-    Biology: "bg-emerald-500"
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -104,8 +96,8 @@ const StudentClassroom = () => {
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="min-h-screen">
+      <div className="container mx-auto max-w-6xl px-4 py-8 sm:py-12">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -124,14 +116,15 @@ const StudentClassroom = () => {
 
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-foreground mb-3">
+              <p className="mb-2 font-mono text-xs font-bold tracking-wide text-primary">CLASSROOM LIBRARY</p>
+              <h1 className="mb-3 font-serif text-4xl font-semibold tracking-tight text-foreground">
                 {classroom.name}
               </h1>
               <div className="flex gap-2 flex-wrap">
-                <Badge className={`${subjectColors[classroom.subject] || 'bg-gray-500'} text-white`}>
+                <Badge variant="outline">
                   {classroom.subject}
                 </Badge>
-                <Badge variant="outline">Grade {classroom.grade_level}</Badge>
+                <Badge variant="outline">{formatGradeLevel(classroom.grade_level)}</Badge>
                 <Badge variant="outline">{classroom.story_theme}</Badge>
               </div>
             </div>
@@ -160,10 +153,10 @@ const StudentClassroom = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
         >
-          <h2 className="text-2xl font-bold text-foreground mb-6">Stories</h2>
+          <h2 className="mb-6 font-serif text-3xl font-semibold text-foreground">Stories</h2>
 
           {chapters.length === 0 ? (
-            <Card className="backdrop-blur-lg bg-card/70 border-border/50">
+            <Card>
               <CardContent className="pt-12 pb-12 text-center">
                 <p className="text-muted-foreground">
                   No stories yet. Your teacher will create them soon!
@@ -180,30 +173,34 @@ const StudentClassroom = () => {
                   transition={{ duration: 0.3, delay: 0.3 + idx * 0.1 }}
                   className="h-full"
                 >
-                  <Card className="backdrop-blur-lg bg-card/70 border-2 border-border/50 hover:bg-card/80 transition-all hover:shadow-xl hover:scale-[1.02] h-full flex flex-col">
-                    <CardContent className="pt-6 flex flex-col h-full">
-                      <div className="w-full h-48 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg flex items-center justify-center border border-border/30 overflow-hidden flex-shrink-0">
+                  <Card className="flex h-full flex-col">
+                    <CardContent className="flex h-full flex-col">
+                      <div className="flex h-48 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 border-foreground/15 bg-muted">
                         {chapter.thumbnail_url ? (
-                          <img src={chapter.thumbnail_url} alt={`Chapter ${chapter.index}`} className="w-full h-full object-cover" />
+                          <img
+                            src={chapter.thumbnail_url}
+                            alt={`${chapter.story_title} story preview`}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
-                          <span className="text-5xl">📚</span>
+                          <BookOpen className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
                         )}
                       </div>
 
                       <div className="flex-1 flex flex-col justify-between mt-4">
                         <div>
-                          <h3 className="text-xl font-bold text-foreground mb-2 line-clamp-2 min-h-[3.5rem]">
+                          <h3 className="mb-2 min-h-[3.5rem] font-serif text-xl font-semibold text-foreground">
                             {chapter.story_title || `Chapter ${chapter.index}`}
                           </h3>
-                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2 min-h-[2.5rem]">
-                            {chapter.chapter_outline}
+                          <p className="text-sm text-muted-foreground mb-3 min-h-[2.5rem]">
+                            {chapter.story_description}
                           </p>
                           <p className="text-xs text-muted-foreground mb-3">
                             Created on {new Date(chapter.created_at).toLocaleDateString()}
                           </p>
 
                           <div className="flex gap-2 flex-wrap mb-4">
-                            <Badge className="bg-green-500/80 text-white backdrop-blur-sm">
+                            <Badge className="border-green-700 bg-green-700 text-white">
                               <CheckCircle className="w-3 h-3 mr-1" />
                               {chapter.status.replaceAll("_", " ")}
                             </Badge>

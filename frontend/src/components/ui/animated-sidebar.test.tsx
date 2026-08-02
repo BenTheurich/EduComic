@@ -21,7 +21,7 @@ const SidebarFixture = () => {
 describe("animated sidebar", () => {
   it("renders navigation in both desktop and keyboard-operable mobile sidebars", async () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={["/dashboard"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <SidebarFixture />
       </MemoryRouter>,
     );
@@ -31,6 +31,7 @@ describe("animated sidebar", () => {
     fireEvent.click(menuButton);
 
     expect(screen.getAllByRole("link", { name: "Dashboard" })).toHaveLength(2);
+    expect(screen.getAllByRole("link", { name: "Dashboard" })[0]).toHaveAttribute("aria-current", "page");
     const closeButton = screen.getByRole("button", { name: "Close navigation" });
     expect(closeButton).toHaveFocus();
     fireEvent.keyDown(closeButton, { key: "Tab", shiftKey: true });

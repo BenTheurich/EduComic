@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, Loader2, Sparkles } from "lucide-react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ChevronLeft, ImageIcon, Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,23 +8,19 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Material } from "@/lib/api";
-import type { Panel } from "@/types/story";
-
-interface StoryOption {
-  id: string;
-  title: string;
-  theme: string;
-  summary: string;
-}
+import type { Panel, StoryIdea } from "@/types/story";
+import { formatGradeLevel } from "@/lib/utils";
 
 const StoryGenerator = () => {
   const navigate = useNavigate();
   const { classroomId } = useParams<{ classroomId: string }>();
+  const [searchParams] = useSearchParams();
+  const resumableChapterId = searchParams.get("chapter");
   const [step, setStep] = useState(1);
   const [lessonInput, setLessonInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [storyOptions, setStoryOptions] = useState<StoryOption[]>([]);
+  const [storyOptions, setStoryOptions] = useState<StoryIdea[]>([]);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
   const [classroom, setClassroom] = useState<{ name: string; subject: string; grade_level: string } | null>(null);
@@ -71,6 +67,28 @@ const StoryGenerator = () => {
     }
   }, [classroomId, classroomReloadKey]);
 
+  useEffect(() => {
+    if (!classroomId || !resumableChapterId) return;
+    let cancelled = false;
+    api.chapters.getById(resumableChapterId)
+      .then(({ chapter }) => {
+        if (cancelled) return;
+        if (chapter.classroom_id !== classroomId || chapter.status !== "options_generated" || !chapter.story_ideas?.length) {
+          setGenerationError("This story is no longer waiting for a choice.");
+          return;
+        }
+        setChapterId(chapter.id);
+        setLessonInput(chapter.original_prompt);
+        setStoryOptions(chapter.story_ideas);
+        setGroundedSourceLabels((chapter.grounded_sources || []).map((source) => source.source_label));
+        setStep(2);
+      })
+      .catch(() => {
+        if (!cancelled) setGenerationError("Could not resume this story. Return to the classroom and try again.");
+      });
+    return () => { cancelled = true; };
+  }, [classroomId, resumableChapterId]);
+
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
@@ -80,6 +98,31 @@ const StoryGenerator = () => {
     };
   }, []);
 
+  const previewsActive = storyOptions.some((option) =>
+    option.preview_status === "pending" || option.preview_status === "generating"
+  );
+
+  useEffect(() => {
+    if (step !== 2 || !chapterId || !previewsActive) return;
+    let cancelled = false;
+    const refreshPreviews = async () => {
+      try {
+        const response = await api.chapters.getById(chapterId);
+        if (!cancelled && response.chapter.story_ideas?.length) {
+          setStoryOptions(response.chapter.story_ideas);
+        }
+      } catch {
+        // Text ideas stay selectable while local preview status is temporarily unavailable.
+      }
+    };
+    const interval = setInterval(refreshPreviews, 2000);
+    refreshPreviews();
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [chapterId, previewsActive, step]);
+
   const pollPanelsProgress = async () => {
     if (!chapterId) return;
 
@@ -88,7 +131,15 @@ const StoryGenerator = () => {
       consecutivePollingErrors.current = 0;
       pollAttempts.current += 1;
       if (response.success && response.chapter) {
-        const chapterPanels = response.chapter.panels || [];
+        const chapterPanels = response.chapter.panels?.length
+          ? response.chapter.panels
+          : (response.chapter.temporary_panel_previews || []).map((panel) => ({
+              id: `temporary-${panel.index}`,
+              chapter_id: response.chapter.id,
+              index: panel.index,
+              image: panel.image,
+              created_at: "",
+            }));
         setPanels(chapterPanels);
 
         // Check if generation is complete
@@ -217,8 +268,26 @@ const StoryGenerator = () => {
     }
   };
 
+  const retryStoryPreview = async (ideaId: string) => {
+    if (!chapterId) return;
+    setStoryOptions((options) => options.map((option) =>
+      option.id === ideaId
+        ? { ...option, preview_status: "generating", preview_error_reference: null }
+        : option
+    ));
+    try {
+      const response = await api.story.retryPreview(chapterId, ideaId);
+      setStoryOptions(response.chapter.story_ideas);
+    } catch (error) {
+      setStoryOptions((options) => options.map((option) =>
+        option.id === ideaId ? { ...option, preview_status: "failed" } : option
+      ));
+      toast.error(error instanceof Error ? error.message : "Preview retry failed");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen">
       {/* Header */}
       <header className="bg-background border-b">
         <div className="container mx-auto px-4 py-4">
@@ -230,13 +299,14 @@ const StoryGenerator = () => {
       </header>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-12 max-w-4xl">
+      <main className="container mx-auto max-w-5xl px-4 py-8 sm:py-12">
         <div className="space-y-8">
           <div>
-            <h1 className="text-4xl font-bold text-foreground mb-2">Generate New Story</h1>
+            <p className="mb-2 font-mono text-xs font-bold tracking-wide text-primary">STORY WORKSHOP</p>
+            <h1 className="mb-2 font-serif text-4xl font-semibold tracking-tight text-foreground">Create a classroom story</h1>
             {classroom && (
-              <p className="text-muted-foreground">
-                {classroom.subject} • {classroom.grade_level}
+              <p className="font-mono text-xs text-muted-foreground">
+                {classroom.subject} • {formatGradeLevel(classroom.grade_level)}
               </p>
             )}
           </div>
@@ -257,23 +327,24 @@ const StoryGenerator = () => {
             <Card>
               <CardContent className="pt-6 space-y-6">
                 <div className="space-y-3">
-                  <label className="text-sm font-medium text-foreground">
+                  <label htmlFor="lesson-brief" className="text-sm font-medium text-foreground">
                     What did you teach today? *
                   </label>
                   <Textarea
+                    id="lesson-brief"
                     placeholder="Example: Today we covered Newton's Three Laws of Motion. Students learned about force, mass, and acceleration through hands-on experiments with balls and ramps."
                     value={lessonInput}
                     onChange={(e) => setLessonInput(e.target.value)}
                     className="min-h-[200px]"
                     maxLength={500}
                   />
-                  <div className="text-xs text-muted-foreground text-right">
+                  <div className="text-right font-mono text-xs text-muted-foreground">
                     {lessonInput.length}/500 characters
                   </div>
                 </div>
 
                 {materials.length > 0 && (
-                  <fieldset className="space-y-3 rounded-lg border p-4">
+                  <fieldset className="space-y-3 border-t pt-5">
                     <legend className="px-1 text-sm font-medium">Lesson materials (optional)</legend>
                     <p className="text-xs text-muted-foreground">Only checked PDFs will be sent as bounded source excerpts.</p>
                     {materials.map((material) => (
@@ -323,36 +394,60 @@ const StoryGenerator = () => {
 
           {step === 2 && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-foreground">Choose Your Story</h2>
+              <div>
+                <p className="mb-2 font-mono text-xs font-bold tracking-wide text-primary">THREE DIRECTIONS</p>
+                <h2 className="font-serif text-3xl font-semibold text-foreground">Choose Your Story</h2>
+                <p className="mt-2 text-sm text-muted-foreground">Compare the complete concepts. Preview images can finish independently.</p>
+              </div>
               {groundedSourceLabels.length > 0 && (
                 <p className="rounded-md border bg-muted/40 p-3 text-sm">Grounded in {groundedSourceLabels.join(", ")}</p>
               )}
               <div className="grid md:grid-cols-3 gap-6">
                 {storyOptions.map((option) => (
-                  <Card
-                    key={option.id}
-                    className="cursor-pointer hover:shadow-lg transition-all hover:scale-[1.02] border-2 hover:border-primary"
-                    onClick={() => selectStory(option.id)}
-                  >
-                    <CardContent className="pt-6 space-y-4">
-                      <div className="w-full aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
-                        <span className="text-5xl">{option.theme}</span>
+                  <Card key={option.id} className="overflow-hidden border">
+                    <CardContent className="flex h-full flex-col p-0 sm:p-0">
+                      <div className="flex aspect-square w-full items-center justify-center overflow-hidden border-b-2 border-foreground/15 bg-muted/40">
+                        {option.preview_status === "ready" && option.preview_url ? (
+                          <img
+                            src={option.preview_url}
+                            alt={`${option.title} story preview`}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : option.preview_status === "pending" || option.preview_status === "generating" ? (
+                          <div className="flex flex-col items-center gap-3 px-4 text-center" role="status">
+                            <Loader2 className="h-7 w-7 animate-spin text-primary" aria-hidden="true" />
+                            <span className="text-sm text-muted-foreground">Creating preview…</span>
+                          </div>
+                        ) : option.preview_status === "failed" ? (
+                          <div className="flex flex-col items-center gap-3 px-4 text-center">
+                            <ImageIcon className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+                            <span className="text-sm text-muted-foreground">Preview unavailable</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              aria-label={`Retry ${option.title} preview`}
+                              onClick={() => retryStoryPreview(option.id)}
+                            >
+                              <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
+                              Retry preview
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 px-4 text-center text-muted-foreground">
+                            <Sparkles className="h-8 w-8" aria-hidden="true" />
+                            <span className="text-sm">{option.theme}</span>
+                          </div>
+                        )}
                       </div>
-                        
-                      {/* Title */}
-                      <h3 className="text-lg font-bold text-foreground text-center line-clamp-2 min-h-[3.5rem]">
-                        {option.title}
-                      </h3>
-                        
-                      {/* Summary */}
-                      <p className="text-sm text-muted-foreground line-clamp-3 min-h-[4rem]">
-                        {option.summary}
-                      </p>
-                        
-                      {/* Select Button */}
-                      <Button className="w-full">
-                        Select This Story
-                      </Button>
+                      <div className="flex flex-1 flex-col gap-4 p-5">
+                        <h3 className="font-serif text-xl font-semibold leading-tight text-foreground">{option.title}</h3>
+                        <p className="flex-1 text-sm leading-6 text-muted-foreground">{option.summary}</p>
+                        <Button className="w-full" onClick={() => selectStory(option.id)}>
+                          Select This Story
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -362,7 +457,7 @@ const StoryGenerator = () => {
 
           {step === 3 && (
             <Card>
-              <CardContent className="pt-12 pb-12 space-y-8">
+              <CardContent className="space-y-8 py-10 sm:py-12">
                 {generationError ? (
                   <div className="text-center space-y-4">
                     <p role="alert" className="text-destructive">{generationError}</p>
@@ -377,10 +472,10 @@ const StoryGenerator = () => {
                   </div>
                 ) : (
                   <>
-                    <div className="text-center space-y-4">
-                      <Loader2 className="w-16 h-16 mx-auto animate-spin text-primary" />
-                      <h2 className="text-2xl font-bold text-foreground">
-                        Generating your personalized graphic novel...
+                    <div className="space-y-4 text-center" role="status">
+                      <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary" aria-hidden="true" />
+                      <h2 className="font-serif text-3xl font-semibold text-foreground">
+                        Building your comic, panel by panel
                       </h2>
                       <p className="text-muted-foreground">
                         {panels.length} panel{panels.length !== 1 ? 's' : ''} completed
@@ -390,7 +485,7 @@ const StoryGenerator = () => {
                     <div className="space-y-2">
                       <Progress aria-label="Story generation progress" className="h-3 animate-pulse" />
                       <p className="text-sm text-muted-foreground text-center">
-                        This may take a few minutes...
+                        You can leave this screen; generation continues locally.
                       </p>
                     </div>
 
@@ -398,11 +493,11 @@ const StoryGenerator = () => {
                       {panels.map((panel) => (
                         <div
                           key={panel.id}
-                          className="aspect-square rounded-lg overflow-hidden bg-primary/20 shadow-md"
+                          className="aspect-square overflow-hidden rounded-lg border-2 border-foreground/15 bg-muted"
                         >
                           <img
                             src={panel.image}
-                            alt={`Panel ${panel.index}`}
+                            alt={`Generated panel ${panel.index} preview`}
                             className="w-full h-full object-cover"
                           />
                         </div>
@@ -419,7 +514,7 @@ const StoryGenerator = () => {
             </Card>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 };

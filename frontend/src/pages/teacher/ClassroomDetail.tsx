@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { ChevronLeft, Copy, Plus, CheckCircle, Clock, Filter, Loader2, Grid3x3, List, Trash2 } from "lucide-react";
+import { BookOpen, ChevronLeft, Copy, Plus, CheckCircle, Clock, Filter, Loader2, Grid3x3, List, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { api } from "@/lib/api";
 import type { Material } from "@/lib/api";
 import { exportStoryPdf } from "@/lib/exportStoryPdf";
 import type { Chapter } from "@/types/story";
+import { formatGradeLevel } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -292,8 +293,7 @@ const ClassroomDetail = () => {
 
   return (
     <div className="relative min-h-screen">
-      {/* Header - Glass Effect */}
-      <header className="sticky top-0 z-20 backdrop-blur-lg bg-background/70 border-b border-border/50">
+      <header className="sticky top-0 z-20 border-b bg-background/95">
         <div className="container mx-auto px-4 py-4">
           <Button variant="ghost" onClick={() => navigate("/teacher/dashboard")}>
             <ChevronLeft className="w-5 h-5 mr-2" />
@@ -303,8 +303,7 @@ const ClassroomDetail = () => {
       </header>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        {/* Classroom Header - Glass Effect */}
+      <main className="container mx-auto max-w-6xl px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -313,7 +312,8 @@ const ClassroomDetail = () => {
         >
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div className="flex-1">
-              <h1 className="text-4xl font-bold text-foreground mb-2">
+              <p className="mb-2 font-mono text-xs font-bold tracking-wide text-primary">CLASSROOM WORKSPACE</p>
+              <h1 className="mb-3 font-serif text-4xl font-semibold tracking-tight text-foreground">
                 {classroom.name}
               </h1>
               {!editing && <div className="mb-3 flex gap-2"><Button variant="outline" onClick={() => { setEditDraft(classroom); setEditing(true); setEditError(""); }}>Edit classroom</Button>
@@ -328,13 +328,13 @@ const ClassroomDetail = () => {
                 {editError && <p role="alert" className="text-destructive">{editError}</p>}
               </form>}
               <div className="flex gap-2 flex-wrap mb-3">
-                <Badge className="bg-blue-500/80 backdrop-blur-sm text-white border-blue-300/30">{classroom.subject}</Badge>
-                <Badge className="backdrop-blur-sm bg-background/60 border-border/50" variant="outline">Grade {classroom.grade_level}</Badge>
-                <Badge className="backdrop-blur-sm bg-background/60 border-border/50" variant="outline">{classroom.story_theme}</Badge>
+                <Badge variant="outline">{classroom.subject}</Badge>
+                <Badge variant="outline">{formatGradeLevel(classroom.grade_level)}</Badge>
+                <Badge variant="outline">{classroom.story_theme}</Badge>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center">
                 <span>Invite students:</span>
-                <code className="px-2 py-1 bg-muted/50 backdrop-blur-sm rounded text-xs font-mono border border-border/30">
+                <code className="break-all rounded border bg-card px-2 py-1 font-mono text-xs">
                   {window.location.origin}/student/join/{id}
                 </code>
                 <Button
@@ -342,7 +342,7 @@ const ClassroomDetail = () => {
                   onClick={copyInviteLink}
                   size="sm"
                   variant="ghost"
-                  className="px-2 backdrop-blur-sm"
+                  className="px-2"
                 >
                   <Copy className="w-3 h-3" />
                 </Button>
@@ -351,9 +351,8 @@ const ClassroomDetail = () => {
           </div>
         </motion.div>
 
-        {/* Tabs - Glass Effect */}
         <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
-          <TabsList className="backdrop-blur-lg bg-muted/50 border border-border/30">
+          <TabsList>
             <TabsTrigger value="students">Students</TabsTrigger>
             <TabsTrigger value="materials">Materials</TabsTrigger>
             <TabsTrigger value="stories">Stories</TabsTrigger>
@@ -361,7 +360,7 @@ const ClassroomDetail = () => {
 
           <TabsContent value="students" className="space-y-6">
             {students.length === 0 ? (
-              <Card className="backdrop-blur-lg bg-card/70 border-border/50">
+              <Card>
                 <CardContent className="pt-12 pb-12 text-center space-y-4">
                   <p className="text-muted-foreground">
                     No students yet. Share the invite link to get started.
@@ -372,12 +371,11 @@ const ClassroomDetail = () => {
               <>
                 {/* View Toggle */}
                 <div className="flex justify-end">
-                  <div className="flex gap-1 p-1 backdrop-blur-lg bg-muted/50 rounded-lg border border-border/30">
+                  <div className="flex gap-1 rounded-lg border bg-card p-1">
                     <Button
                       variant={studentViewMode === "grid" ? "default" : "ghost"}
                       size="sm"
                       onClick={() => setStudentViewMode("grid")}
-                      className="backdrop-blur-sm"
                     >
                       <Grid3x3 className="w-4 h-4 mr-2" />
                       Grid
@@ -386,7 +384,6 @@ const ClassroomDetail = () => {
                       variant={studentViewMode === "list" ? "default" : "ghost"}
                       size="sm"
                       onClick={() => setStudentViewMode("list")}
-                      className="backdrop-blur-sm"
                     >
                       <List className="w-4 h-4 mr-2" />
                       List
@@ -409,7 +406,7 @@ const ClassroomDetail = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3, delay: idx * 0.1 }}
                       >
-                        <Card className="backdrop-blur-lg bg-card/70 border-border/50 hover:bg-card/80 transition-all hover:shadow-xl h-full">
+                        <Card className="h-full">
                           <CardContent className="pt-6 pb-6 flex flex-col h-full">
                             {/* Student Avatar - Fixed Height */}
                             <div className="flex justify-center mb-4">
@@ -439,8 +436,8 @@ const ClassroomDetail = () => {
                             {/* Status Badge - Fixed at Bottom */}
                             <Badge
                               className={`w-full justify-center ${student.status === "generated"
-                                ? "bg-green-500/80 text-white backdrop-blur-sm border-green-300/30"
-                                : "bg-amber-500/80 text-white backdrop-blur-sm border-amber-300/30"
+                                ? "border-green-700 bg-green-700 text-white"
+                                : "border-amber-300 bg-amber-100 text-amber-900"
                                 }`}
                             >
                               {student.status === "generated" ? (
@@ -487,7 +484,7 @@ const ClassroomDetail = () => {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: idx * 0.05 }}
                       >
-                        <Card className="backdrop-blur-lg bg-card/70 border-border/50 hover:bg-card/80 transition-all hover:shadow-lg">
+                        <Card>
                           <CardContent className="py-4">
                             <div className="flex items-center gap-4">
                               <div className="flex-1 min-w-0">
@@ -495,8 +492,8 @@ const ClassroomDetail = () => {
                                   <h3 className="font-semibold text-foreground text-lg">{student.name}</h3>
                                   <Badge
                                     className={student.status === "generated"
-                                      ? "bg-green-500/80 text-white backdrop-blur-sm border-green-300/30"
-                                      : "bg-amber-500/80 text-white backdrop-blur-sm border-amber-300/30"
+                                      ? "border-green-700 bg-green-700 text-white"
+                                      : "border-amber-300 bg-amber-100 text-amber-900"
                                     }
                                   >
                                     {student.status === "generated" ? (
@@ -552,7 +549,7 @@ const ClassroomDetail = () => {
                   type="file"
                   accept="application/pdf,.pdf"
                   onChange={(event) => setMaterialFile(event.target.files?.[0] || null)}
-                  className="block min-h-11 w-full rounded-md border bg-background p-2 text-sm"
+                  className="block min-h-11 w-full rounded-md border bg-card p-2 text-sm"
                 />
                 <Button onClick={() => void uploadMaterial()} disabled={!materialFile || isUploadingMaterial}>
                   {isUploadingMaterial ? "Uploading and extracting..." : "Upload and extract"}
@@ -586,7 +583,7 @@ const ClassroomDetail = () => {
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <Select value={storySortBy} onValueChange={(value: "week" | "date") => setStorySortBy(value)}>
-                  <SelectTrigger className="w-[180px] backdrop-blur-sm bg-background/60">
+                  <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
@@ -595,7 +592,7 @@ const ClassroomDetail = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button asChild className="backdrop-blur-sm">
+              <Button asChild>
                 <a href={`/teacher/classroom/${id}/story/new`}>
                   <Plus className="w-4 h-4 mr-2" />
                   Generate New Story
@@ -604,12 +601,12 @@ const ClassroomDetail = () => {
             </div>
 
             {chapters.length === 0 ? (
-              <Card className="backdrop-blur-lg bg-card/70 border-border/50">
+              <Card>
                 <CardContent className="pt-12 pb-12 text-center space-y-4">
                   <p className="text-muted-foreground">
                     No stories yet. Generate your first story based on a lesson!
                   </p>
-                  <Button asChild className="backdrop-blur-sm">
+                  <Button asChild>
                     <a href={`/teacher/classroom/${id}/story/new`}>
                       <Plus className="w-4 h-4 mr-2" />
                       Generate Story
@@ -621,7 +618,7 @@ const ClassroomDetail = () => {
               <div className="space-y-8">
                 {groupedChapters().map((group, groupIdx) => (
                   <div key={group.label} className="space-y-4">
-                    <h3 className="text-lg font-semibold text-foreground/80 backdrop-blur-sm">
+                    <h3 className="font-mono text-sm font-bold text-muted-foreground">
                       {group.label}
                     </h3>
                     {group.chapters.map((chapter, idx) => (
@@ -631,25 +628,25 @@ const ClassroomDetail = () => {
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ duration: 0.3, delay: (groupIdx * 0.1) + (idx * 0.05) }}
                       >
-                        <Card className="backdrop-blur-lg bg-card/70 border-border/50 hover:bg-card/80 transition-all hover:shadow-xl h-full">
+                        <Card className="h-full overflow-hidden">
                           <CardContent className="pt-6 h-full">
                             <div className="flex flex-col md:flex-row gap-4 h-full">
-                              <div className="w-full md:w-32 h-32 md:h-auto bg-muted/50 backdrop-blur-sm rounded-lg flex items-center justify-center border border-border/30 overflow-hidden flex-shrink-0">
+                              <div className="flex h-48 w-full flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 border-foreground/15 bg-muted md:h-auto md:w-40">
                                 {chapter.thumbnail_url ? (
                                   <img
                                     src={chapter.thumbnail_url}
-                                    alt={`Chapter ${chapter.index}`}
+                                    alt={`${chapter.story_title} story preview`}
                                     className="w-full h-full object-cover"
                                   />
                                 ) : (
-                                  <span className="text-4xl">📚</span>
+                                  <BookOpen className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
                                 )}
                               </div>
                               <div className="flex-1 flex flex-col justify-between space-y-3 min-h-[180px]">
                                 <div className="flex-1">
-                                  <h3 className="text-xl font-bold text-foreground line-clamp-1">{chapter.story_title || `Chapter ${chapter.index}`}</h3>
-                                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                                    {chapter.chapter_outline || chapter.original_prompt}
+                                  <h3 className="font-serif text-xl font-semibold text-foreground">{chapter.story_title || `Chapter ${chapter.index}`}</h3>
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {chapter.story_description}
                                   </p>
                                   <p className="text-xs text-muted-foreground mt-2">
                                     Created on {new Date(chapter.created_at).toLocaleDateString()}
@@ -672,24 +669,28 @@ const ClassroomDetail = () => {
                                 <div className="flex gap-2 flex-wrap">
                                   {chapter.status === "ready" && (
                                     <>
-                                      <Button asChild variant="default" className="backdrop-blur-sm">
+                                      <Button asChild variant="default">
                                         <a href={`/teacher/story/${chapter.id}`}>View Chapter</a>
                                       </Button>
                                       <Button
                                         variant="outline"
-                                        className="backdrop-blur-sm bg-background/60"
                                         onClick={() => handleExportPDF(chapter.id, chapter.story_title || `Chapter ${chapter.index}`)}
                                       >
                                         Export PDF
                                       </Button>
                                     </>
                                   )}
+                                  {chapter.status === "options_generated" && (
+                                    <Button asChild>
+                                      <a href={`/teacher/classroom/${id}/story/new?chapter=${chapter.id}`}>Continue Story</a>
+                                    </Button>
+                                  )}
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <Button
                                         variant="destructive"
                                         size="icon"
-                                        className="backdrop-blur-sm"
+                                        aria-label={`Delete ${chapter.story_title || `Chapter ${chapter.index}`}`}
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </Button>
@@ -727,7 +728,7 @@ const ClassroomDetail = () => {
           </TabsContent>
 
         </Tabs>
-      </div>
+      </main>
     </div>
   );
 };

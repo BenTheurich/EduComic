@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import React, { useEffect, useRef, useState, createContext, useContext } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
@@ -225,12 +225,16 @@ export const SidebarLink = ({
   className?: string;
 }) => {
   const { open, animate } = useSidebar();
+  const location = useLocation();
+  const active = `${location.pathname}${location.search}` === link.href;
   return (
     <Link
       to={link.href}
       aria-label={link.label}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-11 items-center justify-start gap-2 group/sidebar py-2 px-2 rounded-md hover:bg-accent transition-colors",
+        "flex min-h-11 items-center justify-start gap-2 py-2 px-2 rounded-md hover:bg-accent transition-colors",
+        active && "bg-accent font-medium text-foreground",
         className
       )}
       {...props}
@@ -245,7 +249,7 @@ export const SidebarLink = ({
           duration: 0.2,
           ease: "easeInOut",
         }}
-        className="text-foreground text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+        className="text-foreground text-sm whitespace-pre inline-block !p-0 !m-0"
       >
         {link.label}
       </motion.span>

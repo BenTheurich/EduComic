@@ -17,7 +17,7 @@ def _personalized_options(_classroom, students, _outline, *, model):
 
 
 def test_selected_option_participants_are_provider_provenance_not_generation_cast(monkeypatch, tmp_path):
-    """Catches a removed option participant escaping active/completed run erasure."""
+    """Active work excludes a removed student while completed comics remain readable."""
     client, database = _client(monkeypatch, tmp_path)
     import services.comic_creation as comic
     import services.generation as generation
@@ -65,8 +65,10 @@ def test_selected_option_participants_are_provider_provenance_not_generation_cas
     assert observed["cast"] == [bea["id"]]
     assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
     assert database.execute_deletion("student", ari["id"]) is True
-    assert database.get_generation_run(run["id"]) is None
-    assert database.get_chapter(chapter["id"])["revision"] == 0
+    assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
+    preserved = database.get_chapter(chapter["id"])
+    assert preserved["status"] == "ready"
+    assert preserved["revision"] == 1
 
 
 def test_failed_option_provenance_is_cleared_even_without_output(monkeypatch, tmp_path):
@@ -140,13 +142,12 @@ def test_erasure_preserves_neutral_selected_idea_for_existing_commit_flow(monkey
             },
         )
 
-    assert shell["story_ideas"] == [
-        {
-            "id": "idea_1",
-            "title": "Classroom story",
-            "summary": "Create a new story with the current classroom.",
-        }
-    ]
+    assert len(shell["story_ideas"]) == 1
+    assert {key: shell["story_ideas"][0][key] for key in ("id", "title", "summary")} == {
+        "id": "idea_1",
+        "title": "Classroom story",
+        "summary": "Create a new story with the current classroom.",
+    }
     assert "Ari" not in json.dumps(shell)
     assert committed.status_code == 200
     run = database.get_generation_run(committed.json()["run_id"])
@@ -155,10 +156,10 @@ def test_erasure_preserves_neutral_selected_idea_for_existing_commit_flow(monkey
     assert run["settings_snapshot"]["provider_input_student_ids"] == [bea["id"]]
 
 
-def test_forward_migration_marks_openai_snapshots_incomplete_and_erasure_is_conservative(
+def test_forward_migration_marks_openai_snapshots_incomplete_and_preserves_completed_story(
     monkeypatch, tmp_path
 ):
-    """Catches pre-fix OpenAI snapshots being certified complete by the forward migration."""
+    """Old provenance stays conservative without breaking a completed comic."""
     from database.migrations import upgrade_database
     from test_local_database import _database_url, _upgrade_to
     import database.database as database
@@ -250,7 +251,7 @@ def test_forward_migration_marks_openai_snapshots_incomplete_and_erasure_is_cons
     with engine.connect() as connection:
         assert connection.execute(
             text("SELECT COUNT(*) FROM generation_runs WHERE id = :id"), {"id": ids["run"]}
-        ).scalar_one() == 0
+        ).scalar_one() == 1
         assert connection.execute(
             text("SELECT revision FROM chapters WHERE id = :id"), {"id": ids["chapter"]}
-        ).scalar_one() == 0
+        ).scalar_one() == 1

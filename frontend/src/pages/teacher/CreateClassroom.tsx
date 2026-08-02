@@ -56,7 +56,7 @@ const CreateClassroom = () => {
   };
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="min-h-screen">
       <header className="bg-background border-b">
         <div className="container mx-auto px-4 py-4">
           <Button variant="ghost" onClick={() => navigate("/teacher/dashboard")}>
@@ -66,13 +66,21 @@ const CreateClassroom = () => {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-12 max-w-3xl">
+      <main className="container mx-auto max-w-3xl px-4 py-8 sm:py-12">
         <div className="space-y-8">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-foreground">Create New Classroom</h1>
+            <p className="font-mono text-xs font-bold tracking-wide text-primary">CLASSROOM SETUP</p>
+            <h1 className="font-serif text-4xl font-semibold tracking-tight text-foreground">Create a classroom</h1>
             <div className="flex items-center gap-2">
-              <div className="text-sm text-muted-foreground">Step {step} of 2</div>
-              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+              <div className="font-mono text-xs text-muted-foreground">Step {step} of 2</div>
+              <div
+                role="progressbar"
+                aria-label="Classroom setup progress"
+                aria-valuemin={1}
+                aria-valuemax={2}
+                aria-valuenow={step}
+                className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
+              >
                 <div
                   className="h-full bg-primary transition-all duration-300"
                   style={{ width: `${(step / 2) * 100}%` }}
@@ -162,7 +170,7 @@ const CreateClassroom = () => {
                         <Label
                           key={style.id}
                           htmlFor={`style-${style.id}`}
-                          className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border bg-card p-4 text-card-foreground shadow-sm transition-all hover:shadow-md ${formData.style === style.id ? "border-2 border-primary" : ""}`}
+                          className={`flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border bg-card p-4 text-card-foreground transition-colors hover:bg-accent ${formData.style === style.id ? "border-primary bg-story-spark/20" : ""}`}
                         >
                           <RadioGroupItem id={`style-${style.id}`} value={style.id} />
                           <span className="text-sm font-medium">{style.name}</span>
@@ -188,7 +196,7 @@ const CreateClassroom = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </main>
     </div>
   );
 };

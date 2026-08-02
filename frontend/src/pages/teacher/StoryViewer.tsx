@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ChevronLeft, Download, Loader2, ZoomIn, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -204,7 +204,7 @@ const StoryViewer = () => {
   };
 
   const renderPanel = (panel: Panel, grid: boolean) => (
-    <div key={panel.id} className={grid ? "overflow-hidden rounded-lg bg-white shadow-sm" : "w-full bg-white"}>
+    <div key={panel.id} className={grid ? "overflow-hidden rounded-lg border-2 border-foreground/15 bg-card" : "w-full border-x-2 border-foreground/15 bg-card"}>
       <img
         src={panel.image}
         alt={`Panel ${panel.index}`}
@@ -322,8 +322,8 @@ const StoryViewer = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/90 shadow-sm backdrop-blur-lg">
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-50 border-b bg-background/95">
             <div className="container mx-auto px-4 py-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
@@ -331,7 +331,7 @@ const StoryViewer = () => {
                     <ChevronLeft className="w-4 h-4 mr-1" />
                     Back
                   </Button>
-                  <h1 className="text-lg font-semibold text-foreground truncate">
+                  <h1 className="truncate font-serif text-xl font-semibold text-foreground">
                     {chapter?.story_title || `Chapter ${chapter?.index}`}
                   </h1>
                 </div>
@@ -384,7 +384,7 @@ const StoryViewer = () => {
                     </DialogContent>
                   </Dialog>
 
-                  <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg border border-border/30">
+                  <div className="flex items-center gap-1 rounded-lg border bg-card p-1">
                     <Button aria-label="Vertical layout" aria-pressed={layoutMode === 'webtoon'} variant={layoutMode === 'webtoon' ? 'default' : 'ghost'} size="sm" onClick={() => setLayoutMode('webtoon')}>
                       <List className="w-4 h-4" />
                     </Button>
@@ -417,7 +417,11 @@ const StoryViewer = () => {
       </header>
 
       {layoutMode === 'webtoon' ? (
-        <div className="flex flex-col items-center" style={{ width: `${imageScale}%`, margin: '0 auto' }}>
+        <main
+          aria-label="Comic panels"
+          className="reader-strip mx-auto flex flex-col items-center"
+          style={{ "--reader-scale": `${imageScale}%` } as CSSProperties}
+        >
           {panels.length === 0 ? (
             <div className="text-center py-24">
               <div className="text-8xl mb-4">📚</div>
@@ -426,7 +430,7 @@ const StoryViewer = () => {
           ) : (
             [...panels].sort((a, b) => a.index - b.index).map((panel) => renderPanel(panel, false))
           )}
-        </div>
+        </main>
       ) : (
         <div className="container mx-auto px-4 pb-8">
           {panels.length === 0 ? (

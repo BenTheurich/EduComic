@@ -11,6 +11,8 @@ describe("Landing", () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole("heading", { name: /Turn today’s lesson into a comic/i })).toBeInTheDocument();
+    expect(screen.getByText(/Local project data · bring your own API keys/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Get Started as Teacher" })).toHaveAttribute("href", "/teacher/dashboard");
     expect(screen.getByRole("link", { name: "Choose Student Profile" })).toHaveAttribute("href", "/student/select");
   });

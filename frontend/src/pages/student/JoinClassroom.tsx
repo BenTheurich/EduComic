@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ChevronLeft, KeyRound, Loader2 } from "lucide-react";
+import { ChevronLeft, KeyRound, Loader2, School } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { formatGradeLevel } from "@/lib/utils";
 
 type Classroom = Awaited<ReturnType<typeof api.classrooms.getById>>["classroom"];
 
@@ -123,15 +124,6 @@ const JoinClassroom = () => {
         }
     };
 
-    const subjectColors: Record<string, string> = {
-        Physics: "bg-blue-500",
-        Math: "bg-purple-500",
-        History: "bg-amber-500",
-        English: "bg-green-500",
-        Chemistry: "bg-cyan-500",
-        Biology: "bg-emerald-500"
-    };
-
     const handleBack = () => {
         if (showClassroom) {
             // If showing classroom details, go back to code entry
@@ -146,7 +138,7 @@ const JoinClassroom = () => {
     };
 
     return (
-        <div className="min-h-screen bg-muted/20">
+        <div className="min-h-screen">
             <header className="bg-background border-b">
                 <div className="container mx-auto px-4 py-4">
                     <Button variant="ghost" onClick={handleBack}>
@@ -156,7 +148,7 @@ const JoinClassroom = () => {
                 </div>
             </header>
 
-            <div className="container mx-auto px-4 py-12 max-w-2xl">
+            <main className="container mx-auto max-w-2xl px-4 py-8 sm:py-12">
                 {showClassroom && !classroom && isLoading ? (
                     <div
                         role="status"
@@ -167,13 +159,13 @@ const JoinClassroom = () => {
                     </div>
                 ) : !showClassroom || !classroom ? (
                     // Classroom Code Entry
-                    <Card className="backdrop-blur-lg bg-card/70 border-2 border-border/50">
-                        <CardContent className="pt-8 pb-8 space-y-6">
+                    <Card>
+                        <CardContent className="space-y-6 py-8">
                             <div className="text-center">
-                                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-lg border bg-card">
                                     <KeyRound className="w-10 h-10 text-primary" />
                                 </div>
-                                <h1 className="text-3xl font-bold text-foreground mb-2">Join a Classroom</h1>
+                                <h1 className="mb-2 font-serif text-3xl font-semibold text-foreground">Join a Classroom</h1>
                                 <p className="text-muted-foreground">
                                     Paste the invite link or enter the classroom code
                                 </p>
@@ -207,12 +199,12 @@ const JoinClassroom = () => {
                     </Card>
                 ) : (
                     // Classroom Preview & Join
-                    <Card className="backdrop-blur-lg bg-card/70 border-2 border-border/50">
-                        <CardContent className="pt-8 pb-8 space-y-6">
+                    <Card>
+                        <CardContent className="space-y-6 py-8">
                             {/* Classroom Preview */}
                             <div className="text-center">
-                                <div className="text-6xl mb-4">🏫</div>
-                                <h2 className="text-3xl font-bold text-foreground mb-3">
+                                <School className="mx-auto mb-4 h-10 w-10 text-primary" aria-hidden="true" />
+                                <h2 className="mb-3 font-serif text-3xl font-semibold text-foreground">
                                     Join {classroom.name}
                                 </h2>
                                 <p className="text-muted-foreground mb-6">
@@ -223,20 +215,20 @@ const JoinClassroom = () => {
                             {/* Classroom Details */}
                             <div className="space-y-4 py-6 border-y border-border/30">
                                 <div className="flex gap-2 justify-center flex-wrap">
-                                    <Badge className={`${subjectColors[classroom.subject] || 'bg-gray-500'} text-white text-base px-4 py-1`}>
+                                    <Badge variant="outline" className="px-4 py-1 text-base">
                                         {classroom.subject}
                                     </Badge>
                                     <Badge variant="outline" className="text-base px-4 py-1">
-                                        Grade {classroom.grade_level}
+                                        {formatGradeLevel(classroom.grade_level)}
                                     </Badge>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4 text-center">
-                                    <div className="p-4 bg-muted/50 rounded-lg">
+                                    <div className="border p-4">
                                         <p className="text-sm text-muted-foreground mb-1">Theme</p>
                                         <p className="font-semibold text-foreground">{classroom.story_theme}</p>
                                     </div>
-                                    <div className="p-4 bg-muted/50 rounded-lg">
+                                    <div className="border p-4">
                                         <p className="text-sm text-muted-foreground mb-1">Style</p>
                                         <p className="font-semibold text-foreground capitalize">{classroom.design_style}</p>
                                     </div>
@@ -245,7 +237,7 @@ const JoinClassroom = () => {
 
                             {/* Terms Agreement */}
                             <div className="space-y-4">
-                                <div className="flex items-start gap-3 p-4 bg-muted/30 rounded-lg">
+                                <div className="flex items-start gap-3 border p-4">
                                     <Checkbox
                                         id="terms"
                                         checked={agreedToTerms}
@@ -278,7 +270,7 @@ const JoinClassroom = () => {
                         </CardContent>
                     </Card>
                 )}
-            </div>
+            </main>
         </div>
     );
 };

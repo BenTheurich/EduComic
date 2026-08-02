@@ -6,6 +6,7 @@ import os
 import struct
 import time
 import zlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from uuid import uuid4
 
 import requests
@@ -246,6 +247,75 @@ def _delete_artifacts(storage: LocalStorage, paths: list[str]) -> list[str]:
             remaining.append(path)
             logger.error("Generation artifact cleanup failed")
     return remaining
+
+
+def _story_preview_prompt(job: dict) -> str:
+    return (
+        f"Create a square {job['design_style']} comic cover preview for an educational story titled "
+        f"{job['title']!r}. Story: {job['summary']} Subject: {job['subject']}. "
+        f"Grade level: {job['grade_level']}. Theme: {job['theme']}. "
+        "Use a clear focal scene, expressive characters, and classroom-appropriate imagery. "
+        "Do not render a title, captions, speech bubbles, logos, or other text in the image."
+    )
+
+
+def _generate_story_preview_image(job: dict) -> bytes:
+    polling_url = submit_bfl_generation(
+        _story_preview_prompt(job),
+        "1:1",
+        model=job["bfl_model"],
+    )
+    delivery_url = poll_bfl_generation(polling_url)
+    image = download_bfl_image(delivery_url)
+    validate_image_bytes(image)
+    return image
+
+
+def _store_story_preview_image(job: dict, image: bytes, storage: LocalStorage) -> str:
+    staged_path = storage.stage_bytes(image, ".png", max_bytes=MAX_IMAGE_BYTES)
+    object_path = storage.new_object_path("story-images", job["chapter_id"], ".png")
+    try:
+        storage.finalize(staged_path, object_path)
+        return object_path
+    except Exception:
+        _delete_artifacts(storage, [staged_path, object_path])
+        raise
+
+
+def run_story_previews(jobs: list[dict]) -> None:
+    """Generate up to three claimed previews concurrently and publish each independently."""
+    if not jobs:
+        return
+    storage = LocalStorage(resolve_local_paths().root)
+    with ThreadPoolExecutor(max_workers=min(3, len(jobs))) as executor:
+        futures = {executor.submit(_generate_story_preview_image, job): job for job in jobs}
+        for future in as_completed(futures):
+            job = futures[future]
+            object_path = None
+            try:
+                object_path = _store_story_preview_image(job, future.result(), storage)
+                database.complete_story_preview(job["chapter_id"], job["idea_id"], object_path)
+            except Exception:
+                if object_path:
+                    _delete_artifacts(storage, [object_path])
+                reference = uuid4().hex
+                database.fail_story_preview(job["chapter_id"], job["idea_id"], reference)
+                logger.error(
+                    "Story preview generation failed chapter_id=%s idea_id=%s reference=%s",
+                    job["chapter_id"],
+                    job["idea_id"],
+                    reference,
+                )
+
+
+def run_story_previews_for_chapter(chapter_id: str) -> None:
+    """Claim the three server-owned preview jobs after story options are returned."""
+    try:
+        jobs = database.begin_story_previews(chapter_id)
+    except Exception:
+        logger.error("Story preview jobs could not start chapter_id=%s", chapter_id)
+        return
+    run_story_previews(jobs)
 
 
 def run_generation(run_id: str) -> None:

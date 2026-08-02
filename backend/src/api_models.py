@@ -78,6 +78,10 @@ class StoryChoiceRequest(BaseModel):
     idea_id: IdeaId
 
 
+class StoryPreviewRetryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 class CommitStoryRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

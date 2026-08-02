@@ -28,7 +28,7 @@ from database.models import (
 )
 from database.session import create_session_factory
 from local_runtime import local_database_url, resolve_local_paths
-from local_storage import LocalStorage, media_url
+from local_storage import LocalStorage, StorageValidationError, media_url
 from materials import snapshot_sources
 from provider_config import (
     DEFAULT_BFL_MODEL,
@@ -170,7 +170,7 @@ def _chapter(chapter: Chapter, session: Session) -> dict[str, Any]:
         "classroom_id": chapter.classroom_id,
         "index": chapter.index,
         "original_prompt": chapter.original_prompt,
-        "story_ideas": chapter.story_ideas or [],
+        "story_ideas": [_story_idea(idea) for idea in chapter.story_ideas or []],
         "option_student_ids": list(chapter.option_student_ids or []),
         "option_provenance_complete": chapter.option_provenance_complete,
         "option_settings_snapshot": dict(chapter.option_settings_snapshot or {}),
@@ -180,12 +180,31 @@ def _chapter(chapter: Chapter, session: Session) -> dict[str, Any]:
         "story_script": chapter.story_script,
         "grounded_sources": grounded_sources,
         "material_provenance": material_provenance,
-        "thumbnail_url": None,
         "created_at": _iso(chapter.created_at),
         "updated_at": _iso(chapter.updated_at),
     }
-    _add_story_title(data)
+    _add_story_metadata(data)
     return data
+
+
+def _story_idea(idea: dict[str, Any]) -> dict[str, Any]:
+    preview_path = idea.get("preview_object_path")
+    preview_url = (
+        media_url(preview_path)
+        if idea.get("preview_status") == "ready"
+        and isinstance(preview_path, str)
+        and preview_path.startswith("story-images/")
+        else None
+    )
+    return {
+        "id": idea.get("id"),
+        "title": idea.get("title"),
+        "summary": idea.get("summary"),
+        "theme": idea.get("theme"),
+        "preview_status": idea.get("preview_status", "failed"),
+        "preview_url": preview_url,
+        "preview_error_reference": idea.get("preview_error_reference"),
+    }
 
 
 def _panel(panel: Panel) -> dict[str, Any]:
@@ -630,6 +649,119 @@ def complete_story_options(chapter_id: str, story_ideas: list[dict[str, Any]]) -
         session.delete(work)
         session.flush()
         return _chapter(chapter, session)
+
+
+def begin_story_previews(
+    chapter_id: str, idea_ids: list[str] | None = None
+) -> list[dict[str, Any]]:
+    """Claim pending or failed idea previews and snapshot server-owned provider inputs."""
+    with _session() as session:
+        chapter = session.get(Chapter, chapter_id)
+        if chapter is None:
+            raise ValueError("Chapter not found")
+        if chapter.status not in ("options_generated", "idea_chosen", "failed", "ready"):
+            raise GenerationConflict("Story previews cannot start in the current chapter state")
+        if _deletion_started(session, "chapter", chapter_id):
+            raise GenerationConflict("Related deletion is active")
+        classroom = session.get(Classroom, chapter.classroom_id)
+        if classroom is None:
+            raise ValueError("Classroom not found")
+
+        ideas = [dict(idea) for idea in chapter.story_ideas or []]
+        known_ids = {idea.get("id") for idea in ideas}
+        requested = set(idea_ids) if idea_ids is not None else known_ids
+        if not requested or not requested.issubset(known_ids):
+            raise ValueError("Story preview choice is invalid")
+
+        model = require_supported_model(
+            (chapter.option_settings_snapshot or {}).get("bfl_model", DEFAULT_BFL_MODEL),
+            SUPPORTED_BFL_MODELS,
+            "BFL",
+        )
+        jobs = []
+        for idea in ideas:
+            idea_id = idea.get("id")
+            if idea_id not in requested or idea.get("preview_status", "failed") not in ("pending", "failed"):
+                continue
+            target_id = f"{chapter_id}:{idea_id}"
+            if session.scalar(
+                select(ActiveWork.id).where(
+                    ActiveWork.work_kind == "story_preview",
+                    ActiveWork.target_kind == "story_idea",
+                    ActiveWork.target_id == target_id,
+                )
+            ):
+                continue
+            idea["preview_status"] = "generating"
+            idea["preview_error_reference"] = None
+            session.add(
+                ActiveWork(
+                    work_kind="story_preview",
+                    target_kind="story_idea",
+                    target_id=target_id,
+                )
+            )
+            jobs.append(
+                {
+                    "chapter_id": chapter_id,
+                    "idea_id": idea_id,
+                    "title": idea.get("title", ""),
+                    "summary": idea.get("summary", ""),
+                    "theme": idea.get("theme", classroom.story_theme),
+                    "subject": classroom.subject,
+                    "grade_level": classroom.grade_level,
+                    "design_style": classroom.design_style,
+                    "bfl_model": model,
+                }
+            )
+        chapter.story_ideas = ideas
+        session.flush()
+        return jobs
+
+
+def complete_story_preview(chapter_id: str, idea_id: str, object_path: str) -> None:
+    storage = LocalStorage(resolve_local_paths().root)
+    if not object_path.startswith("story-images/") or not storage.absolute_path(object_path).is_file():
+        raise ValueError("Story preview requires durable local media")
+    with _session() as session:
+        chapter = session.get(Chapter, chapter_id)
+        if chapter is None:
+            raise GenerationConflict("Chapter no longer exists")
+        ideas = [dict(idea) for idea in chapter.story_ideas or []]
+        selected = next((idea for idea in ideas if idea.get("id") == idea_id), None)
+        if selected is None or selected.get("preview_status") != "generating":
+            raise GenerationConflict("Story preview is not active")
+        selected["preview_status"] = "ready"
+        selected["preview_object_path"] = object_path
+        selected["preview_error_reference"] = None
+        chapter.story_ideas = ideas
+        session.execute(
+            delete(ActiveWork).where(
+                ActiveWork.work_kind == "story_preview",
+                ActiveWork.target_kind == "story_idea",
+                ActiveWork.target_id == f"{chapter_id}:{idea_id}",
+            )
+        )
+
+
+def fail_story_preview(chapter_id: str, idea_id: str, error_reference: str) -> None:
+    with _session() as session:
+        chapter = session.get(Chapter, chapter_id)
+        if chapter is not None:
+            ideas = [dict(idea) for idea in chapter.story_ideas or []]
+            selected = next((idea for idea in ideas if idea.get("id") == idea_id), None)
+            if selected is not None and selected.get("preview_status") == "generating":
+                selected["preview_status"] = "failed"
+                selected["preview_object_path"] = None
+                selected["preview_error_reference"] = error_reference
+                chapter.story_ideas = ideas
+        session.execute(
+            delete(ActiveWork).where(
+                ActiveWork.work_kind == "story_preview",
+                ActiveWork.target_kind == "story_idea",
+                ActiveWork.target_id == f"{chapter_id}:{idea_id}",
+            )
+        )
 
 
 def fail_story_options(chapter_id: str) -> None:
@@ -1171,6 +1303,17 @@ def fail_interrupted_generation_runs(database_url: str | None = None) -> list[st
 def clear_interrupted_active_work(database_url: str | None = None) -> None:
     """Provider calls do not survive a local process restart."""
     with _session(database_url) as session:
+        for chapter in session.scalars(select(Chapter)).all():
+            ideas = [dict(idea) for idea in chapter.story_ideas or []]
+            changed = False
+            for idea in ideas:
+                if idea.get("preview_status") in ("pending", "generating"):
+                    idea["preview_status"] = "failed"
+                    idea["preview_object_path"] = None
+                    idea["preview_error_reference"] = uuid4().hex
+                    changed = True
+            if changed:
+                chapter.story_ideas = ideas
         session.execute(delete(ActiveWork))
 
 
@@ -1199,13 +1342,17 @@ def get_chapters_by_classroom(classroom_id: str) -> list[dict[str, Any]]:
         return [_chapter(row, session) for row in rows]
 
 
-def _add_story_title(chapter: dict[str, Any]) -> None:
+def _add_story_metadata(chapter: dict[str, Any]) -> None:
     chosen = chapter.get("chosen_idea_id")
     for idea in chapter.get("story_ideas") or []:
         if idea.get("id") == chosen:
             chapter["story_title"] = idea.get("title") or f"Chapter {chapter.get('index', '')}"
+            chapter["story_description"] = idea.get("summary") or ""
+            chapter["thumbnail_url"] = idea.get("preview_url")
             return
     chapter["story_title"] = f"Chapter {chapter.get('index', '')}"
+    chapter["story_description"] = ""
+    chapter["thumbnail_url"] = None
 
 
 def create_panel(
@@ -1326,6 +1473,7 @@ def delete_chapter(chapter_id: str) -> list[str] | None:
         object_paths = list(
             session.scalars(select(Panel.image_object_path).where(Panel.chapter_id == chapter_id)).all()
         )
+        object_paths.extend(_story_preview_paths(chapter))
         session.delete(chapter)
         return object_paths
 
@@ -1412,9 +1560,16 @@ def _deletion_blocked(session: Session, target_kind: str, target_id: str | None)
             return True
         if target_kind == "student" and work.target_kind == "student" and work.target_id == target_id:
             return True
-        if work.target_kind != "chapter":
+        work_chapter_id = (
+            work.target_id.split(":", 1)[0]
+            if work.target_kind == "story_idea"
+            else work.target_id if work.target_kind == "chapter" else None
+        )
+        if work_chapter_id is None:
             continue
-        chapter = session.get(Chapter, work.target_id)
+        if target_kind == "chapter" and work_chapter_id == target_id:
+            return True
+        chapter = session.get(Chapter, work_chapter_id)
         if chapter is None:
             continue
         if target_kind == "classroom" and chapter.classroom_id == target_id:
@@ -1430,11 +1585,16 @@ def _deletion_blocked(session: Session, target_kind: str, target_id: str | None)
 def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -> list[str]:
     paths: list[str | None] = []
     if target_kind == "chapter":
+        chapter = session.get(Chapter, target_id)
+        if chapter:
+            paths.extend(_story_preview_paths(chapter))
         paths.extend(session.scalars(select(Panel.image_object_path).where(Panel.chapter_id == target_id)).all())
         for run in session.scalars(select(GenerationRun).where(GenerationRun.chapter_id == target_id)).all():
             paths.extend(run.artifact_paths or [])
     elif target_kind == "classroom":
         chapter_ids = select(Chapter.id).where(Chapter.classroom_id == target_id)
+        for chapter in session.scalars(select(Chapter).where(Chapter.classroom_id == target_id)).all():
+            paths.extend(_story_preview_paths(chapter))
         paths.extend(session.scalars(select(Panel.image_object_path).where(Panel.chapter_id.in_(chapter_ids))).all())
         paths.extend(session.scalars(select(Material.object_path).where(Material.classroom_id == target_id)).all())
         for run in session.scalars(select(GenerationRun).where(GenerationRun.chapter_id.in_(chapter_ids))).all():
@@ -1460,6 +1620,8 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
                 ).all()
             )
     elif target_kind == "reset":
+        for chapter in session.scalars(select(Chapter)).all():
+            paths.extend(_story_preview_paths(chapter))
         paths.extend(session.scalars(select(Panel.image_object_path)).all())
         paths.extend(session.scalars(select(Material.object_path)).all())
         for student in session.scalars(select(Student)).all():
@@ -1470,6 +1632,15 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
     else:
         raise ValueError("Unsupported deletion target")
     return list(dict.fromkeys(path for path in paths if path))
+
+
+def _story_preview_paths(chapter: Chapter) -> list[str]:
+    return [
+        object_path
+        for idea in chapter.story_ideas or []
+        if isinstance((object_path := idea.get("preview_object_path")), str)
+        and object_path.startswith("story-images/")
+    ]
 
 
 def _affected_runs(session: Session, student_id: str | None) -> list[GenerationRun]:
@@ -1597,4 +1768,28 @@ def get_chapter_with_panels(chapter_id: str) -> dict[str, Any] | None:
     chapter = get_chapter(chapter_id)
     if chapter:
         chapter["panels"] = get_panels_by_chapter(chapter_id)
+        chapter["temporary_panel_previews"] = _temporary_panel_previews(chapter_id)
     return chapter
+
+
+def _temporary_panel_previews(chapter_id: str) -> list[dict[str, Any]]:
+    with _session() as session:
+        run = session.scalar(
+            select(GenerationRun)
+            .where(
+                GenerationRun.chapter_id == chapter_id,
+                GenerationRun.run_kind == "story",
+                GenerationRun.job_state.in_(("queued", "running")),
+            )
+            .order_by(GenerationRun.created_at.desc())
+        )
+        paths = list(run.artifact_paths or []) if run else []
+    storage = LocalStorage(resolve_local_paths().root)
+    previews = []
+    for object_path in paths:
+        try:
+            if object_path.startswith("story-images/") and storage.absolute_path(object_path).is_file():
+                previews.append({"index": len(previews) + 1, "image": media_url(object_path)})
+        except (AttributeError, StorageValidationError):
+            continue
+    return previews
