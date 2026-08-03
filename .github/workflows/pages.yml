@@ -30,6 +30,9 @@ jobs:
         run: npm ci
       - working-directory: frontend
         run: npm run build:demo
+      - name: Verify demo artifact is offline
+        run: |
+          ! grep -R -E 'OPENAI_API_KEY|BFL_API_KEY|SUPABASE_KEY|service_role|127\.0\.0\.1:8000|api\.bfl\.ai|api\.openai\.com|sk-[A-Za-z0-9_-]{20,}' frontend/dist
       - uses: actions/upload-pages-artifact@v4
         with:
           path: frontend/dist
