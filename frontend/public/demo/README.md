@@ -1,7 +1,7 @@
-# Demo artwork
+# Public demo fixtures
 
-`weather-lab-raindrop-reveal.png` is a fictional Black Forest Labs output generated for EduComic's local product evaluation on August 2, 2026. It was created for this repository and contains no real student data.
+The classroom, student, and story artwork in this directory was created for EduComic's fictional public demo and contains no real student data. The team portraits represent the five project contributors rather than students.
 
 ## Fictional story seed
 
-`stories/misty-jar/story.json` and its twelve panel images are a fictional Grade 5 classroom story generated through EduComic's local product pipeline. The fixture contains no real student data and may be reused by the later public demo, story reader, accessible transcript, and PDF-export checks.
+`stories/misty-jar/story.json` and its twelve panel images are a fictional Grade 5 classroom story generated through EduComic's local product pipeline. The public demo, story reader, accessible transcript, and PDF-export checks reuse this single fixture.

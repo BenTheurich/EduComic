@@ -14,7 +14,7 @@ web
 
 ## Product Purpose
 
-EduComic turns lesson material and a fictionalized classroom cast into personalized educational comics. The primary product is the complete local/private/BYOK application; the public demo is derived later from the same workflows and visual system using bundled fictional data and explicit simulation.
+EduComic turns lesson material and a fictionalized classroom cast into personalized educational comics. The primary product is the complete local/private/BYOK application; a separate static public demo mirrors its workflows and visual system using bundled fictional data and explicit simulation.
 
 Success means a teacher can start from a clean checkout, add provider keys, complete the teacher and student workflows, generate and review a comic, and export it without provisioning Supabase or another hosted service.
 
@@ -27,7 +27,7 @@ EduComic combines teacher-selected lesson grounding, student-character personali
 - The first release runs on one machine, binds to localhost, and stores application data in SQLite plus local files.
 - The application has teacher and student experiences, but local profile switching is not authentication.
 - OpenAI provides structured story ideas, scripts, and optional panel review. Black Forest Labs provides avatar, idea-preview, and comic-panel images.
-- The later public demo accepts no arbitrary personal files, makes no paid provider calls, and never claims durable persistence when behavior is simulated.
+- The public demo accepts no arbitrary personal files, makes no paid provider calls, and never claims durable persistence when behavior is simulated.
 
 ## Capabilities and Constraints
 
@@ -55,7 +55,7 @@ EduComic combines teacher-selected lesson grounding, student-character personali
 
 ## Product Principles
 
-1. Preserve the complete private application; derive the public demo afterward.
+1. Preserve the complete private application and keep the public demo separate from provider-backed behavior.
 2. Unsafe to expose publicly means gate or simulate it, not delete product intent.
 3. Every state is truthful about provider work, persistence, failure, and cost.
 4. Lesson grounding and student personalization must visibly influence the resulting story.

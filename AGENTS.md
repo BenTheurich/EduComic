@@ -1,300 +1,100 @@
-# EduComic - Classroom Story Platform
+# EduComic repository guide
 
-## Project Overview
+## Product
 
-The Classroom Story Platform is an educational web application that enables teachers to create AI-generated comic stories featuring their students as characters. Teachers set up classrooms with themes and design styles, students create personalized avatars, and the system generates 20-panel comic stories based on lesson content using GPT-4 for narratives and FLUX for artwork.
+EduComic turns teacher-provided lesson material into illustrated classroom stories whose recurring cast is built from student-created avatars.
 
-## Technology Stack
+The repository supports two deliberately separate experiences:
 
-### Backend
-- **FastAPI**: Python web framework for REST API
-- **Pydantic**: Data validation and serialization
-- **Supabase Python Client**: Database and storage access
-- **OpenAI Python SDK**: GPT-4 integration
-- **HTTPX**: Async HTTP client for FLUX API
-- **ReportLab**: PDF generation
-- **Hypothesis**: Property-based testing
-- **Pytest**: Unit testing
+- **Local/private application:** the complete teacher and student workflows, local persistence, provider-backed generation, review, correction, reading, and PDF export.
+- **Public demo:** a static, read-only GitHub Pages build with bundled fictional data and no uploads, writes, secrets, provider calls, or authentication claims.
 
-### Frontend
-- **React 18**: UI framework
-- **TypeScript**: Type-safe development
-- **Vite**: Build tool and dev server
-- **Fetch API**: HTTP client for backend communication
+The local profile chooser is a preview mechanism, not authentication. Never expose the local backend or its classroom data to the Internet.
 
-### Infrastructure
-- **Supabase**: PostgreSQL database and file storage
-- **Vercel**: Frontend hosting
-- **Railway**: Backend hosting
+## Current stack
 
-## Architecture
+- Frontend: React 18, TypeScript, Vite, Vitest, Tailwind CSS.
+- Backend: FastAPI, Pydantic, SQLAlchemy, Alembic, SQLite, pytest.
+- Local media: validated files under `backend/data/`, served by the backend.
+- Providers: OpenAI for structured narrative work and Black Forest Labs for generated artwork.
+- Public hosting: a static demo built by `.github/workflows/pages.yml`.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Frontend (React)                         │
-│  ┌──────────────────┐         ┌──────────────────┐         │
-│  │  Teacher UI      │         │   Student UI     │         │
-│  │  - Classrooms    │         │   - Signup       │         │
-│  │  - Story Gen     │         │   - Avatar       │         │
-│  │  - Export        │         │   - Story View   │         │
-│  └──────────────────┘         └──────────────────┘         │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                    HTTP/REST API
-                            │
-┌─────────────────────────────────────────────────────────────┐
-│                   Backend (FastAPI)                          │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                  API Routers                          │  │
-│  │  /classrooms  /students  /stories  /export           │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                            │                                 │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              Business Logic Services                  │  │
-│  │  - OpenAI Service (GPT-4)                            │  │
-│  │  - FLUX Service (Image Generation)                   │  │
-│  │  - Avatar Service                                     │  │
-│  │  - Story Generation Service                           │  │
-│  │  - Export Service (PDF)                               │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                            │                                 │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │              Database Layer                           │  │
-│  │  - Supabase Client                                    │  │
-│  │  - Repository Pattern                                 │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                ┌───────────┴───────────┐
-                │                       │
-        ┌───────▼────────┐     ┌───────▼────────┐
-        │   Supabase     │     │  External APIs  │
-        │   PostgreSQL   │     │  - OpenAI       │
-        │   Storage      │     │  - FLUX         │
-        └────────────────┘     └─────────────────┘
+Supabase, Railway, Vercel, hosted authentication, and multi-tenant authorization are not part of the current implementation.
+
+## Run locally
+
+Backend:
+
+```powershell
+cd backend
+uv sync --extra dev --locked
+Copy-Item .env.example .env
+uv run python src/run_local.py --reload
 ```
 
-## Database Schema
+Frontend, in another terminal:
 
-```sql
--- Classrooms table
-CREATE TABLE classrooms (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    subject TEXT NOT NULL,
-    grade_level TEXT NOT NULL,
-    story_theme TEXT NOT NULL,
-    design_style TEXT NOT NULL CHECK (design_style IN ('manga', 'comic', 'cartoon')),
-    duration TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Students table
-CREATE TABLE students (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    classroom_id UUID NOT NULL REFERENCES classrooms(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    interests TEXT NOT NULL,
-    avatar_url TEXT,
-    photo_url TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Stories table
-CREATE TABLE stories (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    classroom_id UUID NOT NULL REFERENCES classrooms(id) ON DELETE CASCADE,
-    lesson_prompt TEXT NOT NULL,
-    title TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('generating', 'completed', 'failed', 'regenerating')),
-    progress INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Panels table
-CREATE TABLE panels (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    story_id UUID NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
-    panel_number INTEGER NOT NULL CHECK (panel_number >= 1 AND panel_number <= 20),
-    image_url TEXT NOT NULL,
-    dialogue TEXT NOT NULL,
-    scene_description TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(story_id, panel_number)
-);
-
--- Indexes for performance
-CREATE INDEX idx_students_classroom ON students(classroom_id);
-CREATE INDEX idx_stories_classroom ON stories(classroom_id);
-CREATE INDEX idx_panels_story ON panels(story_id);
-CREATE INDEX idx_panels_story_number ON panels(story_id, panel_number);
+```powershell
+cd frontend
+npm ci
+npm run dev
 ```
 
-## Key API Endpoints
+Open `http://127.0.0.1:8080/`. The backend binds to `127.0.0.1:8000` by default.
 
-### Classroom Management
-- `POST /api/classrooms` - Create new classroom
-- `GET /api/classrooms/{classroom_id}` - Get classroom details
-- `GET /api/classrooms` - List all classrooms
-- `GET /api/classrooms/{classroom_id}/students` - Get classroom students
-- `GET /api/classrooms/{classroom_id}/stories` - Get classroom stories
+Provider keys belong only in the ignored `backend/.env` file. Never put them in frontend variables, fixtures, documentation, logs, or commits.
 
-### Student Management
-- `POST /api/students` - Create student
-- `GET /api/students/{student_id}` - Get student details
-- `POST /api/students/{student_id}/photo` - Upload student photo
-- `POST /api/students/{student_id}/generate-avatar` - Generate avatar
+## Verify changes
 
-### Story Generation
-- `POST /api/stories/generate-options` - Generate 3 story options
-- `POST /api/stories/generate` - Generate full 20-panel story
-- `GET /api/stories/{story_id}/progress` - Get generation progress
-- `GET /api/stories/{story_id}` - Get complete story with panels
-- `POST /api/stories/{story_id}/regenerate` - Regenerate specific panels
+Backend:
 
-### Export
-- `GET /api/stories/{story_id}/export/pdf` - Download PDF
-- `POST /api/stories/{story_id}/export/pdf` - Get PDF URL
+```powershell
+cd backend
+uv run pytest -q
+```
 
-## Core User Workflows
+Frontend:
 
-### Teacher Workflow
-1. Create classroom with name, subject, grade level, theme, and design style
-2. Share invite link with students
-3. Input lesson prompt to generate 3 story options
-4. Select preferred option to trigger full 20-panel story generation
-5. Monitor progress via polling endpoint
-6. Review completed story
-7. Optionally regenerate specific panels with correction prompts
-8. Export story as PDF for classroom distribution
+```powershell
+cd frontend
+npm test -- --run
+npm run lint
+npm run typecheck
+npm run build:demo
+```
 
-### Student Workflow
-1. Join classroom via invite link
-2. Enter name and interests
-3. Optionally upload photo
-4. Generate personalized avatar using FLUX AI
-5. View list of available stories for classroom
-6. Read stories in comic book format
+CI must stay secret-free and deterministic. Do not add live provider calls to tests or pull-request workflows.
 
-## Asynchronous Operations
+## Repository map
 
-### Avatar Generation
-- Immediate response with status "generating"
-- Background task invokes FLUX API
-- Updates student record with avatar_url on completion
-- Typical completion time: < 60 seconds
+- `backend/src/`: API, local runtime, persistence, provider services, and generation workflows.
+- `backend/alembic/`: checked-in SQLite migrations.
+- `backend/tests/`: offline backend tests.
+- `frontend/src/`: application and public-demo UI.
+- `frontend/src/demo/`: fictional public-demo data and adapters.
+- `frontend/public/demo/`: fictional artwork and story fixtures used by the public demo.
+- `README.md`: public overview, setup, verification, architecture, and limitations.
+- `PRODUCT.md`: current product contract and safety boundaries.
+- `DESIGN.md`: current visual design contract.
 
-### Story Generation
-- Immediate response with story_id and status "generating"
-- Background process:
-  1. GPT-4 generates 20 panel narratives
-  2. FLUX generates image for each panel
-  3. Progress updates incrementally (5% per panel)
-  4. Creates panel records in database
-- Typical completion time: < 10 minutes
-- Status transitions: generating → completed/failed
+The implementation and tests are the source of truth for endpoints and schema. Do not maintain duplicate endpoint inventories or historical task reports.
 
-### Panel Regeneration
-- Status changes to "regenerating"
-- Only specified panels updated
-- Original data preserved until success
-- Status returns to "completed" when done
+## Product and safety constraints
 
-## Testing Strategy
+- Preserve complete teacher and student workflows in the local application.
+- Public-demo behavior must remain fictional, read-only, visibly labeled, and free of paid API calls.
+- Uploaded PDFs are untrusted input. Keep validation, bounded extraction, immutable source snapshots, and safe prompt delimiters.
+- Caller-controlled URLs must never be fetched by the backend.
+- Provider output and delivery URLs are untrusted until copied into managed local media.
+- Paid generation must be explicit and recoverable. Preserve checkpoints and avoid duplicate provider submission on retries.
+- Panel corrections remain candidates until the teacher accepts them; do not overwrite the accepted panel on failed regeneration.
+- Keep copy truthful about cost, persistence, failure, simulation, and authentication.
+- Use only fictional students and classrooms in committed demo fixtures. Do not commit real student data.
+- Do not reintroduce hosted storage or databases without real authentication, authorization, tenant isolation, and a separate approved design.
 
-### Property-Based Testing (Hypothesis)
-The project uses property-based testing to verify correctness properties across random inputs. Each property test runs 100+ iterations with randomized data.
+## Working style
 
-**Key Properties:**
-- **Property 1**: Classroom creation round-trip preserves all fields
-- **Property 2**: All classroom IDs are unique UUIDs
-- **Property 3**: Timestamps follow ISO 8601 format
-- **Property 8**: Story options always return exactly 3 options
-- **Property 10**: Story progress is monotonically increasing
-- **Property 11**: Completed stories have 20 panels and progress 100
-- **Property 14**: Panel numbers form complete sequence 1-20
-- **Property 16**: Selective regeneration only updates specified panels
-
-### Unit Testing (Pytest/Vitest)
-- API endpoint validation and error handling
-- Database CRUD operations
-- Pydantic model validation
-- Service layer business logic
-- Frontend component rendering
-
-### Integration Testing
-- End-to-end classroom → student → story generation flow
-- External service mocking (OpenAI, FLUX)
-- Error recovery and retry logic
-
-## Error Handling
-
-### Categories
-1. **Validation Errors (400)**: Invalid payloads, missing fields
-2. **Not Found (404)**: Non-existent entities
-3. **External Service Errors (502/503)**: API failures
-4. **Generation Failures**: Update status to "failed", preserve partial results
-5. **Timeout Errors (504)**: Long-running operations exceed limits
-
-### Strategies
-- **Retry Logic**: 3 retries with exponential backoff for external APIs
-- **Graceful Degradation**: Preserve partial results on failure
-- **User-Facing Messages**: Clear, actionable error descriptions
-
-## Performance Targets
-
-- API endpoints (non-generation): < 200ms
-- Story option generation: < 30 seconds
-- Avatar generation: < 60 seconds
-- Full story generation: < 10 minutes
-- Panel regeneration: < 2 minutes per panel
-- PDF export: < 60 seconds
-
-## Current Implementation Status
-
-The project follows a structured implementation plan with 24 major tasks:
-
-### Completed
-- [ ] Project structure and dependencies setup
-- [ ] Database schema creation
-- [ ] Data models and validation
-
-### In Progress
-- [ ] Backend API implementation
-- [ ] Service layer (OpenAI, FLUX, Avatar, Export)
-- [ ] Frontend components
-
-### Pending
-- [ ] Property-based tests
-- [ ] Integration testing
-- [ ] Deployment configuration
-
-## Development Guidelines
-
-### Code Organization
-- **Backend**: `/backend` - FastAPI app, routers, services, database layer
-- **Frontend**: `/frontend` - React components, API client, routing
-- **Database**: Supabase hosted PostgreSQL
-- **Tests**: Property tests tagged as `Property {N}: {description}`
-
-### Key Principles
-1. **Separation of Concerns**: Clear boundaries between API, services, and data layers
-2. **Async-First**: All generation operations run asynchronously
-3. **Type Safety**: Pydantic models (backend), TypeScript interfaces (frontend)
-4. **Error Resilience**: Retry logic, graceful degradation, detailed error messages
-5. **Testing**: Property-based tests for correctness, unit tests for functionality
-
-## Environment Variables
-
-### Backend
-- `SUPABASE_URL`: Supabase project URL
-- `SUPABASE_KEY`: Supabase API key
-- `OPENAI_API_KEY`: OpenAI API key for GPT-4
-- `BFL_API_KEY`: Black Forest Labs API key for image generation
-
-### Frontend
-- `VITE_API_URL`: Backend API base URL
-
-## Next Steps
-
-Refer to [tasks.md](.kiro/specs/classroom-story-platform/tasks.md) for the complete implementation plan with 24 major tasks and 100+ subtasks. Each task is linked to specific requirements and includes property tests to verify correctness.
+- Prefer deletion and consolidation over new wrappers, scripts, or duplicate documents.
+- Reuse existing types, services, UI components, and test patterns before adding abstractions.
+- Make the smallest root-cause change that preserves validation, error handling, security, and accessibility.
+- Keep generated planning artifacts out of the repository; Git history already records completed implementation work.
