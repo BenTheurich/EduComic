@@ -15,6 +15,7 @@ import type { Material } from "@/lib/api";
 import { exportStoryPdf } from "@/lib/exportStoryPdf";
 import type { Chapter } from "@/types/story";
 import { formatGradeLevel } from "@/lib/utils";
+import { isDemoMode } from "@/lib/runtime";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -317,10 +318,10 @@ const ClassroomDetail = () => {
               <h1 className="mb-3 font-serif text-4xl font-semibold tracking-tight text-foreground">
                 {classroom.name}
               </h1>
-              {!editing && <div className="mb-3 flex gap-2"><Button variant="outline" onClick={() => { setEditDraft(classroom); setEditing(true); setEditError(""); }}>Edit classroom</Button>
+              {!isDemoMode && !editing && <div className="mb-3 flex gap-2"><Button variant="outline" onClick={() => { setEditDraft(classroom); setEditing(true); setEditError(""); }}>Edit classroom</Button>
                 <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive">Delete classroom</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete this classroom?</AlertDialogTitle><AlertDialogDescription>This deletes its chapters, materials, and managed story files. Student profiles are not fully erased.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void deleteClassroom()}>Confirm classroom deletion</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
               </div>}
-              {editing && editDraft && <form className="mb-4 grid gap-3 rounded-lg border p-4" onSubmit={(event) => { event.preventDefault(); void saveClassroom(); }}>
+              {!isDemoMode && editing && editDraft && <form className="mb-4 grid gap-3 rounded-lg border p-4" onSubmit={(event) => { event.preventDefault(); void saveClassroom(); }}>
                 {([
                   ["name", "Classroom name"], ["subject", "Subject"], ["grade_level", "Grade level"], ["story_theme", "Story theme"],
                 ] as const).map(([field, label]) => <label key={field}>{label}<Input required maxLength={field === "story_theme" ? 500 : 100} value={editDraft[field]} onChange={(event) => setEditDraft({ ...editDraft, [field]: event.target.value })} /></label>)}
@@ -333,7 +334,7 @@ const ClassroomDetail = () => {
                 <Badge variant="outline">{formatGradeLevel(classroom.grade_level)}</Badge>
                 <Badge variant="outline">{classroom.story_theme}</Badge>
               </div>
-              <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center">
+              {!isDemoMode && <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center">
                 <span>Invite students:</span>
                 <code className="break-all rounded border bg-card px-2 py-1 font-mono text-xs">
                   {window.location.origin}/student/join/{id}
@@ -347,7 +348,7 @@ const ClassroomDetail = () => {
                 >
                   <Copy className="w-3 h-3" />
                 </Button>
-              </div>
+              </div>}
             </div>
           </div>
         </motion.div>
@@ -453,7 +454,7 @@ const ClassroomDetail = () => {
                                 </>
                               )}
                             </Badge>
-                            <div className="mt-3 grid gap-2">
+                            {!isDemoMode && <div className="mt-3 grid gap-2">
                               <AlertDialog><AlertDialogTrigger asChild><Button variant="outline" aria-label={`Remove ${student.name} from classroom`}>Remove from classroom</Button></AlertDialogTrigger>
                                 <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove from this classroom?</AlertDialogTitle><AlertDialogDescription>The student profile and personal files are kept.</AlertDialogDescription></AlertDialogHeader>
                                   <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void removeStudent(student.id)}>Confirm classroom removal</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
@@ -462,7 +463,7 @@ const ClassroomDetail = () => {
                                 <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Erase all personal data?</AlertDialogTitle><AlertDialogDescription>This removes the profile, classroom memberships, source photo, avatar, and other student-owned files. Completed stories and their artwork remain unchanged.</AlertDialogDescription></AlertDialogHeader>
                                   <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void eraseStudent(student.id)}>Confirm full erasure</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                               </AlertDialog>
-                            </div>
+                            </div>}
                           </CardContent>
                         </Card>
                       </motion.div>
@@ -538,7 +539,7 @@ const ClassroomDetail = () => {
           </TabsContent>
 
           <TabsContent value="materials" className="space-y-6">
-            <Card>
+            {!isDemoMode && <Card>
               <CardContent className="space-y-4 pt-6">
                 <div>
                   <h2 className="text-xl font-semibold">Lesson materials</h2>
@@ -557,7 +558,7 @@ const ClassroomDetail = () => {
                 </Button>
                 {materialError && <p role="alert" className="text-sm text-destructive">{materialError}</p>}
               </CardContent>
-            </Card>
+            </Card>}
 
             {materials.length === 0 ? <p className="text-sm text-muted-foreground">No ready lesson materials.</p> : materials.map((material) => (
               <Card key={material.id}>
@@ -567,13 +568,13 @@ const ClassroomDetail = () => {
                     <p className="text-sm text-muted-foreground">Ready · {material.page_count} page{material.page_count === 1 ? "" : "s"} · {material.text_char_count} characters</p>
                     <p className="text-xs text-muted-foreground">SHA-256 {material.content_hash.slice(0, 12)}…</p>
                   </div>
-                  <AlertDialog>
+                  {!isDemoMode && <AlertDialog>
                     <AlertDialogTrigger asChild><Button variant="destructive" aria-label={`Delete ${material.source_filename}`}>Delete</Button></AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader><AlertDialogTitle>Delete {material.source_filename}?</AlertDialogTitle><AlertDialogDescription>The local PDF is deleted. Existing stories keep their source hash, page references, and excerpts.</AlertDialogDescription></AlertDialogHeader>
                       <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => void deleteMaterial(material.id)}>Confirm material deletion</AlertDialogAction></AlertDialogFooter>
                     </AlertDialogContent>
-                  </AlertDialog>
+                  </AlertDialog>}
                 </CardContent>
               </Card>
             ))}
@@ -593,12 +594,12 @@ const ClassroomDetail = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button asChild>
+              {!isDemoMode && <Button asChild>
                 <a href={`/teacher/classroom/${id}/story/new`}>
                   <Plus className="w-4 h-4 mr-2" />
                   Generate New Story
                 </a>
-              </Button>
+              </Button>}
             </div>
 
             {chapters.length === 0 ? (
@@ -607,12 +608,12 @@ const ClassroomDetail = () => {
                   <p className="text-muted-foreground">
                     No stories yet. Generate your first story based on a lesson!
                   </p>
-                  <Button asChild>
+                  {!isDemoMode && <Button asChild>
                     <a href={`/teacher/classroom/${id}/story/new`}>
                       <Plus className="w-4 h-4 mr-2" />
                       Generate Story
                     </a>
-                  </Button>
+                  </Button>}
                 </CardContent>
               </Card>
             ) : (
@@ -681,12 +682,12 @@ const ClassroomDetail = () => {
                                       </Button>
                                     </>
                                   )}
-                                  {chapter.status === "options_generated" && (
+                                  {!isDemoMode && chapter.status === "options_generated" && (
                                     <Button asChild>
                                       <a href={`/teacher/classroom/${id}/story/new?chapter=${chapter.id}`}>Continue Story</a>
                                     </Button>
                                   )}
-                                  <AlertDialog>
+                                  {!isDemoMode && <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <Button
                                         variant="destructive"
@@ -714,7 +715,7 @@ const ClassroomDetail = () => {
                                         </AlertDialogAction>
                                       </AlertDialogFooter>
                                     </AlertDialogContent>
-                                  </AlertDialog>
+                                  </AlertDialog>}
                                 </div>
                               </div>
                             </div>

@@ -3,6 +3,8 @@
  */
 import type { Chapter, ChapterPreview, ChapterStatus, ChapterWithPanels, StoryIdea } from "@/types/story";
 import type { Student } from "@/types/student";
+import { demoApiFetch } from "@/demo/api";
+import { isDemoMode } from "@/lib/runtime";
 
 export interface Material {
   id: string;
@@ -26,7 +28,7 @@ export interface PanelRegenerationStatus {
   cleanup_pending: boolean;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || (
+const API_BASE_URL = isDemoMode ? "" : import.meta.env.VITE_API_URL || (
   import.meta.env.DEV || import.meta.env.MODE === 'test'
     ? 'http://127.0.0.1:8000'
     : (() => { throw new Error('VITE_API_URL must be set for production builds.'); })()
@@ -39,6 +41,8 @@ export async function apiFetch<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
+  if (isDemoMode) return demoApiFetch<T>(endpoint, options);
+
   const url = `${API_BASE_URL}${endpoint}`;
 
   try {

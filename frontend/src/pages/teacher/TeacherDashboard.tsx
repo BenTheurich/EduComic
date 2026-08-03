@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { formatGradeLevel } from "@/lib/utils";
+import { isDemoMode } from "@/lib/runtime";
 
 interface Classroom {
   id: string;
@@ -63,12 +64,12 @@ const TeacherDashboard = () => {
               <h1 className="font-serif text-3xl font-semibold text-foreground">Start your comic workshop</h1>
               <p className="text-muted-foreground">Create a classroom, invite students, and turn a lesson into a visual story.</p>
             </div>
-            <Button asChild size="lg">
+            {!isDemoMode && <Button asChild size="lg">
               <Link to="/teacher/classroom/new">
                 <Plus className="w-5 h-5 mr-2" />
                 Create your first classroom
               </Link>
-            </Button>
+            </Button>}
           </div>
         ) : (
           /* Classroom Grid */
@@ -79,12 +80,12 @@ const TeacherDashboard = () => {
                 <h1 className="font-serif text-4xl font-semibold tracking-tight text-foreground">My Classrooms</h1>
                 <p className="mt-2 text-muted-foreground">Manage students, lesson materials, and classroom stories.</p>
               </div>
-              <Button asChild>
+              {!isDemoMode && <Button asChild>
                 <Link to="/teacher/classroom/new">
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Create classroom
                 </Link>
-              </Button>
+              </Button>}
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {classrooms.map((classroom) => (

@@ -10,6 +10,7 @@ import { ClassPictureBanner } from "@/components/shared/ClassPictureBanner";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatGradeLevel } from "@/lib/utils";
+import { isDemoMode } from "@/lib/runtime";
 
 type StudentResponse = Awaited<ReturnType<typeof api.students.getById>>;
 type ChapterResponse = Awaited<ReturnType<typeof api.students.getChapters>>;
@@ -186,12 +187,12 @@ const StudentDashboard = () => {
               <Users className="w-5 h-5 text-primary" />
               <h2 className="whitespace-nowrap font-serif text-2xl font-semibold text-foreground sm:text-3xl">My Classrooms</h2>
             </div>
-            <Button asChild variant="outline" size="sm">
+            {!isDemoMode && <Button asChild variant="outline" size="sm">
               <Link to="/student/join">
                 <Plus className="w-4 h-4 mr-2" />
                 Join Classroom
               </Link>
-            </Button>
+            </Button>}
           </div>
         </div>
 
@@ -201,12 +202,12 @@ const StudentDashboard = () => {
               <p className="text-muted-foreground mb-4">
                 You're not enrolled in any classrooms yet.
               </p>
-              <Button asChild size="lg">
+              {!isDemoMode && <Button asChild size="lg">
                 <Link to="/student/join">
                   <Users className="w-4 h-4 mr-2" />
                   Join a Classroom
                 </Link>
-              </Button>
+              </Button>}
             </CardContent>
           </Card>
         ) : (

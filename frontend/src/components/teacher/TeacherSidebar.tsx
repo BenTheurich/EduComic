@@ -11,6 +11,7 @@ import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/animated-side
 import { BrandMark, BrandWordmark } from "@/components/shared/Brand";
 import { motion } from "framer-motion";
 import { Separator } from "@/components/ui/separator";
+import { isDemoMode } from "@/lib/runtime";
 
 interface TeacherSidebarProps {
   open: boolean;
@@ -29,11 +30,11 @@ export function TeacherSidebar({ open, setOpen }: TeacherSidebarProps) {
       href: "/teacher/dashboard",
       icon: <LayoutDashboard className="text-foreground h-5 w-5 flex-shrink-0" />,
     },
-    {
+    ...(!isDemoMode ? [{
       label: "Settings",
       href: "/teacher/settings",
       icon: <Settings className="text-foreground h-5 w-5 flex-shrink-0" />,
-    },
+    }] : []),
     {
       label: "Exit Teacher View",
       href: "/",

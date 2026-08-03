@@ -22,6 +22,7 @@ import type { PanelRegenerationStatus } from "@/lib/api";
 import { exportStoryPdf } from "@/lib/exportStoryPdf";
 import { clampReaderScale } from "@/lib/utils";
 import type { Chapter, ChapterWithPanels, Panel } from "@/types/story";
+import { isDemoMode } from "@/lib/runtime";
 
 type CorrectionOutcome = "editing" | "working" | "failed" | "unknown" | "published";
 
@@ -268,7 +269,7 @@ const StoryViewer = () => {
         className="block h-auto w-full"
         loading="lazy"
       />
-      <div className="p-3 text-left leading-normal">
+      {!isDemoMode && <div className="p-3 text-left leading-normal">
         <Button
           aria-label={hasCandidate ? `Review replacement for panel ${panel.index}` : `Correct panel ${panel.index}`}
           variant="outline"
@@ -389,7 +390,7 @@ const StoryViewer = () => {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      </div>}
     </div>
     );
   };

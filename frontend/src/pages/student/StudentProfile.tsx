@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { motion } from "framer-motion";
 import { User, Mail, Heart } from "lucide-react";
 import api from "@/lib/api";
+import { isDemoMode } from "@/lib/runtime";
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -130,7 +131,7 @@ const StudentProfile = () => {
                                             {getInitials(student.name)}
                                         </AvatarFallback>
                                     </Avatar>
-                                    <div className="max-w-60 space-y-2">
+                                    {!isDemoMode && <div className="max-w-60 space-y-2">
                                         <Label htmlFor="profile-portrait">Portrait photo (optional)</Label>
                                         <Input
                                             id="profile-portrait"
@@ -143,13 +144,13 @@ const StudentProfile = () => {
                                         <p className="text-center text-xs text-muted-foreground">
                                             If selected, this image is sent to Black Forest Labs for avatar generation and is not kept by EduComic after the request.
                                         </p>
-                                    </div>
-                                    <Button variant="outline" size="sm" onClick={retryAvatar} disabled={generatingAvatar}>
+                                    </div>}
+                                    {!isDemoMode && <Button variant="outline" size="sm" onClick={retryAvatar} disabled={generatingAvatar}>
                                         {generatingAvatar ? "Generating avatar..." : student.avatar_url ? "Regenerate avatar" : "Try avatar again"}
-                                    </Button>
-                                    {student.avatar_url && <p className="max-w-52 text-center text-xs text-muted-foreground">Your current avatar stays visible until a replacement succeeds.</p>}
-                                    {avatarMessage && <p role="status" className="text-sm text-muted-foreground">{avatarMessage}</p>}
-                                    {avatarError && <p role="alert" className="text-sm text-destructive">{avatarError}</p>}
+                                    </Button>}
+                                    {!isDemoMode && student.avatar_url && <p className="max-w-52 text-center text-xs text-muted-foreground">Your current avatar stays visible until a replacement succeeds.</p>}
+                                    {!isDemoMode && avatarMessage && <p role="status" className="text-sm text-muted-foreground">{avatarMessage}</p>}
+                                    {!isDemoMode && avatarError && <p role="alert" className="text-sm text-destructive">{avatarError}</p>}
                                 </div>
 
                                 {/* Local profile details */}
@@ -157,10 +158,10 @@ const StudentProfile = () => {
                                     <div>
                                         <h2 className="mb-1 font-serif text-2xl font-semibold text-foreground">{student.name}</h2>
                                         <Badge variant="outline" className="mt-2">Student</Badge>
-                                        <Button variant="outline" className="ml-3" onClick={() => { setDraft({ name: student.name, interests: student.interests }); setEditing(true); }}>Edit profile</Button>
+                                        {!isDemoMode && <Button variant="outline" className="ml-3" onClick={() => { setDraft({ name: student.name, interests: student.interests }); setEditing(true); }}>Edit profile</Button>}
                                     </div>
 
-                                    {editing && <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => { event.preventDefault(); void saveProfile(); }}>
+                                    {!isDemoMode && editing && <form className="space-y-3 rounded-lg border p-4" onSubmit={(event) => { event.preventDefault(); void saveProfile(); }}>
                                         <label>Name<Input required maxLength={100} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
                                         <label>Interests<Input required maxLength={500} value={draft.interests} onChange={(event) => setDraft({ ...draft, interests: event.target.value })} /></label>
                                         <Button type="submit">Save profile</Button>
@@ -205,13 +206,13 @@ const StudentProfile = () => {
                         </CardContent>
                     </Card>
 
-                    <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive">Erase profile and personal data</Button></AlertDialogTrigger>
+                    {!isDemoMode && <AlertDialog><AlertDialogTrigger asChild><Button variant="destructive">Erase profile and personal data</Button></AlertDialogTrigger>
                         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Erase all personal data?</AlertDialogTitle>
                             <AlertDialogDescription>This removes the profile, classroom memberships, source photo, avatar, and other student-owned files. Completed stories and their artwork remain unchanged.</AlertDialogDescription>
                         </AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel>
                             <AlertDialogAction onClick={eraseProfile}>Confirm full erasure</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-                    </AlertDialog>
-                    {profileMessage && <p role="status" className="mt-3 rounded-md border bg-card p-3 text-sm">{profileMessage}</p>}
+                    </AlertDialog>}
+                    {!isDemoMode && profileMessage && <p role="status" className="mt-3 rounded-md border bg-card p-3 text-sm">{profileMessage}</p>}
 
                 </motion.div>
             </div>

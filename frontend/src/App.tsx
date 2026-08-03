@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { Toaster } from "sonner";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 
 import { BackgroundComponent } from "@/components/ui/background-components";
@@ -8,6 +8,8 @@ import ClassicLoader from "@/components/ui/loader";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { StudentLayout } from "./components/student/StudentLayout";
 import { TeacherLayout } from "./components/teacher/TeacherLayout";
+import { DemoBanner } from "@/components/shared/DemoBanner";
+import { isDemoMode } from "@/lib/runtime";
 
 const Landing = lazy(() => import("./pages/shared/Landing"));
 const NotFound = lazy(() => import("./pages/shared/NotFound"));
@@ -32,27 +34,30 @@ const loadingPage = (
   </div>
 );
 
+const Router = isDemoMode ? HashRouter : BrowserRouter;
+
 const App = () => (
   <MotionConfig reducedMotion="user">
     <TooltipProvider>
       <BackgroundComponent>
+        <DemoBanner />
         <Toaster />
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={loadingPage}>
             <Routes>
             <Route path="/" element={<Landing />} />
 
             <Route path="/teacher/dashboard" element={<TeacherLayout><TeacherDashboard /></TeacherLayout>} />
-            <Route path="/teacher/settings" element={<TeacherLayout><Settings /></TeacherLayout>} />
-            <Route path="/teacher/classroom/new" element={<TeacherLayout><CreateClassroom /></TeacherLayout>} />
+            <Route path="/teacher/settings" element={isDemoMode ? <Navigate to="/teacher/dashboard" replace /> : <TeacherLayout><Settings /></TeacherLayout>} />
+            <Route path="/teacher/classroom/new" element={isDemoMode ? <Navigate to="/teacher/dashboard" replace /> : <TeacherLayout><CreateClassroom /></TeacherLayout>} />
             <Route path="/teacher/classroom/:id" element={<TeacherLayout><ClassroomDetail /></TeacherLayout>} />
-            <Route path="/teacher/classroom/:classroomId/story/new" element={<TeacherLayout><StoryGenerator /></TeacherLayout>} />
+            <Route path="/teacher/classroom/:classroomId/story/new" element={isDemoMode ? <Navigate to="/teacher/dashboard" replace /> : <TeacherLayout><StoryGenerator /></TeacherLayout>} />
             <Route path="/teacher/story/:id" element={<TeacherLayout><StoryViewer /></TeacherLayout>} />
 
-            <Route path="/student/signup" element={<StudentSignup />} />
+            <Route path="/student/signup" element={isDemoMode ? <Navigate to="/student/select" replace /> : <StudentSignup />} />
             <Route path="/student/select" element={<StudentProfilePicker />} />
-            <Route path="/student/join" element={<JoinClassroom />} />
-            <Route path="/student/join/:classroomCode" element={<JoinClassroom />} />
+            <Route path="/student/join" element={isDemoMode ? <Navigate to="/student/select" replace /> : <JoinClassroom />} />
+            <Route path="/student/join/:classroomCode" element={isDemoMode ? <Navigate to="/student/select" replace /> : <JoinClassroom />} />
             <Route path="/student/dashboard/:studentId" element={<StudentLayout><StudentDashboard /></StudentLayout>} />
             <Route path="/student/classroom/:classroomId/:studentId" element={<StudentLayout><StudentClassroom /></StudentLayout>} />
             <Route path="/student/stories/:studentId" element={<StudentLayout><StudentAllStories /></StudentLayout>} />
@@ -62,7 +67,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
-        </BrowserRouter>
+        </Router>
       </BackgroundComponent>
     </TooltipProvider>
   </MotionConfig>

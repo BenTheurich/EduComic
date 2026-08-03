@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { isDemoMode } from "@/lib/runtime";
 
 interface Student {
     id: string;
@@ -122,14 +123,14 @@ const StudentProfilePicker = () => {
                             )}
                         </div>
 
-                        <div className="pt-4 border-t border-border/30 text-center">
+                        {!isDemoMode && <div className="pt-4 border-t border-border/30 text-center">
                             <p className="text-sm text-muted-foreground mb-3">
                                 New to the platform?
                             </p>
                             <Button onClick={() => navigate("/student/signup")} variant="outline" size="sm">
                                 Create Student Profile
                             </Button>
-                        </div>
+                        </div>}
                     </CardContent>
                 </Card>
             </main>

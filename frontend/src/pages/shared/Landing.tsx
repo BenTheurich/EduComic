@@ -3,6 +3,7 @@ import { ArrowRight, ArrowUpRight, Check, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BrandMark, BrandWordmark } from "@/components/shared/Brand";
 import { Button } from "@/components/ui/button";
+import { assetUrl } from "@/lib/runtime";
 import "./Landing.css";
 
 const processSteps = [
@@ -33,33 +34,33 @@ const visualLabels = [
 
 const avatarPaths = Array.from(
   { length: 8 },
-  (_, index) => `/demo/how-it-works/avatar-${String(index + 1).padStart(2, "0")}.png`,
+  (_, index) => assetUrl(`demo/how-it-works/avatar-${String(index + 1).padStart(2, "0")}.png`),
 );
 
 const teamMembers = [
   {
     name: "Florian Schwieren",
-    avatar: "/demo/team/florian-avatar.png",
+    avatar: assetUrl("demo/team/florian-avatar.png"),
     linkedin: "https://www.linkedin.com/in/florian-schwieren-618750215/",
   },
   {
     name: "Pouya Shekarchizadeh",
-    avatar: "/demo/team/pouya-avatar.png",
+    avatar: assetUrl("demo/team/pouya-avatar.png"),
     linkedin: "https://www.linkedin.com/in/pooyash1998/",
   },
   {
     name: "Anastasia Koslova",
-    avatar: "/demo/team/anastasia-avatar.png",
+    avatar: assetUrl("demo/team/anastasia-avatar.png"),
     linkedin: "https://www.linkedin.com/in/anastasia-koslova-a329091b7/",
   },
   {
     name: "Tim Gaydoul",
-    avatar: "/demo/team/tim-avatar.png",
+    avatar: assetUrl("demo/team/tim-avatar.png"),
     linkedin: "https://www.linkedin.com/in/tim-gaydoul-048788174/",
   },
   {
     name: "Ben Theurich",
-    avatar: "/demo/team/ben-avatar.png",
+    avatar: assetUrl("demo/team/ben-avatar.png"),
     linkedin: "https://www.linkedin.com/in/ben-theurich/",
   },
 ] as const;
@@ -129,7 +130,7 @@ const ComicVisual = () => (
   <div className="landing-comic-scene is-enlarged">
     <div className="landing-comic-shadow-page" />
     <figure className="landing-comic-page">
-      <img src="/demo/how-it-works/educomic-12-panel-pdf.png" alt="" loading="lazy" />
+      <img src={assetUrl("demo/how-it-works/educomic-12-panel-pdf.png")} alt="" loading="lazy" />
     </figure>
   </div>
 );
@@ -137,7 +138,7 @@ const ComicVisual = () => (
 const ReaderVisual = () => (
   <div className="landing-reader-scene">
     <figure className="landing-reader-photo">
-      <img src="/demo/how-it-works/group-reading-paper-back.png" alt="" loading="lazy" />
+      <img src={assetUrl("demo/how-it-works/group-reading-paper-back.png")} alt="" loading="lazy" />
     </figure>
     <div className="landing-reader-note">
       <strong>Their class. Their story.</strong>
@@ -256,7 +257,7 @@ const Landing = () => {
             <div className="relative mt-10 h-[390px] w-full lg:absolute lg:inset-0 lg:mt-0 lg:h-full">
               <figure className="absolute right-[-20%] top-[2%] z-50 w-[108%] -rotate-3 border-[8px] border-card bg-card shadow-[0_30px_48px_-20px_hsl(222_47%_11%/0.78)] sm:right-[-7%] sm:w-[92%] sm:border-[12px] lg:right-[-5%] lg:top-[5.5%] lg:w-[55%] lg:max-w-[790px] lg:-rotate-[4deg]">
                 <img
-                  src="/demo/condensation-jar.png"
+                  src={assetUrl("demo/condensation-jar.png")}
                   alt="Maya and her fictional classmates investigate condensation"
                   className="aspect-[4/3] w-full border-2 border-foreground object-cover 2xl:aspect-[25/16]"
                 />
@@ -264,7 +265,7 @@ const Landing = () => {
 
               <figure className="absolute bottom-0 left-0 z-[60] w-[31%] rotate-6 border-[7px] border-card bg-card shadow-[0_22px_38px_-18px_hsl(222_47%_11%/0.82)] sm:border-[9px] lg:bottom-[1.5%] lg:left-[39.5%] lg:w-[15%] lg:max-w-[215px] lg:rotate-[5deg]">
                 <img
-                  src="/demo/maya-fictional-portrait.png"
+                  src={assetUrl("demo/maya-fictional-portrait.png")}
                   alt="Fictional portrait of Maya Rivers"
                   className="aspect-[3/4] w-full object-cover"
                 />
@@ -272,7 +273,7 @@ const Landing = () => {
 
               <figure className="absolute bottom-[3%] left-[24%] z-[70] size-[20%] overflow-hidden rounded-full border-[6px] border-card bg-card shadow-[0_16px_30px_-13px_hsl(222_47%_11%/0.9)] sm:border-[8px] lg:bottom-[7%] lg:left-[51.7%] lg:size-[8.5vw] lg:max-h-[118px] lg:max-w-[118px]">
                 <img
-                  src="/demo/maya-avatar-bfl.jpg"
+                  src={assetUrl("demo/maya-avatar-bfl.jpg")}
                   alt="Comic avatar generated from Maya's fictional portrait"
                   className="absolute left-1/2 top-[-6%] w-[220%] max-w-none -translate-x-1/2"
                 />
