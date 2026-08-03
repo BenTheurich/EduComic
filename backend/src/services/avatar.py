@@ -246,7 +246,7 @@ def _derive_avatar_thumbnail(body: bytes) -> bytes:
         bounds = foreground.getbbox()
         if bounds:
             left, top, right, bottom = bounds
-            side = min(width, height, max(1, round((bottom - top) * 0.55)))
+            side = min(width, height, max(1, round((bottom - top) * 0.4)))
             x = max(0, min(width - side, round((left + right - side) / 2)))
             y = max(0, min(height - side, top))
         else:

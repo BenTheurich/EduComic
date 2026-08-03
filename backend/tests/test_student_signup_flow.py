@@ -46,8 +46,15 @@ def test_avatar_thumbnail_is_a_top_framed_256_pixel_png():
     with Image.open(BytesIO(thumbnail_bytes)) as thumbnail:
         assert thumbnail.format == "PNG"
         assert thumbnail.size == (256, 256)
-        red, green, blue = thumbnail.convert("RGB").getpixel((128, 48))
+        portrait = thumbnail.convert("RGB")
+        red, green, blue = portrait.getpixel((128, 48))
         assert red > 180 and green < 90 and blue < 90
+        face_width = sum(
+            1
+            for red, green, blue in (portrait.getpixel((x, 48)) for x in range(256))
+            if red > 180 and green < 90 and blue < 90
+        )
+        assert face_width >= 96
 
 
 @pytest.mark.asyncio
