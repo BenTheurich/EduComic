@@ -1,0 +1,306 @@
+{
+  "id": "misty-jar",
+  "fictional": true,
+  "story_title": "The Mystery of the Misty Jar",
+  "story_description": "Eight classmates investigate droplets on a cold jar and connect condensation to clouds and rain.",
+  "teacher_material": {
+    "title": "How clouds make rain",
+    "subject": "Science",
+    "grade_level": "Grade 5"
+  },
+  "students": [
+    "Maya Rivers",
+    "Leo Martinez",
+    "Amara Johnson",
+    "Noah Chen",
+    "Sophie Miller",
+    "Eli Williams",
+    "Priya Shah",
+    "Finn Murphy"
+  ],
+  "learning_objectives": [
+    "Observe and explain condensation on a cold surface",
+    "Connect condensation to how clouds and rain form"
+  ],
+  "panels": [
+    {
+      "index": 1,
+      "image": "panels/panel-01.png",
+      "setting": "Morning, Grade 5 classroom, science corner",
+      "description": "Teacher places a clear glass jar with ice on a tray. The eight students gather around, curious.",
+      "narration": "A strange science mystery appears in Class 5B.",
+      "dialogue": [
+        {
+          "speaker": "Teacher",
+          "text": "Watch this cold jar closely today."
+        },
+        {
+          "speaker": "Maya Rivers",
+          "text": "It already looks frosty and spooky!"
+        }
+      ],
+      "featured_students": [
+        "Maya Rivers",
+        "Leo Martinez",
+        "Amara Johnson",
+        "Noah Chen",
+        "Sophie Miller",
+        "Eli Williams",
+        "Priya Shah",
+        "Finn Murphy"
+      ]
+    },
+    {
+      "index": 2,
+      "image": "panels/panel-02.png",
+      "setting": "Same classroom table, a few minutes later",
+      "description": "Tiny droplets appear on the outside of the jar. Leo leans in; Priya scribbles notes.",
+      "narration": "",
+      "dialogue": [
+        {
+          "speaker": "Leo Martinez",
+          "text": "Hey, water drops are growing on the glass!"
+        },
+        {
+          "speaker": "Priya Shah",
+          "text": "But nobody poured water there. Weird."
+        }
+      ],
+      "featured_students": [
+        "Leo Martinez",
+        "Priya Shah",
+        "Maya Rivers",
+        "Eli Williams"
+      ]
+    },
+    {
+      "index": 3,
+      "image": "panels/panel-03.png",
+      "setting": "Classroom, students circling the table",
+      "description": "Finn sketches the jar, Sophie points at the window where clouds are visible, and Noah watches thoughtfully.",
+      "narration": "The mystery of the jar deepens.",
+      "dialogue": [
+        {
+          "speaker": "Sophie Miller",
+          "text": "It's like tiny clouds on the glass."
+        },
+        {
+          "speaker": "Noah Chen",
+          "text": "Where did this water really come from?"
+        }
+      ],
+      "featured_students": [
+        "Finn Murphy",
+        "Sophie Miller",
+        "Noah Chen",
+        "Amara Johnson"
+      ]
+    },
+    {
+      "index": 4,
+      "image": "panels/panel-04.png",
+      "setting": "Close-up at the science table",
+      "description": "Amara gently touches a droplet while Eli holds a dry paper towel near the jar.",
+      "narration": "",
+      "dialogue": [
+        {
+          "speaker": "Amara Johnson",
+          "text": "The outside felt dry before, right?"
+        },
+        {
+          "speaker": "Eli Williams",
+          "text": "Yeah, this towel beside it is still dry."
+        }
+      ],
+      "featured_students": [
+        "Amara Johnson",
+        "Eli Williams",
+        "Maya Rivers"
+      ]
+    },
+    {
+      "index": 5,
+      "image": "panels/panel-05.png",
+      "setting": "Same table, Teacher writes words on the board",
+      "description": "The board reads 'water vapor,' 'cooling,' and 'condense.' Students glance between the jar and board.",
+      "narration": "",
+      "dialogue": [
+        {
+          "speaker": "Teacher",
+          "text": "Clue one: air has invisible water vapor."
+        },
+        {
+          "speaker": "Priya Shah",
+          "text": "So air is hiding water around us?"
+        }
+      ],
+      "featured_students": [
+        "Teacher",
+        "Priya Shah",
+        "Leo Martinez",
+        "Noah Chen"
+      ]
+    },
+    {
+      "index": 6,
+      "image": "panels/panel-06.png",
+      "setting": "Close-up of the jar and board diagram",
+      "description": "Teacher sketches vapor arrows hitting the cold jar and turning into droplets. Maya raises a hand.",
+      "narration": "Cooling changes invisible vapor into tiny liquid drops.",
+      "dialogue": [
+        {
+          "speaker": "Teacher",
+          "text": "Clue two: cold things make vapor cool and condense."
+        },
+        {
+          "speaker": "Maya Rivers",
+          "text": "So water in the air sticks as drops?"
+        }
+      ],
+      "featured_students": [
+        "Teacher",
+        "Maya Rivers",
+        "Finn Murphy"
+      ]
+    },
+    {
+      "index": 7,
+      "image": "panels/panel-07.png",
+      "setting": "Classroom window showing bright sky and clouds",
+      "description": "Students gather at the window. Big puffy clouds float outside while Finn holds his jar sketch beside them.",
+      "narration": "",
+      "dialogue": [
+        {
+          "speaker": "Finn Murphy",
+          "text": "These clouds look like giant versions of the jar."
+        },
+        {
+          "speaker": "Sophie Miller",
+          "text": "Do clouds also start as water vapor?"
+        }
+      ],
+      "featured_students": [
+        "Finn Murphy",
+        "Sophie Miller",
+        "Amara Johnson",
+        "Eli Williams"
+      ]
+    },
+    {
+      "index": 8,
+      "image": "panels/panel-08.png",
+      "setting": "Window area with a view of the sky and sun",
+      "description": "Noah imagines arrows rising from a lake outside while Amara traces the path upward through the air.",
+      "narration": "",
+      "dialogue": [
+        {
+          "speaker": "Noah Chen",
+          "text": "Sun heats lakes. Water turns to vapor, right?"
+        },
+        {
+          "speaker": "Amara Johnson",
+          "text": "Then the warm vapor rises into cooler sky air."
+        }
+      ],
+      "featured_students": [
+        "Noah Chen",
+        "Amara Johnson",
+        "Priya Shah"
+      ]
+    },
+    {
+      "index": 9,
+      "image": "panels/panel-09.png",
+      "setting": "Front of classroom, board showing sky layers",
+      "description": "Teacher draws rising vapor arrows, then small droplets bunching into a cloud shape.",
+      "narration": "The class connects the jar to the whole sky.",
+      "dialogue": [
+        {
+          "speaker": "Teacher",
+          "text": "Higher air is cooler. Vapor there condenses too."
+        },
+        {
+          "speaker": "Leo Martinez",
+          "text": "So clouds are collections of tiny droplets!"
+        }
+      ],
+      "featured_students": [
+        "Teacher",
+        "Leo Martinez",
+        "Maya Rivers"
+      ]
+    },
+    {
+      "index": 10,
+      "image": "panels/panel-10.png",
+      "setting": "Same board, now adding falling raindrop arrows",
+      "description": "Eli mimes big raindrops falling while Sophie draws raindrop shapes in her notebook.",
+      "narration": "",
+      "dialogue": [
+        {
+          "speaker": "Eli Williams",
+          "text": "What if droplets bump, join, and get heavy?"
+        },
+        {
+          "speaker": "Sophie Miller",
+          "text": "Then gravity pulls them down as rain."
+        }
+      ],
+      "featured_students": [
+        "Eli Williams",
+        "Sophie Miller",
+        "Noah Chen"
+      ]
+    },
+    {
+      "index": 11,
+      "image": "panels/panel-11.png",
+      "setting": "Circle on classroom rug",
+      "description": "Students sit in a circle, passing the cold jar around carefully while summarizing.",
+      "narration": "They solve the mystery together.",
+      "dialogue": [
+        {
+          "speaker": "Priya Shah",
+          "text": "Jar mystery: cooling air made vapor condense to drops."
+        },
+        {
+          "speaker": "Finn Murphy",
+          "text": "Clouds form the same way, but up in the sky."
+        }
+      ],
+      "featured_students": [
+        "Priya Shah",
+        "Finn Murphy",
+        "Amara Johnson",
+        "Leo Martinez"
+      ]
+    },
+    {
+      "index": 12,
+      "image": "panels/panel-12.png",
+      "setting": "Front of classroom, everyone facing the reader",
+      "description": "All eight students and Teacher stand beside a board diagram showing jar, cloud, and rain arrows.",
+      "narration": "The whole class explains the water cycle step.",
+      "dialogue": [
+        {
+          "speaker": "Maya Rivers",
+          "text": "Water vapor rises and cools in the sky."
+        },
+        {
+          "speaker": "Noah Chen",
+          "text": "It condenses into clouds, then falls back as rain."
+        }
+      ],
+      "featured_students": [
+        "Maya Rivers",
+        "Noah Chen",
+        "Sophie Miller",
+        "Eli Williams",
+        "Priya Shah",
+        "Finn Murphy",
+        "Amara Johnson",
+        "Leo Martinez"
+      ]
+    }
+  ]
+}
