@@ -1,8 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { StudentLayout } from "./student/StudentLayout";
 import { TeacherLayout } from "./teacher/TeacherLayout";
+
+vi.mock("@/components/shared/DemoBanner", () => ({
+  DemoBanner: () => <div role="status" aria-label="Public demo">Public demo · Fictional data · Read-only</div>,
+}));
 
 describe("responsive app layouts", () => {
   it("keeps teacher navigation targets fluid while centering their icons when collapsed", () => {
@@ -48,6 +52,9 @@ describe("responsive app layouts", () => {
       </MemoryRouter>,
     );
 
+    const banner = screen.getByRole("status", { name: "Public demo" });
+    expect(banner).toHaveTextContent("Public demo · Fictional data · Read-only");
+    expect(banner.parentElement).toHaveClass("h-screen", "overflow-hidden");
     expect(screen.getByText(content).parentElement).toHaveClass("flex-col", "md:flex-row");
   });
 });

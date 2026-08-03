@@ -2,6 +2,7 @@ import { useState, useEffect, type CSSProperties } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { DemoBanner } from "@/components/shared/DemoBanner";
 import { ChevronLeft, ZoomIn, LayoutGrid, List } from "lucide-react";
 import api from "@/lib/api";
 import { clampReaderScale } from "@/lib/utils";
@@ -71,26 +72,34 @@ const StudentStoryReader = () => {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">Loading story...</p>
+      <div className="flex h-screen flex-col overflow-hidden bg-background">
+        <DemoBanner />
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <p className="text-muted-foreground">Loading story...</p>
+        </div>
       </div>
     );
   }
 
   if (loadError || !chapter) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <p role="alert" className="text-muted-foreground">{loadError || "Chapter not found"}</p>
-          <Button onClick={() => navigate(-1)}>Back to stories</Button>
+      <div className="flex h-screen flex-col overflow-hidden bg-background">
+        <DemoBanner />
+        <div className="flex min-h-0 flex-1 items-center justify-center">
+          <div className="text-center space-y-4">
+            <p role="alert" className="text-muted-foreground">{loadError || "Chapter not found"}</p>
+            <Button onClick={() => navigate(-1)}>Back to stories</Button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 border-b bg-background/95">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
+      <DemoBanner />
+      <div className="min-h-0 flex-1 overflow-auto">
+        <header className="sticky top-0 z-50 border-b bg-background/95">
             <div className="container mx-auto px-4 py-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 {/* Left: Back button and title */}
@@ -153,10 +162,10 @@ const StudentStoryReader = () => {
                 </div>
               </div>
             </div>
-      </header>
+        </header>
 
       {/* Story panels - conditional layout based on mode */}
-      {layoutMode === 'webtoon' ? (
+        {layoutMode === 'webtoon' ? (
         /* Webtoon format: vertical flow, zero gaps */
         <main
           aria-label="Comic panels"
@@ -221,7 +230,8 @@ const StudentStoryReader = () => {
             </div>
           )}
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

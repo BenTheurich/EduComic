@@ -8,7 +8,6 @@ import ClassicLoader from "@/components/ui/loader";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { StudentLayout } from "./components/student/StudentLayout";
 import { TeacherLayout } from "./components/teacher/TeacherLayout";
-import { DemoBanner } from "@/components/shared/DemoBanner";
 import { isDemoMode } from "@/lib/runtime";
 
 const Landing = lazy(() => import("./pages/shared/Landing"));
@@ -40,7 +39,6 @@ const App = () => (
   <MotionConfig reducedMotion="user">
     <TooltipProvider>
       <BackgroundComponent>
-        <DemoBanner />
         <Toaster />
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={loadingPage}>

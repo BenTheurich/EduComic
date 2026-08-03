@@ -8,6 +8,9 @@ const { getAllStudents } = vi.hoisted(() => ({ getAllStudents: vi.fn() }));
 vi.mock("@/lib/api", () => ({
   api: { students: { getAll: getAllStudents } },
 }));
+vi.mock("@/components/shared/DemoBanner", () => ({
+  DemoBanner: () => <div role="status" aria-label="Public demo">Public demo · Fictional data · Read-only</div>,
+}));
 
 const LocationProbe = () => <output aria-label="Current path">{useLocation().pathname}</output>;
 
@@ -54,6 +57,8 @@ describe("StudentLogin", () => {
     renderLogin();
 
     expect(screen.getByRole("heading", { name: "Choose a Student Profile" })).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Public demo" })).toBeInTheDocument();
+    expect(screen.queryByText("This selects a local preview only. It does not authenticate anyone.")).not.toBeInTheDocument();
     expect(screen.queryByText(/account|log in|sign in/i)).not.toBeInTheDocument();
     const profile = await screen.findByRole("button", { name: /Continue as Ada/ });
     expect(screen.getByRole("img", { name: "Ada" })).toHaveAttribute(

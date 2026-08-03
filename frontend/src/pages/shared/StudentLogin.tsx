@@ -4,6 +4,7 @@ import { ChevronLeft, User, Loader2, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DemoBanner } from "@/components/shared/DemoBanner";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { isDemoMode } from "@/lib/runtime";
@@ -48,25 +49,24 @@ const StudentProfilePicker = () => {
     };
 
     return (
-        <div className="min-h-screen">
-            <header className="bg-background border-b">
-                <div className="container mx-auto px-4 py-4">
-                    <Button variant="ghost" onClick={() => navigate("/")}>
-                        <ChevronLeft className="w-5 h-5 mr-2" />
-                        Back to Home
-                    </Button>
-                </div>
-            </header>
+        <div className="flex h-screen flex-col overflow-hidden">
+            <DemoBanner />
+            <div className="min-h-0 flex-1 overflow-auto">
+                <header className="bg-background border-b">
+                    <div className="container mx-auto px-4 py-4">
+                        <Button variant="ghost" onClick={() => navigate("/")}>
+                            <ChevronLeft className="w-5 h-5 mr-2" />
+                            Back to Home
+                        </Button>
+                    </div>
+                </header>
 
             <main className="container mx-auto max-w-2xl px-4 py-8 sm:py-12">
                 <Card>
                     <CardContent className="space-y-6 py-8">
                         <div className="text-center">
                             <GraduationCap className="mx-auto mb-4 h-10 w-10 text-primary" aria-hidden="true" />
-                            <h1 className="mb-2 font-serif text-3xl font-semibold text-foreground">Choose a Student Profile</h1>
-                            <p className="text-muted-foreground">
-                                This selects a local preview only. It does not authenticate anyone.
-                            </p>
+                            <h1 className="font-serif text-3xl font-semibold text-foreground">Choose a Student Profile</h1>
                         </div>
 
                         <div className="space-y-3">
@@ -133,7 +133,8 @@ const StudentProfilePicker = () => {
                         </div>}
                     </CardContent>
                 </Card>
-            </main>
+                </main>
+            </div>
         </div>
     );
 };

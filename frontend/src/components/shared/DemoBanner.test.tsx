@@ -13,8 +13,9 @@ describe("DemoBanner", () => {
 
     render(<DemoBanner />);
 
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getByRole("status", { name: "Public demo" })).toHaveTextContent(
       "Public demo · Fictional data · Read-only",
     );
+    expect(screen.getByRole("status", { name: "Public demo" })).toHaveClass("shrink-0");
   });
 });

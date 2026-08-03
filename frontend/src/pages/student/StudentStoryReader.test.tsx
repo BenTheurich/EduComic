@@ -6,6 +6,10 @@ import StudentStoryReader from "./StudentStoryReader";
 const { getChapter } = vi.hoisted(() => ({ getChapter: vi.fn() }));
 
 vi.mock("@/lib/api", () => ({ default: { chapters: { getById: getChapter } } }));
+vi.mock("@/lib/runtime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/runtime")>()),
+  isDemoMode: true,
+}));
 
 describe("StudentStoryReader", () => {
   beforeEach(() => {
@@ -34,6 +38,7 @@ describe("StudentStoryReader", () => {
     );
 
     const slider = await screen.findByRole("slider", { name: "Image size" });
+    expect(screen.getByRole("status", { name: "Public demo" })).toBeInTheDocument();
     expect(slider).toHaveAttribute("aria-valuenow", "100");
     expect(slider).toHaveAttribute("aria-valuetext", "100 percent");
     expect(screen.getByRole("button", { name: "Vertical layout" })).toHaveAttribute("aria-pressed", "true");
