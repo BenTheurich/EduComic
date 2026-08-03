@@ -162,7 +162,15 @@ const StoryGenerator = () => {
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
           }
-          setGenerationError("Story generation failed. Try another story or retry your lesson.");
+          const failure = response.chapter.generation_failure;
+          if (failure?.error_code === "bfl_request_moderated" || failure?.error_code === "bfl_content_moderated") {
+            const panel = failure.panel_number ? `panel ${failure.panel_number}` : "a panel";
+            setGenerationError(
+              `BFL blocked ${panel} during moderation. EduComic stopped without submitting an automatic retry.`
+            );
+          } else {
+            setGenerationError("Story generation failed. Try another story or retry your lesson.");
+          }
           return;
         }
       }

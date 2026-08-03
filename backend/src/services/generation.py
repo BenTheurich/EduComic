@@ -26,6 +26,17 @@ MAX_PNG_PIXELS = 16 * 1024 * 1024
 MAX_PNG_DECODED_BYTES = 64 * 1024 * 1024
 
 
+class BFLModerationError(RuntimeError):
+    """A terminal BFL moderation status safe to persist without provider details."""
+
+    def __init__(self, status: str):
+        self.error_code = {
+            "Request Moderated": "bfl_request_moderated",
+            "Content Moderated": "bfl_content_moderated",
+        }[status]
+        super().__init__("BFL generation was moderated")
+
+
 def ordered_panel_references(
     previous_url: str | None, panel: dict, students: list[dict]
 ) -> list[dict[str, str]]:
@@ -96,9 +107,15 @@ def submit_bfl_generation(
         f"https://api.bfl.ai/v1/{model}", headers=headers, json=body, timeout=30
     )
     response.raise_for_status()
-    polling_url = response.json().get("polling_url")
+    payload = response.json()
+    polling_url = payload.get("polling_url")
     if not polling_url:
         raise RuntimeError("BFL submit response was incomplete")
+    logger.info(
+        "BFL job submitted job_id=%s reported_cost=%s",
+        payload.get("id") or "unknown",
+        payload.get("cost"),
+    )
     return polling_url
 
 
@@ -118,7 +135,7 @@ def poll_bfl_generation(
                 raise RuntimeError("BFL result was incomplete")
             return delivery_url
         if status in {"Request Moderated", "Content Moderated"}:
-            raise RuntimeError("BFL generation was moderated")
+            raise BFLModerationError(status)
         if status in {"Error", "Failed"}:
             raise RuntimeError("BFL generation failed")
     raise TimeoutError("BFL generation timed out")
@@ -360,6 +377,7 @@ def run_generation(run_id: str) -> None:
             raise ValueError("Comic prompt sequence is invalid")
         if len(prompts) != expected_count:
             raise ValueError("Comic prompt count is invalid")
+        database.record_generation_script(run_id, script)
 
         ready_panels = []
         previous_url = None
@@ -371,7 +389,7 @@ def run_generation(run_id: str) -> None:
             candidate_prompt = build_panel_attempt_prompt(prompt["prompt"], references)
             for attempt in range(attempts):
                 stage = "submit"
-                database.set_generation_stage(run_id, "bfl_submit")
+                database.set_generation_stage(run_id, "bfl_submit", prompt["index"])
                 polling_url = submit_bfl_generation(
                     candidate_prompt,
                     prompt["aspect_ratio"],
@@ -425,9 +443,7 @@ def run_generation(run_id: str) -> None:
         old_paths = database.finalize_generation_run(run_id, script, ready_panels)
         remaining = _delete_artifacts(storage, old_paths)
         database.replace_generation_artifacts(run_id, remaining)
-    except Exception:
-        # TODO(educomic): persist a dedicated moderation code for stories and avatars,
-        # then offer teachers a clear revise-or-retry action instead of a generic failure.
+    except Exception as exc:
         error_codes = {
             "script": "script_invalid",
             "submit": "bfl_submit_failed",
@@ -437,15 +453,17 @@ def run_generation(run_id: str) -> None:
             "finalization": "finalization_failed",
             "swap": "database_swap_failed",
         }
+        error_code = exc.error_code if isinstance(exc, BFLModerationError) else error_codes[stage]
         reference = uuid4().hex
-        persisted = database.fail_generation_run(run_id, error_codes[stage], reference)
+        persisted = database.fail_generation_run(run_id, error_code, reference)
         remaining = _delete_artifacts(storage, [*artifacts, *persisted])
         database.replace_generation_artifacts(
             run_id, [path for path in remaining if not path.startswith("staging/")]
         )
         logger.error(
-            "Story generation failed run_id=%s code=%s reference=%s",
+            "Story generation failed run_id=%s code=%s panel_number=%s reference=%s",
             run_id,
-            error_codes[stage],
+            error_code,
+            prompt["index"] if "prompt" in locals() else None,
             reference,
         )

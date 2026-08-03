@@ -275,6 +275,34 @@ def test_every_panel_correction_failure_keeps_the_old_story_readable(
     )
 
 
+@pytest.mark.parametrize(
+    ("status", "error_code"),
+    [
+        ("Request Moderated", "bfl_request_moderated"),
+        ("Content Moderated", "bfl_content_moderated"),
+    ],
+)
+def test_panel_correction_reports_exact_moderation_failure(
+    monkeypatch, tmp_path, status, error_code
+):
+    """Catches the shared BFL moderation signal being lost in panel correction."""
+    database, _storage, chapter_id, _old_paths = _ready_story(monkeypatch, tmp_path)
+    regeneration = importlib.import_module("services.panel_regeneration")
+    monkeypatch.setattr(regeneration, "submit_bfl_generation", lambda *_args, **_kwargs: "poll://job")
+    monkeypatch.setattr(
+        regeneration,
+        "poll_bfl_generation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(regeneration.BFLModerationError(status)),
+    )
+    run, _created = database.begin_panel_regeneration(
+        chapter_id, 2, 1, "Correct only this fictional panel.", f"moderated-{status}"
+    )
+
+    regeneration.run_panel_regeneration(run["id"])
+
+    assert database.get_generation_run(run["id"])["error_code"] == error_code
+
+
 def test_stale_queued_correction_fails_before_provider_spend(monkeypatch, tmp_path):
     """Catches a queued browser request spending after its ready state changed."""
     database, _storage, chapter_id, _old_paths = _ready_story(monkeypatch, tmp_path)

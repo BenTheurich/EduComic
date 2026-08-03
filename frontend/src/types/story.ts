@@ -44,6 +44,11 @@ export interface Chapter {
   story_description: string;
   story_ideas?: StoryIdea[];
   temporary_panel_previews?: TemporaryPanelPreview[];
+  generation_failure?: {
+    error_code: string | null;
+    error_reference: string | null;
+    panel_number: number | null;
+  } | null;
   status: ChapterStatus;
   created_at: string;
   grounded_sources?: Array<{

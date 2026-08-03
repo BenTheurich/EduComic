@@ -103,8 +103,14 @@ def test_polling_waits_longer_than_one_minute_for_a_queued_bfl_job(monkeypatch):
     assert polls == 81
 
 
-@pytest.mark.parametrize("status", ["Request Moderated", "Content Moderated"])
-def test_polling_stops_immediately_when_bfl_moderates_a_job(monkeypatch, status):
+@pytest.mark.parametrize(
+    ("status", "error_code"),
+    [
+        ("Request Moderated", "bfl_request_moderated"),
+        ("Content Moderated", "bfl_content_moderated"),
+    ],
+)
+def test_polling_identifies_the_exact_bfl_moderation_failure(monkeypatch, status, error_code):
     """Catches a terminal moderation response being misreported as a timeout."""
     generation = __import__("services.generation", fromlist=["generation"])
 
@@ -121,8 +127,31 @@ def test_polling_stops_immediately_when_bfl_moderates_a_job(monkeypatch, status)
     monkeypatch.setattr(generation.requests, "get", lambda *_args, **_kwargs: FakeResponse())
     monkeypatch.setattr(generation, "_bfl_headers", lambda: {"x-key": "test"})
 
-    with pytest.raises(RuntimeError, match="moderated"):
+    with pytest.raises(generation.BFLModerationError) as raised:
         generation.poll_bfl_generation("https://poll.invalid/job")
+
+    assert raised.value.error_code == error_code
+
+
+def test_bfl_submission_logs_safe_job_cost_metadata(monkeypatch, caplog):
+    """Catches paid submissions becoming impossible to reconcile with BFL support."""
+    generation = __import__("services.generation", fromlist=["generation"])
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"id": "job-123", "polling_url": "https://poll.invalid/job", "cost": 6.25}
+
+    monkeypatch.setattr(generation.requests, "post", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(generation, "_bfl_headers", lambda: {"x-key": "test"})
+
+    with caplog.at_level("INFO", logger="educomic.generation"):
+        polling_url = generation.submit_bfl_generation("Fictional classroom comic")
+
+    assert polling_url == "https://poll.invalid/job"
+    assert "job_id=job-123 reported_cost=6.25" in caplog.text
 
 
 def test_valid_png_subset_is_fully_decoded():

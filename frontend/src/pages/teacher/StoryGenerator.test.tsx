@@ -320,11 +320,25 @@ describe("StoryGenerator", () => {
   });
 
   it("stops polling and offers a retry when generation fails", async () => {
-    getChapter.mockResolvedValue(chapterResponse("failed"));
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        status: "failed",
+        panels: [],
+        generation_failure: {
+          error_code: "bfl_content_moderated",
+          error_reference: "safe-reference",
+          panel_number: 6,
+        },
+      },
+    });
 
     await startGeneration(true);
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Story generation failed");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "BFL blocked panel 6 during moderation. EduComic stopped without submitting an automatic retry."
+    );
     expect(screen.getByRole("button", { name: "Try another story" })).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(4_000));
     expect(getChapter).toHaveBeenCalledTimes(1);

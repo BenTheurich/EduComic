@@ -8,6 +8,7 @@ from database import database
 from local_runtime import resolve_local_paths
 from local_storage import LocalStorage, media_url
 from services.generation import (
+    BFLModerationError,
     MAX_IMAGE_BYTES,
     _delete_artifacts,
     download_bfl_image,
@@ -104,7 +105,7 @@ def run_panel_regeneration(run_id: str) -> None:
         artifacts.remove(object_path)
         remaining = _delete_artifacts(storage, old_paths)
         database.replace_generation_artifacts(run_id, remaining)
-    except Exception:
+    except Exception as exc:
         if published:
             logger.error("Panel cleanup bookkeeping failed after publish run_id=%s", run_id)
             return
@@ -117,8 +118,9 @@ def run_panel_regeneration(run_id: str) -> None:
             "finalization": "finalization_failed",
             "swap": "database_swap_failed",
         }
+        error_code = exc.error_code if isinstance(exc, BFLModerationError) else error_codes[stage]
         reference = uuid4().hex
-        persisted = database.fail_generation_run(run_id, error_codes[stage], reference)
+        persisted = database.fail_generation_run(run_id, error_code, reference)
         remaining = _delete_artifacts(storage, [*artifacts, *persisted])
         database.replace_generation_artifacts(
             run_id, [path for path in remaining if not path.startswith("staging/")]
@@ -126,6 +128,6 @@ def run_panel_regeneration(run_id: str) -> None:
         logger.error(
             "Panel regeneration failed run_id=%s code=%s reference=%s",
             run_id,
-            error_codes[stage],
+            error_code,
             reference,
         )

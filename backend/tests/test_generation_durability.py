@@ -141,6 +141,41 @@ def test_every_generation_fault_preserves_the_ready_revision(monkeypatch, tmp_pa
     assert list((Path(tmp_path) / "staging").iterdir()) == []
 
 
+@pytest.mark.parametrize(
+    ("status", "error_code"),
+    [
+        ("Request Moderated", "bfl_request_moderated"),
+        ("Content Moderated", "bfl_content_moderated"),
+    ],
+)
+def test_moderation_failure_keeps_script_and_blocked_panel_diagnostics(
+    monkeypatch, tmp_path, status, error_code
+):
+    """Catches one moderated panel erasing the evidence needed before another paid attempt."""
+    database, _storage, chapter_id, _old_path = _ready_chapter(monkeypatch, tmp_path)
+    generation = importlib.import_module("services.generation")
+    _mock_successful_providers(monkeypatch, generation)
+    monkeypatch.setattr(
+        generation,
+        "poll_bfl_generation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(generation.BFLModerationError(status)),
+    )
+    run, _created = database.begin_generation_run(chapter_id, "idea_1", f"moderated-{status}")
+
+    generation.run_generation(run["id"])
+
+    failed = database.get_generation_run(run["id"])
+    chapter = database.get_chapter_with_panels(chapter_id)
+    assert failed["error_code"] == error_code
+    assert failed["panel_number"] == 1
+    assert failed["script_snapshot"] == _script()
+    assert chapter["generation_failure"] == {
+        "error_code": error_code,
+        "error_reference": failed["error_reference"],
+        "panel_number": 1,
+    }
+
+
 def test_success_publishes_one_complete_local_revision_and_preserves_provenance_history(monkeypatch, tmp_path):
     """Catches partial publication or loss of history needed for later erasure."""
     database, storage, chapter_id, old_path = _ready_chapter(monkeypatch, tmp_path)

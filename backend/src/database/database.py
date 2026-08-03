@@ -240,6 +240,7 @@ def _generation_run(run: GenerationRun) -> dict[str, Any]:
         "error_reference": run.error_reference,
         "artifact_paths": list(run.artifact_paths or []),
         "settings_snapshot": dict(run.settings_snapshot or {}),
+        "script_snapshot": dict(run.script_snapshot or {}) if run.script_snapshot else None,
         "started_at": _iso(run.started_at) if run.started_at else None,
         "finished_at": _iso(run.finished_at) if run.finished_at else None,
         "cleanup_pending": bool(run.artifact_paths),
@@ -1145,15 +1146,26 @@ def start_panel_regeneration_run(run_id: str) -> dict[str, Any] | None:
         return data
 
 
-def set_generation_stage(run_id: str, stage: str) -> None:
+def set_generation_stage(run_id: str, stage: str, panel_number: int | None = None) -> None:
     with _session() as session:
+        values: dict[str, Any] = {"stage": stage}
+        if panel_number is not None:
+            values["panel_number"] = panel_number
         result = session.execute(
             update(GenerationRun)
             .where(GenerationRun.id == run_id, GenerationRun.job_state == "running")
-            .values(stage=stage)
+            .values(**values)
         )
         if result.rowcount != 1:
             raise GenerationConflict("Generation run is not active")
+
+
+def record_generation_script(run_id: str, script: dict[str, Any]) -> None:
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "story" or run.job_state != "running":
+            raise GenerationConflict("Generation run is not active")
+        run.script_snapshot = script
 
 
 def record_generation_artifact(run_id: str, object_path: str) -> None:
@@ -1798,7 +1810,27 @@ def get_chapter_with_panels(chapter_id: str) -> dict[str, Any] | None:
     if chapter:
         chapter["panels"] = get_panels_by_chapter(chapter_id)
         chapter["temporary_panel_previews"] = _temporary_panel_previews(chapter_id)
+        chapter["generation_failure"] = _latest_story_generation_failure(chapter_id)
     return chapter
+
+
+def _latest_story_generation_failure(chapter_id: str) -> dict[str, Any] | None:
+    with _session() as session:
+        run = session.scalar(
+            select(GenerationRun)
+            .where(
+                GenerationRun.chapter_id == chapter_id,
+                GenerationRun.run_kind == "story",
+            )
+            .order_by(GenerationRun.created_at.desc())
+        )
+        if run is None or run.job_state != "failed":
+            return None
+        return {
+            "error_code": run.error_code,
+            "error_reference": run.error_reference,
+            "panel_number": run.panel_number,
+        }
 
 
 def _temporary_panel_previews(chapter_id: str) -> list[dict[str, Any]]:
