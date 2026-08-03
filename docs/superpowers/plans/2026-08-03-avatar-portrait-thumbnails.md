@@ -74,9 +74,9 @@
 **Files:**
 - Modify data only: `C:/tmp/EduComic-worktrees/product-intent-recovery/backend/data`
 
-- [ ] Run the migration against the active local recovery data.
-- [ ] Generate Ben and James thumbnails locally from their stored avatars and update their rows without API generation calls.
-- [ ] Sync the running recovery worktree to the implemented main commit if it is clean.
-- [ ] Run backend and frontend regression suites.
-- [ ] Inspect the student chooser and compact avatar surfaces at desktop/mobile sizes, then perform at most one correction pass.
-- [ ] Confirm the full-body student profile and story paths still use `avatar_url`.
+- [x] Run the migration against the active local recovery data.
+- [x] Generate Ben and James thumbnails locally from their stored avatars and update their rows without API generation calls.
+- [x] Sync the running recovery worktree to the implemented main commit if it is clean.
+- [x] Run backend and frontend regression suites.
+- [x] Inspect the student chooser and compact avatar surfaces in the in-app browser, then perform at most one correction pass.
+- [x] Confirm the full-body student profile and story paths still use `avatar_url`.
