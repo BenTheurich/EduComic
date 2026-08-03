@@ -227,7 +227,7 @@ def test_avatar_and_panel_outputs_are_durable_local_media(monkeypatch, tmp_path)
 
     monkeypatch.setattr(avatar.httpx, "AsyncClient", lambda **_kwargs: Client())
 
-    avatar_url = importlib.import_module("asyncio").run(
+    avatar_url, thumbnail_url = importlib.import_module("asyncio").run(
         avatar._upload_avatar_to_storage("https://provider.test/avatar", student_id)
     )
     panel_url = comic_creation.upload_image_and_get_url(
@@ -236,6 +236,7 @@ def test_avatar_and_panel_outputs_are_durable_local_media(monkeypatch, tmp_path)
 
     storage = LocalStorage(tmp_path)
     assert avatar_url.startswith("/media/avatars/")
+    assert thumbnail_url is None
     assert panel_url.startswith("/media/story-images/")
     assert storage.read_bytes(avatar_url.removeprefix("/media/"), max_bytes=100) == b"avatar-bytes"
     assert storage.read_bytes(panel_url.removeprefix("/media/"), max_bytes=100) == b"panel-bytes"

@@ -2,6 +2,7 @@
 
 import base64
 import importlib
+from io import BytesIO
 import struct
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -9,6 +10,7 @@ import zlib
 
 import httpx
 import pytest
+from PIL import Image, ImageDraw
 
 from local_storage import LocalStorage, media_url
 
@@ -27,6 +29,25 @@ def _synthetic_png(width: int, height: int, *, metadata: bytes | None = None) ->
         chunks.append(_png_chunk(b"IDAT", zlib.compress(row * height)))
     chunks.append(_png_chunk(b"IEND", b""))
     return b"\x89PNG\r\n\x1a\n" + b"".join(chunks)
+
+
+def test_avatar_thumbnail_is_a_top_framed_256_pixel_png():
+    """Catches compact avatars shrinking the full body instead of framing the face."""
+    avatar = importlib.import_module("services.avatar")
+    source = Image.new("RGB", (400, 800), "white")
+    draw = ImageDraw.Draw(source)
+    draw.ellipse((140, 40, 260, 180), fill=(220, 40, 40))
+    draw.rectangle((110, 180, 290, 700), fill=(40, 80, 180))
+    body = BytesIO()
+    source.save(body, format="PNG")
+
+    thumbnail_bytes = avatar._derive_avatar_thumbnail(body.getvalue())
+
+    with Image.open(BytesIO(thumbnail_bytes)) as thumbnail:
+        assert thumbnail.format == "PNG"
+        assert thumbnail.size == (256, 256)
+        red, green, blue = thumbnail.convert("RGB").getpixel((128, 48))
+        assert red > 180 and green < 90 and blue < 90
 
 
 @pytest.mark.asyncio
@@ -95,7 +116,10 @@ async def test_explicit_avatar_generation_uses_the_enrolled_classroom_style(monk
     monkeypatch.setattr(
         avatar,
         "replace_student_avatar",
-        lambda _student_id, avatar_url: ({**student, "avatar_url": avatar_url}, None),
+        lambda _student_id, avatar_url, thumbnail_url: (
+            {**student, "avatar_url": avatar_url, "avatar_thumbnail_url": thumbnail_url},
+            [],
+        ),
     )
     monkeypatch.setattr(avatar, "finish_avatar_work", lambda _student_id: None)
     monkeypatch.setenv("BFL_API_KEY", "test-key")
@@ -105,7 +129,11 @@ async def test_explicit_avatar_generation_uses_the_enrolled_classroom_style(monk
         return "provider-image"
 
     monkeypatch.setattr(avatar, "_call_black_forest_api", capture_prompt)
-    monkeypatch.setattr(avatar, "_upload_avatar_to_storage", AsyncMock(return_value="/media/avatars/avatar.png"))
+    monkeypatch.setattr(
+        avatar,
+        "_upload_avatar_to_storage",
+        AsyncMock(return_value=("/media/avatars/avatar.png", "/media/avatars/avatar-thumbnail.png")),
+    )
 
     result = await avatar.generate_avatar("student-1")
 
@@ -125,7 +153,10 @@ async def test_photo_guided_avatar_sends_normalized_bytes_as_bfl_input_image(mon
     monkeypatch.setattr(
         avatar,
         "replace_student_avatar",
-        lambda _student_id, avatar_url: ({**student, "avatar_url": avatar_url}, None),
+        lambda _student_id, avatar_url, thumbnail_url: (
+            {**student, "avatar_url": avatar_url, "avatar_thumbnail_url": thumbnail_url},
+            [],
+        ),
     )
     monkeypatch.setattr(avatar, "finish_avatar_work", lambda _student_id: None)
     monkeypatch.setenv("BFL_API_KEY", "test-key")
@@ -135,7 +166,11 @@ async def test_photo_guided_avatar_sends_normalized_bytes_as_bfl_input_image(mon
         return "provider-image"
 
     monkeypatch.setattr(avatar, "_call_black_forest_api", capture_submission)
-    monkeypatch.setattr(avatar, "_upload_avatar_to_storage", AsyncMock(return_value="/media/avatars/avatar.png"))
+    monkeypatch.setattr(
+        avatar,
+        "_upload_avatar_to_storage",
+        AsyncMock(return_value=("/media/avatars/avatar.png", "/media/avatars/avatar-thumbnail.png")),
+    )
 
     await avatar.generate_avatar("student-1", b"normalized portrait")
 
@@ -201,7 +236,8 @@ async def test_avatar_update_failure_deletes_new_file_and_preserves_old(monkeypa
     student_id = str(uuid4())
     old_path = storage.new_object_path("avatars", student_id, ".png")
     new_path = storage.new_object_path("avatars", student_id, ".png")
-    for path, value in ((old_path, b"old"), (new_path, b"new")):
+    new_thumbnail_path = storage.new_object_path("avatars", student_id, ".png")
+    for path, value in ((old_path, b"old"), (new_path, b"new"), (new_thumbnail_path, b"thumb")):
         storage.finalize(storage.stage_bytes(value, ".png", max_bytes=10), path)
     monkeypatch.setattr(
         avatar,
@@ -213,7 +249,11 @@ async def test_avatar_update_failure_deletes_new_file_and_preserves_old(monkeypa
     )
     monkeypatch.setattr(avatar, "get_classrooms_by_student", lambda _student_id: [])
     monkeypatch.setattr(avatar, "_call_black_forest_api", AsyncMock(return_value="provider"))
-    monkeypatch.setattr(avatar, "_upload_avatar_to_storage", AsyncMock(return_value=media_url(new_path)))
+    monkeypatch.setattr(
+        avatar,
+        "_upload_avatar_to_storage",
+        AsyncMock(return_value=(media_url(new_path), media_url(new_thumbnail_path))),
+    )
     monkeypatch.setattr(
         avatar,
         "replace_student_avatar",
@@ -226,6 +266,7 @@ async def test_avatar_update_failure_deletes_new_file_and_preserves_old(monkeypa
 
     assert storage.read_bytes(old_path, max_bytes=10) == b"old"
     assert not storage.absolute_path(new_path).exists()
+    assert not storage.absolute_path(new_thumbnail_path).exists()
 
 
 @pytest.mark.asyncio
@@ -236,18 +277,37 @@ async def test_successful_avatar_replacement_deletes_superseded_file(monkeypatch
     storage = LocalStorage(tmp_path)
     student_id = str(uuid4())
     old_path = storage.new_object_path("avatars", student_id, ".png")
+    old_thumbnail_path = storage.new_object_path("avatars", student_id, ".png")
     new_path = storage.new_object_path("avatars", student_id, ".png")
-    for path, value in ((old_path, b"old"), (new_path, b"new")):
+    new_thumbnail_path = storage.new_object_path("avatars", student_id, ".png")
+    for path, value in (
+        (old_path, b"old"),
+        (old_thumbnail_path, b"old-thumb"),
+        (new_path, b"new"),
+        (new_thumbnail_path, b"new-thumb"),
+    ):
         storage.finalize(storage.stage_bytes(value, ".png", max_bytes=10), path)
-    student = {"id": student_id, "interests": "robots", "avatar_url": media_url(old_path)}
+    student = {
+        "id": student_id,
+        "interests": "robots",
+        "avatar_url": media_url(old_path),
+        "avatar_thumbnail_url": media_url(old_thumbnail_path),
+    }
     monkeypatch.setattr(avatar, "begin_avatar_work", lambda _student_id: (student, "flux-2-pro"))
     monkeypatch.setattr(avatar, "get_classrooms_by_student", lambda _student_id: [])
     monkeypatch.setattr(avatar, "_call_black_forest_api", AsyncMock(return_value="provider"))
-    monkeypatch.setattr(avatar, "_upload_avatar_to_storage", AsyncMock(return_value=media_url(new_path)))
+    monkeypatch.setattr(
+        avatar,
+        "_upload_avatar_to_storage",
+        AsyncMock(return_value=(media_url(new_path), media_url(new_thumbnail_path))),
+    )
     monkeypatch.setattr(
         avatar,
         "replace_student_avatar",
-        lambda _student_id, avatar_url: ({**student, "avatar_url": avatar_url}, old_path),
+        lambda _student_id, avatar_url, thumbnail_url: (
+            {**student, "avatar_url": avatar_url, "avatar_thumbnail_url": thumbnail_url},
+            [old_path, old_thumbnail_path],
+        ),
     )
     monkeypatch.setattr(avatar, "finish_superseded_avatar_cleanup", lambda *_args: None)
     monkeypatch.setattr(avatar, "finish_avatar_work", lambda _student_id: None)
@@ -255,8 +315,11 @@ async def test_successful_avatar_replacement_deletes_superseded_file(monkeypatch
     result = await avatar.generate_avatar(student_id)
 
     assert result["avatar_url"] == media_url(new_path)
+    assert result["avatar_thumbnail_url"] == media_url(new_thumbnail_path)
     assert not storage.absolute_path(old_path).exists()
+    assert not storage.absolute_path(old_thumbnail_path).exists()
     assert storage.read_bytes(new_path, max_bytes=10) == b"new"
+    assert storage.read_bytes(new_thumbnail_path, max_bytes=10) == b"new-thumb"
 
 
 @pytest.mark.asyncio

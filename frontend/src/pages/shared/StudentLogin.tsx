@@ -12,6 +12,7 @@ interface Student {
     name: string;
     interests: string;
     avatar_url: string | null;
+    avatar_thumbnail_url: string | null;
     created_at: string;
 }
 
@@ -97,9 +98,9 @@ const StudentProfilePicker = () => {
                                         <CardContent className="pt-4 pb-4">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-3">
-                                                    {student.avatar_url ? (
+                                                    {student.avatar_thumbnail_url || student.avatar_url ? (
                                                         <img
-                                                            src={student.avatar_url}
+                                                            src={student.avatar_thumbnail_url || student.avatar_url || undefined}
                                                             alt={student.name}
                                                             className="w-12 h-12 rounded-full object-cover"
                                                         />

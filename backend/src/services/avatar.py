@@ -10,7 +10,7 @@ import os
 from typing import Any, Dict, Optional
 
 import httpx
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageOps, UnidentifiedImageError
 
 from database.database import (
     begin_avatar_work,
@@ -94,17 +94,22 @@ async def generate_avatar(student_id: str, portrait: bytes | None = None) -> Dic
         if portrait is not None:
             provider_options["input_image"] = base64.b64encode(portrait).decode("ascii")
         bfl_avatar_url = await _call_black_forest_api(prompt, api_key, **provider_options)
-        avatar_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
+        avatar_url, thumbnail_url = await _upload_avatar_to_storage(bfl_avatar_url, student_id)
         try:
-            updated_student, previous_path = replace_student_avatar(student_id, avatar_url)
+            updated_student, previous_paths = replace_student_avatar(student_id, avatar_url, thumbnail_url)
         except Exception:
-            _delete_media_url(avatar_url, context="avatar update compensation")
+            for url in (avatar_url, thumbnail_url):
+                if url:
+                    _delete_media_url(url, context="avatar update compensation")
             raise
         if updated_student is None:
-            _delete_media_url(avatar_url, context="missing student compensation")
+            for url in (avatar_url, thumbnail_url):
+                if url:
+                    _delete_media_url(url, context="missing student compensation")
             raise ValueError("Student not found")
-        if previous_path and _delete_object_path(previous_path, context="superseded avatar cleanup"):
-            finish_superseded_avatar_cleanup(student_id, previous_path)
+        for previous_path in previous_paths:
+            if _delete_object_path(previous_path, context="superseded avatar cleanup"):
+                finish_superseded_avatar_cleanup(student_id, previous_path)
         return updated_student
     finally:
         finish_avatar_work(student_id)
@@ -225,7 +230,38 @@ async def _call_black_forest_api(
         raise TimeoutError("Image generation timed out after 120 seconds")
 
 
-async def _upload_avatar_to_storage(image_url: str, student_id: str) -> str:
+def _derive_avatar_thumbnail(body: bytes) -> bytes:
+    """Crop a white-background full-body avatar into a compact portrait PNG."""
+    with Image.open(BytesIO(body)) as image:
+        source = ImageOps.exif_transpose(image).convert("RGB")
+        red, green, blue = source.split()
+        foreground = ImageChops.lighter(
+            ImageChops.lighter(
+                red.point(lambda value: 255 if value < 245 else 0),
+                green.point(lambda value: 255 if value < 245 else 0),
+            ),
+            blue.point(lambda value: 255 if value < 245 else 0),
+        )
+        width, height = source.size
+        bounds = foreground.getbbox()
+        if bounds:
+            left, top, right, bottom = bounds
+            side = min(width, height, max(1, round((bottom - top) * 0.55)))
+            x = max(0, min(width - side, round((left + right - side) / 2)))
+            y = max(0, min(height - side, top))
+        else:
+            side = min(width, height)
+            x = (width - side) // 2
+            y = 0
+        thumbnail = source.crop((x, y, x + side, y + side)).resize(
+            (256, 256), Image.Resampling.LANCZOS
+        )
+        output = BytesIO()
+        thumbnail.save(output, format="PNG")
+        return output.getvalue()
+
+
+async def _upload_avatar_to_storage(image_url: str, student_id: str) -> tuple[str, str | None]:
     """Download a provider result and atomically persist it as local media."""
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -244,6 +280,16 @@ async def _upload_avatar_to_storage(image_url: str, student_id: str) -> str:
         staged = storage.stage_bytes(response.content, suffix, max_bytes=10 * 1024 * 1024)
         object_path = storage.new_object_path("avatars", student_id, suffix)
         storage.finalize(staged, object_path)
-        return media_url(object_path)
+        thumbnail_url = None
+        try:
+            thumbnail = storage.stage_bytes(
+                _derive_avatar_thumbnail(response.content), ".png", max_bytes=2 * 1024 * 1024
+            )
+            thumbnail_path = storage.new_object_path("avatars", student_id, ".png")
+            storage.finalize(thumbnail, thumbnail_path)
+            thumbnail_url = media_url(thumbnail_path)
+        except Exception:
+            logger.warning("Avatar thumbnail derivation failed student_id=%s", student_id)
+        return media_url(object_path), thumbnail_url
     except Exception:
         raise RuntimeError("Avatar upload failed") from None

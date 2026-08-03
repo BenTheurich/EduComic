@@ -125,11 +125,25 @@ async def test_bfl_api_key_is_accepted_by_avatar_generation(monkeypatch):
         lambda _student_id: ({"id": "student-1", "interests": "space"}, "flux-2-pro"),
     )
     monkeypatch.setattr(avatar, "_call_black_forest_api", lambda *_args, **_kwargs: _async_value("bfl-image"))
-    monkeypatch.setattr(avatar, "_upload_avatar_to_storage", lambda *_args: _async_value("stored-image"))
-    monkeypatch.setattr(avatar, "replace_student_avatar", lambda _student_id, avatar_url: ({"avatar_url": avatar_url}, None))
+    monkeypatch.setattr(
+        avatar,
+        "_upload_avatar_to_storage",
+        lambda *_args: _async_value(("stored-image", "stored-thumbnail")),
+    )
+    monkeypatch.setattr(
+        avatar,
+        "replace_student_avatar",
+        lambda _student_id, avatar_url, thumbnail_url: (
+            {"avatar_url": avatar_url, "avatar_thumbnail_url": thumbnail_url},
+            [],
+        ),
+    )
     monkeypatch.setattr(avatar, "finish_avatar_work", lambda _student_id: None)
 
-    assert await avatar.generate_avatar("student-1") == {"avatar_url": "stored-image"}
+    assert await avatar.generate_avatar("student-1") == {
+        "avatar_url": "stored-image",
+        "avatar_thumbnail_url": "stored-thumbnail",
+    }
 
 
 async def _async_value(value):

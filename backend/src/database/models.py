@@ -96,6 +96,7 @@ class Student(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     interests: Mapped[str] = mapped_column(Text, nullable=False)
     avatar_object_path: Mapped[str | None] = mapped_column(String(500))
+    avatar_thumbnail_object_path: Mapped[str | None] = mapped_column(String(500))
     photo_object_path: Mapped[str | None] = mapped_column(String(500))
     superseded_avatar_paths: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
 

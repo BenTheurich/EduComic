@@ -92,6 +92,11 @@ def _student(student: Student) -> dict[str, Any]:
         "name": student.name,
         "interests": student.interests,
         "avatar_url": media_url(student.avatar_object_path) if student.avatar_object_path else None,
+        "avatar_thumbnail_url": (
+            media_url(student.avatar_thumbnail_object_path)
+            if student.avatar_thumbnail_object_path
+            else None
+        ),
         "created_at": _iso(student.created_at),
         "updated_at": _iso(student.updated_at),
     }
@@ -462,21 +467,33 @@ def update_student(student_id: str, updates: dict[str, Any]) -> dict[str, Any] |
         return _student(student)
 
 
-def replace_student_avatar(student_id: str, avatar_url: str) -> tuple[dict[str, Any] | None, str | None]:
+def replace_student_avatar(
+    student_id: str,
+    avatar_url: str,
+    avatar_thumbnail_url: str | None = None,
+) -> tuple[dict[str, Any] | None, list[str]]:
     """Swap the visible avatar while durably retaining superseded cleanup work."""
     new_path = _media_object_path(avatar_url)
+    new_thumbnail_path = _media_object_path(avatar_thumbnail_url) if avatar_thumbnail_url else None
     with _session() as session:
         student = session.get(Student, student_id)
         if student is None:
-            return None, None
-        old_path = student.avatar_object_path
-        if old_path and old_path != new_path:
+            return None, []
+        old_paths = list(
+            dict.fromkeys(
+                path
+                for path in (student.avatar_object_path, student.avatar_thumbnail_object_path)
+                if path and path not in {new_path, new_thumbnail_path}
+            )
+        )
+        if old_paths:
             student.superseded_avatar_paths = list(
-                dict.fromkeys([*(student.superseded_avatar_paths or []), old_path])
+                dict.fromkeys([*(student.superseded_avatar_paths or []), *old_paths])
             )
         student.avatar_object_path = new_path
+        student.avatar_thumbnail_object_path = new_thumbnail_path
         session.flush()
-        return _student(student), old_path
+        return _student(student), old_paths
 
 
 def finish_superseded_avatar_cleanup(student_id: str, object_path: str) -> None:
@@ -1606,7 +1623,13 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
     elif target_kind == "student":
         student = session.get(Student, target_id)
         if student:
-            paths.extend((student.photo_object_path, student.avatar_object_path))
+            paths.extend(
+                (
+                    student.photo_object_path,
+                    student.avatar_object_path,
+                    student.avatar_thumbnail_object_path,
+                )
+            )
             paths.extend(student.superseded_avatar_paths or [])
         for run in _affected_runs(session, target_id):
             if run.job_state == "succeeded":
@@ -1625,7 +1648,13 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
         paths.extend(session.scalars(select(Panel.image_object_path)).all())
         paths.extend(session.scalars(select(Material.object_path)).all())
         for student in session.scalars(select(Student)).all():
-            paths.extend((student.photo_object_path, student.avatar_object_path))
+            paths.extend(
+                (
+                    student.photo_object_path,
+                    student.avatar_object_path,
+                    student.avatar_thumbnail_object_path,
+                )
+            )
             paths.extend(student.superseded_avatar_paths or [])
         for run in session.scalars(select(GenerationRun)).all():
             paths.extend(run.artifact_paths or [])

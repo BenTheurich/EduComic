@@ -41,7 +41,14 @@ describe("StudentLogin", () => {
 
   it("uses truthful local-profile language and a focusable named button", async () => {
     getAllStudents.mockResolvedValue({
-      students: [{ id: "student-1", name: "Ada", interests: "Robotics", avatar_url: null, created_at: "2026-01-01" }],
+      students: [{
+        id: "student-1",
+        name: "Ada",
+        interests: "Robotics",
+        avatar_url: "/media/avatars/ada-full.png",
+        avatar_thumbnail_url: "/media/avatars/ada-thumbnail.png",
+        created_at: "2026-01-01",
+      }],
     });
 
     renderLogin();
@@ -49,6 +56,10 @@ describe("StudentLogin", () => {
     expect(screen.getByRole("heading", { name: "Choose a Student Profile" })).toBeInTheDocument();
     expect(screen.queryByText(/account|log in|sign in/i)).not.toBeInTheDocument();
     const profile = await screen.findByRole("button", { name: /Continue as Ada/ });
+    expect(screen.getByRole("img", { name: "Ada" })).toHaveAttribute(
+      "src",
+      "/media/avatars/ada-thumbnail.png",
+    );
     expect(profile.tagName).toBe("BUTTON");
     profile.focus();
     expect(profile).toHaveFocus();

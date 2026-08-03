@@ -220,7 +220,11 @@ def test_avatar_work_blocks_erasure_and_failed_superseded_cleanup_is_retried(mon
 
     monkeypatch.setenv("BFL_API_KEY", "fictional-key")
     monkeypatch.setattr(avatar, "_call_black_forest_api", provider)
-    monkeypatch.setattr(avatar, "_upload_avatar_to_storage", lambda *_args: asyncio.sleep(0, result=media_url(new_path)))
+    monkeypatch.setattr(
+        avatar,
+        "_upload_avatar_to_storage",
+        lambda *_args: asyncio.sleep(0, result=(media_url(new_path), None)),
+    )
     original_delete = LocalStorage.delete
 
     def fail_old(self, object_path):
@@ -393,7 +397,7 @@ def test_review_migration_marks_legacy_provenance_incomplete_and_repairs_current
     upgrade_database(url)
 
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_panel_regeneration"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_avatar_thumbnails"
         defaults = json.loads(connection.execute(text("SELECT generation_defaults FROM settings")).scalar_one())
         run = connection.execute(
             text("SELECT settings_snapshot, script_snapshot FROM generation_runs WHERE id = :id"),

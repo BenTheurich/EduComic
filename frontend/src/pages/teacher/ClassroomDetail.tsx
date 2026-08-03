@@ -32,6 +32,7 @@ interface Student {
   name: string;
   interests: string;
   avatar_url: string | null;
+  avatar_thumbnail_url: string | null;
   status: "pending" | "generated";
 }
 
@@ -412,7 +413,7 @@ const ClassroomDetail = () => {
                             <div className="flex justify-center mb-4">
                               <Avatar className="w-24 h-24 border-4 border-border/30">
                                 <AvatarImage
-                                  src={student.avatar_url || undefined}
+                                  src={student.avatar_thumbnail_url || student.avatar_url || undefined}
                                   alt={student.name}
                                   className="object-cover"
                                 />
@@ -518,7 +519,7 @@ const ClassroomDetail = () => {
                                 <div className="flex-shrink-0">
                                   <div className="w-12 h-12 rounded-lg border-2 border-border/30 overflow-hidden">
                                     <img
-                                      src={student.avatar_url}
+                                      src={student.avatar_thumbnail_url || student.avatar_url}
                                       alt={`${student.name} avatar`}
                                       className="w-full h-full object-cover"
                                     />

@@ -59,4 +59,37 @@ describe("StudentClassroom", () => {
     expect(await screen.findByRole("heading", { name: "Physics Lab" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("uses portrait thumbnails for the class picture", async () => {
+    getClassroom.mockResolvedValue({
+      ...classroomResponse,
+      classroom: {
+        ...classroomResponse.classroom,
+        students: [{
+          id: "student-1",
+          name: "Mina",
+          interests: "Bridges",
+          avatar_url: "/media/avatars/mina-full.png",
+          avatar_thumbnail_url: "/media/avatars/mina-thumbnail.png",
+          created_at: "2026-07-31T00:00:00Z",
+        }],
+      },
+    });
+
+    render(
+      <MemoryRouter
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        initialEntries={["/student/classroom/classroom-1/student-1"]}
+      >
+        <Routes>
+          <Route path="/student/classroom/:classroomId/:studentId" element={<StudentClassroom />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("img", { name: "Mina avatar" })).toHaveAttribute(
+      "src",
+      "/media/avatars/mina-thumbnail.png",
+    );
+  });
 });

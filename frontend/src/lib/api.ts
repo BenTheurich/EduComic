@@ -134,6 +134,7 @@ export const api = {
             name: string;
             interests: string;
             avatar_url: string | null;
+            avatar_thumbnail_url: string | null;
             created_at: string;
           }>;
         };
@@ -147,6 +148,7 @@ export const api = {
           name: string;
           interests: string;
           avatar_url: string | null;
+          avatar_thumbnail_url: string | null;
           created_at: string;
         }>;
       }>(`/classrooms/${classroomId}/students`),
@@ -247,6 +249,7 @@ export const api = {
           name: string;
           interests: string;
           avatar_url: string | null;
+          avatar_thumbnail_url: string | null;
           created_at: string;
         }>;
       }>('/students'),
@@ -259,6 +262,7 @@ export const api = {
           name: string;
           interests: string;
           avatar_url: string | null;
+          avatar_thumbnail_url: string | null;
           created_at: string;
         };
       }>('/students/create', {
@@ -275,6 +279,7 @@ export const api = {
           name: string;
           interests: string;
           avatar_url: string | null;
+          avatar_thumbnail_url: string | null;
           created_at: string;
         };
         classroom: {
@@ -296,6 +301,7 @@ export const api = {
           name: string;
           interests: string;
           avatar_url: string | null;
+          avatar_thumbnail_url: string | null;
           created_at: string;
         };
         classrooms: Array<{

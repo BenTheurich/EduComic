@@ -142,7 +142,8 @@ const StudentClassroom = () => {
             students={students.map(s => ({
               id: s.id,
               name: s.name,
-              avatar_url: s.avatar_url
+              avatar_url: s.avatar_url,
+              avatar_thumbnail_url: s.avatar_thumbnail_url,
             }))}
           />
         </motion.div>

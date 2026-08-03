@@ -200,4 +200,26 @@ describe("classroom materials", () => {
     expect(screen.getByText(/Completed stories and their artwork remain unchanged/)).toBeInTheDocument();
     expect(eraseStudent).not.toHaveBeenCalled();
   });
+
+  it("uses portrait thumbnails in the student roster", async () => {
+    getById.mockResolvedValueOnce({ success: true, classroom: {
+      id: "classroom-1", name: "Science", subject: "Physics", grade_level: "8", story_theme: "Space", design_style: "comic",
+      students: [{
+        id: "student-1",
+        name: "Mina",
+        interests: "bridges",
+        avatar_url: "/media/avatars/mina-full.png",
+        avatar_thumbnail_url: "/media/avatars/mina-thumbnail.png",
+        created_at: "2026-08-01T00:00:00Z",
+      }],
+    }});
+    render(<MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=students"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
+
+    await screen.findByText("Mina");
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+    expect(screen.getByRole("img", { name: "Mina avatar" })).toHaveAttribute(
+      "src",
+      "/media/avatars/mina-thumbnail.png",
+    );
+  });
 });

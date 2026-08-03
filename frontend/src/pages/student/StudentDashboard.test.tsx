@@ -25,7 +25,8 @@ describe("StudentDashboard", () => {
         id: "student-1",
         name: "Ada Student",
         interests: "Space",
-        avatar_url: null,
+        avatar_url: "/media/avatars/ada-full.png",
+        avatar_thumbnail_url: "/media/avatars/ada-thumbnail.png",
         created_at: "2026-07-01T00:00:00Z",
       },
       classrooms: [{
@@ -81,6 +82,10 @@ describe("StudentDashboard", () => {
     );
 
     expect(await screen.findByText("Ready Story")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Ada Student avatar" })).toHaveAttribute(
+      "src",
+      "/media/avatars/ada-thumbnail.png",
+    );
     expect(screen.getByText("Students solve a fictional orbital rescue.")).toBeInTheDocument();
     expect(screen.queryByText("Legacy outline")).not.toBeInTheDocument();
     expect(screen.queryByText("Teacher lesson prompt")).not.toBeInTheDocument();

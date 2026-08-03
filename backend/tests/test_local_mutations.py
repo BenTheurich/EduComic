@@ -166,6 +166,7 @@ def test_student_erasure_removes_personal_files_but_preserves_completed_story(mo
             storage.new_object_path("student-photos", student["id"], ".png"),
             storage.new_object_path("avatars", student["id"], ".png"),
             storage.new_object_path("avatars", student["id"], ".png"),
+            storage.new_object_path("avatars", student["id"], ".png"),
         ]
         for path in personal_paths:
             storage.finalize(storage.stage_bytes(b"personal", ".png", max_bytes=20), path)
@@ -175,7 +176,10 @@ def test_student_erasure_removes_personal_files_but_preserves_completed_story(mo
             stored_student = session.get(Student, student["id"])
             stored_student.photo_object_path = personal_paths[0]
             stored_student.avatar_object_path = personal_paths[1]
-            stored_student.superseded_avatar_paths = [personal_paths[2]]
+            stored_student.avatar_thumbnail_object_path = personal_paths[2]
+            stored_student.superseded_avatar_paths = [personal_paths[3]]
+
+        assert database.get_student(student["id"])["avatar_thumbnail_url"] == media_url(personal_paths[2])
 
         erased = client.delete(f"/students/{student['id']}?confirm=true")
 
@@ -208,7 +212,7 @@ def test_migration_backfills_old_runs_conservatively(monkeypatch, tmp_path):
     engine = create_engine(f"sqlite:///{(tmp_path / 'educomic.db').as_posix()}")
     with engine.connect() as connection:
         head = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert head == "0008_panel_regeneration"
+        assert head == "0009_avatar_thumbnails"
         defaults = connection.execute(text("SELECT generation_defaults FROM settings")).scalar_one()
         assert '"story_length": 12' in defaults
         assert student["id"]

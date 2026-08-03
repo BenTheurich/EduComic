@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { motion } from "framer-motion";
 import { BookOpen, Users, Sparkles, Plus, Loader2 } from "lucide-react";
 import { ClassPictureBanner } from "@/components/shared/ClassPictureBanner";
@@ -93,10 +93,17 @@ const StudentDashboard = () => {
         >
           <div className="mb-6 flex items-center gap-4">
             <Avatar className="h-20 w-20 border-2 border-primary/20">
-              <AvatarImage src={student.avatar_url || undefined} />
-              <AvatarFallback className="bg-primary/20 text-2xl">
-                {getInitials(student.name)}
-              </AvatarFallback>
+              {student.avatar_thumbnail_url || student.avatar_url ? (
+                <img
+                  src={student.avatar_thumbnail_url || student.avatar_url || undefined}
+                  alt={`${student.name} avatar`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <AvatarFallback className="bg-primary/20 text-2xl">
+                  {getInitials(student.name)}
+                </AvatarFallback>
+              )}
             </Avatar>
             <div>
               <p className="mb-1 font-mono text-xs font-bold tracking-wide text-primary">STUDENT LIBRARY</p>

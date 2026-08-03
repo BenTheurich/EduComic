@@ -65,7 +65,7 @@ def test_migration_updates_local_setting_without_rewriting_historical_snapshot(t
         setting = connection.execute(text("SELECT openai_model FROM settings")).scalar_one()
         snapshot = json.loads(connection.execute(text("SELECT settings_snapshot FROM generation_runs")).scalar_one())
         head = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert head == "0008_panel_regeneration"
+    assert head == "0009_avatar_thumbnails"
     assert setting == "gpt-5.6-terra"
     assert snapshot["openai_model"] == "gpt-5.1"
 
