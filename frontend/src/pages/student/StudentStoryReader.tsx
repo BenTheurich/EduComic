@@ -34,7 +34,7 @@ const StudentStoryReader = () => {
       try {
         const response = await api.chapters.getById(chapterId);
         if (response.chapter.status !== "ready") {
-          setLoadError(`This story is ${response.chapter.status.replaceAll("_", " ")} and cannot be read yet.`);
+          setLoadError(`This story is ${response.chapter.status.replace(/_/g, " ")} and cannot be read yet.`);
           return;
         }
         setChapter(response.chapter);

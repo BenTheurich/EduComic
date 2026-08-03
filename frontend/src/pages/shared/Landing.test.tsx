@@ -109,7 +109,7 @@ describe("Landing", () => {
 
     act(() => {
       notify(
-        [{ isIntersecting: true, intersectionRatio: 0.8, target: castStep } as IntersectionObserverEntry],
+        [{ isIntersecting: true, intersectionRatio: 0.8, target: castStep } as unknown as IntersectionObserverEntry],
         {} as IntersectionObserver,
       );
     });

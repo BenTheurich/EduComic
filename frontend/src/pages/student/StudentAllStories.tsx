@@ -134,7 +134,7 @@ const StudentAllStories = () => {
                                                 <div className="flex gap-2 flex-wrap mb-4">
                                                     <Badge className="border-green-700 bg-green-700 text-white">
                                                         <CheckCircle className="w-3 h-3 mr-1" />
-                                                        {chapter.status.replaceAll("_", " ")}
+                                                        {chapter.status.replace(/_/g, " ")}
                                                     </Badge>
                                                 </div>
                                             </div>

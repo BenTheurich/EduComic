@@ -4,7 +4,6 @@ __pycache__
 
 # Test and build output
 .pytest_cache/
-.hypothesis/
 .mypy_cache/
 .coverage
 htmlcov/

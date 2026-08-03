@@ -659,7 +659,7 @@ const ClassroomDetail = () => {
                                       className="capitalize"
                                     >
                                       {chapter.status === "ready" && <CheckCircle className="w-3 h-3 mr-1" />}
-                                      {chapter.status.replaceAll("_", " ")}
+                                      {chapter.status.replace(/_/g, " ")}
                                     </Badge>
                                   </div>
                                   {(chapter.grounded_sources?.length || 0) > 0 && (

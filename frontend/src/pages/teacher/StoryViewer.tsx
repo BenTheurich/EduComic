@@ -74,7 +74,7 @@ const StoryViewer = () => {
       try {
         const response = await api.chapters.getById(id);
         if (response.chapter.status !== "ready") {
-          setLoadError(`This chapter is ${response.chapter.status.replaceAll("_", " ")} and cannot be viewed yet.`);
+          setLoadError(`This chapter is ${response.chapter.status.replace(/_/g, " ")} and cannot be viewed yet.`);
           return;
         }
         setChapter(response.chapter);
