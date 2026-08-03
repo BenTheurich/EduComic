@@ -212,7 +212,7 @@ def test_migration_backfills_old_runs_conservatively(monkeypatch, tmp_path):
     engine = create_engine(f"sqlite:///{(tmp_path / 'educomic.db').as_posix()}")
     with engine.connect() as connection:
         head = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-        assert head == "0009_avatar_thumbnails"
+        assert head == "0010_generation_checkpoints"
         defaults = connection.execute(text("SELECT generation_defaults FROM settings")).scalar_one()
         assert '"story_length": 12' in defaults
         assert student["id"]

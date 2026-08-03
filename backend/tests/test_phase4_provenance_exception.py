@@ -236,7 +236,7 @@ def test_forward_migration_marks_openai_snapshots_incomplete_and_preserves_compl
     upgrade_database(url)
 
     with engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_avatar_thumbnails"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0010_generation_checkpoints"
         snapshot = json.loads(
             connection.execute(
                 text("SELECT settings_snapshot FROM generation_runs WHERE id = :id"),

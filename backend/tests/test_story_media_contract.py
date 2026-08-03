@@ -205,6 +205,7 @@ def test_generating_chapter_exposes_only_durable_temporary_panel_previews(monkey
     first_path = storage.new_object_path("story-images", chapter["id"], ".png")
     storage.finalize(storage.stage_bytes(PNG, ".png", max_bytes=len(PNG)), first_path)
     database.record_generation_artifact(run["id"], first_path)
+    database.record_generation_checkpoint(run["id"], 1, first_path)
 
     current = database.get_chapter_with_panels(chapter["id"])
 

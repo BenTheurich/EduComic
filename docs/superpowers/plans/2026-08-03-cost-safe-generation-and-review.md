@@ -42,12 +42,12 @@
 - `resume_generation_run(run_id)` atomically requeues one failed, current story run.
 - `POST /generation-runs/{run_id}/resume` and `POST /generation-runs/{run_id}/discard?confirm=true` are idempotent local operations.
 
-- [ ] Add failing migration and durability tests for checkpoint fields, same-job polling after interruption, resume from the first missing panel, explicit moderation resubmission, and checkpoint cleanup.
-- [ ] Run focused backend tests and confirm failures are caused by the missing contract.
-- [ ] Implement the minimal schema, database transitions, worker resume path, and API endpoints.
-- [ ] Add failing frontend tests for preserved panel count, reported cost, `Resume from panel N`, and confirmed discard.
-- [ ] Implement the frontend API/types and generation failure actions, then run focused backend/frontend tests green.
-- [ ] Commit Task 1.
+- [x] Add failing migration and durability tests for checkpoint fields, same-job polling after interruption, resume from the first missing panel, explicit moderation resubmission, and checkpoint cleanup.
+- [x] Run focused backend tests and confirm failures are caused by the missing contract.
+- [x] Implement the minimal schema, database transitions, worker resume path, and API endpoints.
+- [x] Add failing frontend tests for preserved panel count, reported cost, `Resume from panel N`, and confirmed discard.
+- [x] Implement the frontend API/types and generation failure actions, then run focused backend/frontend tests green.
+- [x] Commit Task 1.
 
 ### Task 2: Hold panel corrections for teacher approval
 
@@ -66,12 +66,12 @@
 - `POST /panel-regenerations/{run_id}/reject` clears and deletes the candidate without changing the chapter.
 - Status returns `candidate_ready`, `candidate_url`, moderation error details, and provider-reported cost.
 
-- [ ] Add failing backend tests proving generation does not publish, accept changes only the target, reject preserves the original, and stale/duplicate actions are safe.
-- [ ] Run the focused backend test and confirm the expected failures.
-- [ ] Implement candidate persistence plus accept/reject database and API behavior.
-- [ ] Add failing frontend tests for the focused correction dialog, original/candidate comparison, accept, reject, and moderation copy.
-- [ ] Replace the inline editor with the dialog and run focused backend/frontend tests green.
-- [ ] Commit Task 2.
+- [x] Add failing backend tests proving generation does not publish, accept changes only the target, reject preserves the original, and stale/duplicate actions are safe.
+- [x] Run the focused backend test and confirm the expected failures.
+- [x] Implement candidate persistence plus accept/reject database and API behavior.
+- [x] Add failing frontend tests for the focused correction dialog, original/candidate comparison, accept, reject, and moderation copy.
+- [x] Replace the inline editor with the dialog and run focused backend/frontend tests green.
+- [x] Commit Task 2.
 
 ### Task 3: Select and show representative PDF grounding
 
@@ -86,8 +86,8 @@
 - `snapshot_sources(sources, lesson_prompt)` selects one page per source by deterministic normalized-term overlap, ties by page number, and falls back to the first non-empty page.
 - The completed teacher story view renders source filename and snapshotted page number from `chapter.grounded_sources`.
 
-- [ ] Add failing tests for later-page relevance, deterministic tie/fallback behavior, and visible story provenance.
-- [ ] Run focused tests and confirm the expected failures.
-- [ ] Implement the smallest page scorer and provenance treatment.
-- [ ] Run focused tests, all backend/frontend tests, TypeScript checks, production build, migration check, and Impeccable detector.
-- [ ] Review the final diff against the approved design and commit Task 3.
+- [x] Add failing tests for later-page relevance, deterministic tie/fallback behavior, and visible story provenance.
+- [x] Run focused tests and confirm the expected failures.
+- [x] Implement the smallest page scorer and provenance treatment.
+- [x] Run focused tests, all backend/frontend tests, TypeScript checks, production build, migration check, and Impeccable detector.
+- [x] Review the final diff against the approved design and commit Task 3.
