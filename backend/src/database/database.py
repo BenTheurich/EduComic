@@ -634,7 +634,8 @@ def begin_story_options(
                         "extracted_pages": by_id[material_id].extracted_pages,
                     }
                     for material_id in selected_ids
-                ]
+                ],
+                original_prompt,
             )
             session.add_all(
                 [

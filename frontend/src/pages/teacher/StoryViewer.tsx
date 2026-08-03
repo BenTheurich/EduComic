@@ -496,6 +496,17 @@ const StoryViewer = () => {
                 </div>
               </div>
 
+              {chapter.grounded_sources && chapter.grounded_sources.length > 0 && (
+                <div aria-label="Lesson sources" className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>Lesson sources</span>
+                  {chapter.grounded_sources.map((source) => (
+                    <Badge key={source.material_id} variant="outline" className="font-normal">
+                      {source.source_label} · Page {source.excerpts[0]?.page}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
               {allChapters.length > 1 && (
                 <div className="flex justify-between mt-3 pt-3 border-t">
                   <Button variant="outline" size="sm" onClick={() => { if (currentIndex < allChapters.length - 1) navigate(`/teacher/story/${allChapters[currentIndex + 1].id}`); }} disabled={currentIndex === -1 || currentIndex >= allChapters.length - 1}>

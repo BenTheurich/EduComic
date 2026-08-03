@@ -77,6 +77,27 @@ describe("StoryViewer", () => {
     expect(grid).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("shows the exact PDF page used to ground the story", async () => {
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "current", classroom_id: "classroom-1", index: 1,
+        original_prompt: "Lesson", thumbnail_url: null, story_title: "Gravity", status: "ready",
+        created_at: "2026-01-01", panels: [],
+        grounded_sources: [{
+          material_id: "material-1", content_hash: "a".repeat(64), source_label: "weather.pdf",
+          excerpts: [{ page: 4, text: "Water vapor condenses." }],
+        }],
+      },
+    });
+    getChapters.mockResolvedValue({ success: true, chapters: [] });
+
+    renderViewer();
+
+    expect(await screen.findByLabelText("Lesson sources")).toHaveTextContent("weather.pdf");
+    expect(screen.getByLabelText("Lesson sources")).toHaveTextContent("Page 4");
+  });
+
   it("fails closed when a chapter is not ready", async () => {
     getChapter.mockResolvedValueOnce({
       success: true,

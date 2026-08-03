@@ -212,6 +212,26 @@ def test_ten_maximum_labels_all_receive_nonempty_excerpts_inside_the_real_prompt
         assert f"| PAGE: {index + 1}\nFact {index}:" in prompt
 
 
+def test_snapshot_selects_the_most_relevant_pdf_page_with_a_stable_tie_break():
+    materials = _materials_module()
+    source = {
+        "id": str(uuid4()),
+        "content_hash": "a" * 64,
+        "source_filename": "weather.pdf",
+        "extracted_pages": [
+            {"page": 3, "text": "Condensation makes water droplets."},
+            {"page": 1, "text": "Water droplets form during condensation."},
+            {"page": 2, "text": "Ancient cities used stone roads."},
+        ],
+    }
+
+    snapshots = materials.snapshot_sources([source], "Teach condensation and water droplets")
+
+    assert snapshots[0]["excerpts"] == [
+        {"page": 1, "text": "Water droplets form during condensation."}
+    ]
+
+
 def test_selection_is_rejected_when_every_labeled_excerpt_cannot_fit(monkeypatch):
     """Catches a selected source being claimed after prompt truncation omitted its excerpt."""
     materials = _materials_module()

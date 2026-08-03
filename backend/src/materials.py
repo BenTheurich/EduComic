@@ -175,18 +175,30 @@ def grounding_prompt(sources: list[dict[str, Any]]) -> str:
     return _render_grounding(_fit_grounding_sources(sources))
 
 
-def snapshot_sources(sources: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _lesson_terms(value: Any) -> set[str]:
+    return {term.casefold() for term in re.findall(r"[^\W_]+", str(value)) if len(term) > 2}
+
+
+def _relevant_page(pages: list[dict[str, Any]], lesson_prompt: str) -> dict[str, Any] | None:
+    nonempty = [page for page in pages if str(page.get("text", "")).strip()]
+    terms = _lesson_terms(lesson_prompt)
+    if not nonempty or not terms:
+        return nonempty[0] if nonempty else None
+    scores = [(len(terms & _lesson_terms(page["text"])), page) for page in nonempty]
+    best = max(score for score, _page in scores)
+    if best == 0:
+        return nonempty[0]
+    return min((page for score, page in scores if score == best), key=lambda page: int(page["page"]))
+
+
+def snapshot_sources(sources: list[dict[str, Any]], lesson_prompt: str = "") -> list[dict[str, Any]]:
     """Copy deterministic, per-source bounded excerpts before provider work starts."""
     if not 1 <= len(sources) <= MAX_SELECTED_MATERIALS:
         raise ValueError("Select between 1 and 10 ready materials")
     snapshots = []
     for source in sources:
-        excerpts = []
-        for page in source["extracted_pages"]:
-            text = str(page["text"])
-            if text:
-                excerpts.append({"page": int(page["page"]), "text": text})
-                break
+        page = _relevant_page(source["extracted_pages"], lesson_prompt)
+        excerpts = [{"page": int(page["page"]), "text": str(page["text"])}] if page else []
         snapshots.append(
             {
                 "material_id": source["id"],
