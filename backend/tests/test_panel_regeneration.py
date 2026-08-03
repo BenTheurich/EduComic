@@ -90,8 +90,8 @@ def test_panel_correction_claim_is_idempotent_and_rejects_stale_or_concurrent_wo
         database.begin_panel_regeneration(chapter_id, 2, 0, "Old browser state.", "panel-3")
 
 
-def test_successful_panel_correction_changes_only_one_panel_and_survives_reload(monkeypatch, tmp_path):
-    """Catches a correction rewriting adjacent panels or publishing provider URLs/partial state."""
+def test_successful_panel_correction_waits_for_accept_then_changes_only_one_panel(monkeypatch, tmp_path):
+    """Catches a paid correction publishing before the teacher approves it."""
     database, storage, chapter_id, old_paths = _ready_story(monkeypatch, tmp_path)
     regeneration = importlib.import_module("services.panel_regeneration")
     calls = []
@@ -111,8 +111,21 @@ def test_successful_panel_correction_changes_only_one_panel_and_survives_reload(
     regeneration.run_panel_regeneration(run["id"])
     regeneration.run_panel_regeneration(run["id"])
 
+    candidate = database.get_generation_run(run["id"])
     current = database.get_chapter_with_panels(chapter_id)
     assert current["status"] == "ready"
+    assert current["revision"] == 1
+    assert current["panels"][1]["image"] == f"/media/{old_paths[1]}"
+    assert candidate["stage"] == "candidate_ready"
+    assert candidate["candidate_object_path"].startswith("story-images/")
+    assert storage.absolute_path(candidate["candidate_object_path"]).is_file()
+
+    replaced = database.accept_panel_regeneration(run["id"])
+    for path in replaced:
+        storage.delete(path)
+    database.replace_generation_artifacts(run["id"], [])
+    current = database.get_chapter_with_panels(chapter_id)
+    assert replaced == [old_paths[1]]
     assert current["revision"] == 2
     assert [panel["index"] for panel in current["panels"]] == [1, 2, 3]
     assert current["panels"][0]["image"] == f"/media/{old_paths[0]}"
@@ -144,6 +157,23 @@ def test_successful_panel_correction_changes_only_one_panel_and_survives_reload(
     ]
 
 
+def test_rejecting_a_panel_candidate_keeps_the_story_and_returns_candidate_for_cleanup(monkeypatch, tmp_path):
+    database, storage, chapter_id, old_paths = _ready_story(monkeypatch, tmp_path)
+    candidate_path = storage.new_object_path("story-images", chapter_id, ".png")
+    storage.finalize(storage.stage_bytes(PNG, ".png", max_bytes=1_000_000), candidate_path)
+    run, _created = database.begin_panel_regeneration(
+        chapter_id, 2, 1, "Make the orbit arrow clockwise.", "reject-1"
+    )
+    database.start_panel_regeneration_run(run["id"])
+    database.complete_panel_regeneration_candidate(run["id"], candidate_path)
+
+    assert database.reject_panel_regeneration(run["id"]) == [candidate_path]
+    assert database.reject_panel_regeneration(run["id"]) == [candidate_path]
+    chapter = database.get_chapter_with_panels(chapter_id)
+    assert chapter["revision"] == 1
+    assert [panel["image"] for panel in chapter["panels"]] == [f"/media/{path}" for path in old_paths]
+
+
 def test_student_erasure_never_reconstructs_a_ready_corrected_chapter(monkeypatch, tmp_path):
     """Catches failed-run cleanup rewriting an already-readable corrected chapter."""
     database, storage, chapter_id, _old_paths = _ready_story(monkeypatch, tmp_path, panel_count=12)
@@ -158,6 +188,9 @@ def test_student_erasure_never_reconstructs_a_ready_corrected_chapter(monkeypatc
         chapter_id, 2, 1, "Make the orbit arrow clockwise.", "ready-revision-2"
     )
     regeneration.run_panel_regeneration(corrected["id"])
+    for path in database.accept_panel_regeneration(corrected["id"]):
+        storage.delete(path)
+    database.replace_generation_artifacts(corrected["id"], [])
     database.update_chapter(
         chapter_id,
         {
@@ -225,7 +258,7 @@ def test_student_erasure_never_reconstructs_a_ready_corrected_chapter(monkeypatc
         ("download", "bfl_download_failed"),
         ("validation", "image_invalid"),
         ("finalization", "finalization_failed"),
-        ("swap", "database_swap_failed"),
+        ("candidate", "candidate_storage_failed"),
     ],
 )
 def test_every_panel_correction_failure_keeps_the_old_story_readable(
@@ -252,7 +285,7 @@ def test_every_panel_correction_failure_keeps_the_old_story_readable(
     elif fault == "finalization":
         monkeypatch.setattr(type(storage), "finalize", fail)
     else:
-        monkeypatch.setattr(database, "finalize_panel_regeneration", fail)
+        monkeypatch.setattr(database, "complete_panel_regeneration_candidate", fail)
     run, _created = database.begin_panel_regeneration(
         chapter_id, 2, 1, "Correct only this fictional panel.", f"fault-{fault}"
     )
@@ -342,6 +375,8 @@ def test_failed_superseded_file_cleanup_remains_durable(monkeypatch, tmp_path):
     )
 
     regeneration.run_panel_regeneration(run["id"])
+    old = database.accept_panel_regeneration(run["id"])
+    importlib.import_module("main")._cleanup_generation_paths(run["id"], old)
 
     succeeded = database.get_generation_run(run["id"])
     assert succeeded["job_state"] == "succeeded"
@@ -379,10 +414,56 @@ def test_panel_correction_api_is_idempotent_and_exposes_truthful_progress(monkey
         "chapter_id": chapter_id,
         "panel_number": 2,
         "status": "regenerating",
+        "candidate_url": None,
+        "reported_bfl_cost": None,
         "error_code": None,
         "error_reference": None,
         "cleanup_pending": False,
     }
+
+
+def test_panel_candidate_api_exposes_preview_and_publishes_only_after_accept(monkeypatch, tmp_path):
+    database, storage, chapter_id, old_paths = _ready_story(monkeypatch, tmp_path)
+    main = importlib.import_module("main")
+    candidate_path = storage.new_object_path("story-images", chapter_id, ".png")
+    storage.finalize(storage.stage_bytes(PNG, ".png", max_bytes=1_000_000), candidate_path)
+    run, _created = database.begin_panel_regeneration(
+        chapter_id, 2, 1, "Make the arrow clockwise.", "candidate-api"
+    )
+    database.start_panel_regeneration_run(run["id"])
+    database.complete_panel_regeneration_candidate(run["id"], candidate_path)
+
+    with TestClient(main.app) as client:
+        status = client.get(f"/panel-regenerations/{run['id']}")
+        chapter_before_accept = client.get(f"/chapters/{chapter_id}")
+        accepted = client.post(f"/panel-regenerations/{run['id']}/accept")
+
+    assert status.json()["status"] == "candidate_ready"
+    assert status.json()["candidate_url"] == f"/media/{candidate_path}"
+    assert chapter_before_accept.json()["chapter"]["panel_regeneration_candidate"] == {
+        "run_id": run["id"],
+        "panel_number": 2,
+        "candidate_url": f"/media/{candidate_path}",
+        "reported_bfl_cost": None,
+    }
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "ready"
+    assert database.get_chapter_with_panels(chapter_id)["revision"] == 2
+    assert not storage.absolute_path(old_paths[1]).exists()
+
+
+def test_chapter_deletion_removes_an_awaiting_panel_candidate(monkeypatch, tmp_path):
+    database, storage, chapter_id, _old_paths = _ready_story(monkeypatch, tmp_path)
+    candidate_path = storage.new_object_path("story-images", chapter_id, ".png")
+    storage.finalize(storage.stage_bytes(PNG, ".png", max_bytes=1_000_000), candidate_path)
+    run, _created = database.begin_panel_regeneration(
+        chapter_id, 2, 1, "Make the arrow clockwise.", "candidate-delete"
+    )
+    database.start_panel_regeneration_run(run["id"])
+    database.complete_panel_regeneration_candidate(run["id"], candidate_path)
+
+    assert database.execute_deletion("chapter", chapter_id) is True
+    assert not storage.absolute_path(candidate_path).exists()
 
 
 def test_post_publish_cleanup_bookkeeping_failure_never_deletes_the_ready_replacement(monkeypatch, tmp_path):
@@ -402,6 +483,9 @@ def test_post_publish_cleanup_bookkeeping_failure_never_deletes_the_ready_replac
     )
 
     regeneration.run_panel_regeneration(run["id"])
+    old = database.accept_panel_regeneration(run["id"])
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        importlib.import_module("main")._cleanup_generation_paths(run["id"], old)
 
     current = database.get_chapter_with_panels(chapter_id)
     replacement_path = current["panels"][1]["image"].removeprefix("/media/")

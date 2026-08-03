@@ -52,7 +52,7 @@ def run_panel_regeneration(run_id: str) -> None:
     storage = LocalStorage(resolve_local_paths().root)
     artifacts: list[str] = []
     stage = "context"
-    published = False
+    candidate_saved = False
     try:
         chapter = database.get_chapter_with_panels(run["chapter_id"])
         if chapter is None or chapter["revision"] != run["base_revision"]:
@@ -79,6 +79,9 @@ def run_panel_regeneration(run_id: str) -> None:
             references[:8],
             model=run["settings_snapshot"]["bfl_model"],
         ))
+        database.record_generation_provider_job(
+            run_id, run["panel_number"], submitted.job_id, submitted.polling_url, submitted.reported_cost
+        )
         stage = "poll"
         database.set_generation_stage(run_id, "bfl_poll")
         delivery_url = poll_bfl_generation(submitted.polling_url)
@@ -99,16 +102,13 @@ def run_panel_regeneration(run_id: str) -> None:
         storage.finalize(staged, object_path)
         artifacts.remove(staged)
 
-        stage = "swap"
-        database.set_generation_stage(run_id, "database_swap")
-        old_paths = database.finalize_panel_regeneration(run_id, object_path)
-        published = True
+        stage = "candidate"
+        database.complete_panel_regeneration_candidate(run_id, object_path)
+        candidate_saved = True
         artifacts.remove(object_path)
-        remaining = _delete_artifacts(storage, old_paths)
-        database.replace_generation_artifacts(run_id, remaining)
     except Exception as exc:
-        if published:
-            logger.error("Panel cleanup bookkeeping failed after publish run_id=%s", run_id)
+        if candidate_saved:
+            logger.error("Panel candidate bookkeeping failed run_id=%s", run_id)
             return
         error_codes = {
             "context": "context_invalid",
@@ -117,7 +117,7 @@ def run_panel_regeneration(run_id: str) -> None:
             "download": "bfl_download_failed",
             "validation": "image_invalid",
             "finalization": "finalization_failed",
-            "swap": "database_swap_failed",
+            "candidate": "candidate_storage_failed",
         }
         error_code = exc.error_code if isinstance(exc, BFLModerationError) else error_codes[stage]
         reference = uuid4().hex

@@ -30,7 +30,7 @@ from api_models import (
     SettingsUpdateRequest,
 )
 from local_runtime import initialize_local_backend, local_readiness_details, resolve_local_paths
-from local_storage import LocalStorage, StorageValidationError
+from local_storage import LocalStorage, StorageValidationError, media_url
 from materials import MAX_PDF_BYTES, MaterialRejected, extract_pdf
 from provider_config import configured_secret
 from services.avatar import PortraitRejected, ProviderConfigurationError, generate_avatar, normalize_portrait
@@ -650,6 +650,20 @@ def _run_panel_regeneration(run_id: str) -> None:
     run_panel_regeneration(run_id)
 
 
+def _cleanup_generation_paths(run_id: str, paths: list[str]) -> list[str]:
+    from database.database import replace_generation_artifacts
+
+    storage = LocalStorage(resolve_local_paths().root)
+    remaining = []
+    for path in paths:
+        try:
+            storage.delete(path)
+        except Exception:
+            remaining.append(path)
+    replace_generation_artifacts(run_id, remaining)
+    return remaining
+
+
 @app.post("/generation-runs/{run_id}/resume", status_code=202)
 async def resume_story_generation(run_id: UUID, background_tasks: BackgroundTasks):
     from database.database import GenerationConflict, resume_generation_run
@@ -682,14 +696,7 @@ async def discard_story_generation(run_id: UUID, confirm: bool = False):
         raise HTTPException(status_code=400, detail="Discard requires explicit confirmation")
     try:
         paths = discard_generation_run(str(run_id))
-        storage = LocalStorage(resolve_local_paths().root)
-        remaining = []
-        for path in paths:
-            try:
-                storage.delete(path)
-            except Exception:
-                remaining.append(path)
-        replace_generation_artifacts(str(run_id), remaining)
+        remaining = _cleanup_generation_paths(str(run_id), paths)
         if remaining:
             raise HTTPException(status_code=409, detail="Checkpoint cleanup is incomplete; retry discard")
         return {"success": True, "run_id": str(run_id)}
@@ -979,17 +986,7 @@ async def regenerate_panel_endpoint(
         )
         if created:
             background_tasks.add_task(_run_panel_regeneration, run["id"])
-        return {
-            "run_id": run["id"],
-            "chapter_id": run["chapter_id"],
-            "panel_number": run["panel_number"],
-            "status": {"succeeded": "ready", "failed": "failed"}.get(
-                run["job_state"], "regenerating"
-            ),
-            "error_code": run["error_code"],
-            "error_reference": run["error_reference"],
-            "cleanup_pending": run["cleanup_pending"],
-        }
+        return _panel_regeneration_status(run)
     except GenerationConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
@@ -1006,17 +1003,58 @@ async def get_panel_regeneration_endpoint(run_id: UUID):
     run = get_generation_run(str(run_id))
     if run is None or run["run_kind"] != "panel":
         raise HTTPException(status_code=404, detail="Panel regeneration not found")
+    return _panel_regeneration_status(run)
+
+
+def _panel_regeneration_status(run: dict) -> dict:
+    status = "candidate_ready" if run["stage"] == "candidate_ready" else {
+        "succeeded": "ready", "failed": "failed"
+    }.get(run["job_state"], "regenerating")
     return {
         "run_id": run["id"],
         "chapter_id": run["chapter_id"],
         "panel_number": run["panel_number"],
-        "status": {"succeeded": "ready", "failed": "failed"}.get(
-            run["job_state"], "regenerating"
-        ),
+        "status": status,
+        "candidate_url": media_url(run["candidate_object_path"]) if run["candidate_object_path"] else None,
+        "reported_bfl_cost": run["reported_bfl_cost"] or None,
         "error_code": run["error_code"],
         "error_reference": run["error_reference"],
         "cleanup_pending": run["cleanup_pending"],
     }
+
+
+@app.post("/panel-regenerations/{run_id}/accept")
+async def accept_panel_regeneration_endpoint(run_id: UUID):
+    from database.database import GenerationConflict, accept_panel_regeneration, get_generation_run
+
+    try:
+        paths = accept_panel_regeneration(str(run_id))
+        if _cleanup_generation_paths(str(run_id), paths):
+            raise HTTPException(status_code=409, detail="Panel cleanup is incomplete; retry accept")
+        return _panel_regeneration_status(get_generation_run(str(run_id)))
+    except HTTPException:
+        raise
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Panel regeneration not found")
+    except GenerationConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@app.post("/panel-regenerations/{run_id}/reject")
+async def reject_panel_regeneration_endpoint(run_id: UUID):
+    from database.database import GenerationConflict, get_generation_run, reject_panel_regeneration
+
+    try:
+        paths = reject_panel_regeneration(str(run_id))
+        if _cleanup_generation_paths(str(run_id), paths):
+            raise HTTPException(status_code=409, detail="Panel cleanup is incomplete; retry reject")
+        return _panel_regeneration_status(get_generation_run(str(run_id)))
+    except HTTPException:
+        raise
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Panel regeneration not found")
+    except GenerationConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @app.get("/settings")

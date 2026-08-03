@@ -44,6 +44,10 @@ const StoryViewer = () => {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [correctionOutcome, setCorrectionOutcome] = useState<CorrectionOutcome>("editing");
   const [correctionAttempt, setCorrectionAttempt] = useState<CorrectionAttempt | null>(null);
+  const [candidateUrl, setCandidateUrl] = useState<string | null>(null);
+  const [candidatePanelNumber, setCandidatePanelNumber] = useState<number | null>(null);
+  const [candidateCost, setCandidateCost] = useState<number | null>(null);
+  const [correctionFailureCode, setCorrectionFailureCode] = useState<string | null>(null);
   const [exportSettings, setExportSettings] = useState({
     pageSize: "a4",
     layout: "2"
@@ -74,6 +78,11 @@ const StoryViewer = () => {
         }
         setChapter(response.chapter);
         setPanels(response.chapter.panels || []);
+        const candidate = response.chapter.panel_regeneration_candidate;
+        setCandidateUrl(candidate?.candidate_url ?? null);
+        setCandidatePanelNumber(candidate?.panel_number ?? null);
+        setCandidateCost(candidate?.reported_bfl_cost ?? null);
+        setCorrectionAttempt(candidate ? { idempotencyKey: "persisted", runId: candidate.run_id } : null);
 
         // Load all chapters for this classroom to enable navigation
         if (response.chapter.classroom_id) {
@@ -148,6 +157,10 @@ const StoryViewer = () => {
       setCorrectionPanel(null);
       setCorrection("");
       setCorrectionAttempt(null);
+      setCandidateUrl(null);
+      setCandidatePanelNumber(null);
+      setCandidateCost(null);
+      setCorrectionFailureCode(null);
       setCorrectionOutcome("editing");
       toast.success(`Panel ${panel.index} regenerated`);
     } catch {
@@ -190,8 +203,16 @@ const StoryViewer = () => {
         return;
       }
       if (run.status === "failed") {
+        setCorrectionFailureCode(run.error_code);
         setCorrectionAttempt(null);
         setCorrectionOutcome("failed");
+        return;
+      }
+      if (run.status === "candidate_ready" && run.candidate_url) {
+        setCandidateUrl(run.candidate_url);
+        setCandidatePanelNumber(panel.index);
+        setCandidateCost(run.reported_bfl_cost);
+        setCorrectionOutcome("editing");
         return;
       }
       setCorrectionOutcome("published");
@@ -203,7 +224,43 @@ const StoryViewer = () => {
     }
   };
 
-  const renderPanel = (panel: Panel, grid: boolean) => (
+  const acceptCandidate = async (panel: Panel) => {
+    if (!correctionAttempt?.runId) return;
+    setIsRegenerating(true);
+    try {
+      await api.chapters.acceptPanelRegeneration(correctionAttempt.runId);
+      setCorrectionOutcome("published");
+      await refreshPublishedPanel(panel);
+    } catch {
+      setCorrectionOutcome("published");
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const keepOriginal = async () => {
+    if (!correctionAttempt?.runId) return;
+    setIsRegenerating(true);
+    try {
+      await api.chapters.rejectPanelRegeneration(correctionAttempt.runId);
+      setCorrectionPanel(null);
+      setCorrection("");
+      setCorrectionAttempt(null);
+      setCandidateUrl(null);
+      setCandidatePanelNumber(null);
+      setCandidateCost(null);
+      setCorrectionOutcome("editing");
+      toast.success("Original panel kept");
+    } catch {
+      toast.error("Could not discard the replacement. Please try again.");
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const renderPanel = (panel: Panel, grid: boolean) => {
+    const hasCandidate = candidatePanelNumber === panel.index && Boolean(candidateUrl);
+    return (
     <div key={panel.id} className={grid ? "overflow-hidden rounded-lg border-2 border-foreground/15 bg-card" : "w-full border-x-2 border-foreground/15 bg-card"}>
       <img
         src={panel.image}
@@ -211,24 +268,48 @@ const StoryViewer = () => {
         className="block h-auto w-full"
         loading="lazy"
       />
-      <div className="space-y-3 p-3 text-left leading-normal">
-        {correctionPanel !== panel.index ? (
-          <Button
-            aria-label={`Correct panel ${panel.index}`}
-            variant="outline"
-            size="sm"
-            disabled={isRegenerating || correctionOutcome === "unknown" || correctionOutcome === "published"}
-            onClick={() => {
-              setCorrectionPanel(panel.index);
+      <div className="p-3 text-left leading-normal">
+        <Button
+          aria-label={hasCandidate ? `Review replacement for panel ${panel.index}` : `Correct panel ${panel.index}`}
+          variant="outline"
+          size="sm"
+          disabled={isRegenerating || correctionOutcome === "unknown" || correctionOutcome === "published" || (candidatePanelNumber !== null && !hasCandidate)}
+          onClick={() => {
+            setCorrectionPanel(panel.index);
+            if (!hasCandidate) {
               setCorrection("");
               setCorrectionAttempt(null);
               setCorrectionOutcome("editing");
-            }}
-          >
-            Correct panel {panel.index}
-          </Button>
-        ) : (
-          <>
+              setCorrectionFailureCode(null);
+            }
+          }}
+        >
+          {hasCandidate ? "Review replacement" : `Correct panel ${panel.index}`}
+        </Button>
+        <Dialog open={correctionPanel === panel.index} onOpenChange={(open) => {
+          if (!open) setCorrectionPanel(null);
+        }}>
+          <DialogContent className="max-w-5xl">
+            <DialogHeader>
+              <DialogTitle>Correct panel {panel.index}</DialogTitle>
+              <DialogDescription>
+                The original stays in the story until you accept a replacement.
+              </DialogDescription>
+            </DialogHeader>
+            <div className={hasCandidate ? "grid gap-4 md:grid-cols-2" : "mx-auto w-full max-w-xl"}>
+              <figure className="space-y-2">
+                <img src={panel.image} alt={`Original panel ${panel.index}`} className="w-full rounded-md border" />
+                <figcaption className="text-sm font-medium">Original</figcaption>
+              </figure>
+              {hasCandidate && candidateUrl && (
+                <figure className="space-y-2">
+                  <img src={candidateUrl} alt={`Candidate panel ${panel.index}`} className="w-full rounded-md border" />
+                  <figcaption className="text-sm font-medium">Replacement</figcaption>
+                </figure>
+              )}
+            </div>
+            {!hasCandidate && (
+              <div className="space-y-3">
             <Label htmlFor={`panel-correction-${panel.index}`}>Correction for panel {panel.index}</Label>
             <Textarea
               id={`panel-correction-${panel.index}`}
@@ -238,10 +319,15 @@ const StoryViewer = () => {
               onChange={event => setCorrection(event.target.value)}
               placeholder="Describe the visual correction for this panel"
             />
+                <p className="text-xs text-muted-foreground">Generating a replacement makes one paid BFL image request. Automatic review is off.</p>
+              </div>
+            )}
             {isRegenerating && <p role="status">Regenerating panel {panel.index}...</p>}
             {correctionOutcome === "failed" && (
               <p role="alert" className="text-sm text-destructive">
-                Panel {panel.index} could not be regenerated. The previous panel is still available.
+                {correctionFailureCode === "bfl_request_moderated" || correctionFailureCode === "bfl_content_moderated"
+                  ? "BFL blocked this replacement during moderation. The original panel is unchanged."
+                  : `Panel ${panel.index} could not be regenerated. The previous panel is still available.`}
               </p>
             )}
             {correctionOutcome === "unknown" && (
@@ -254,15 +340,21 @@ const StoryViewer = () => {
                 Panel {panel.index} correction completed, but the story could not be refreshed.
               </p>
             )}
-            <div className="flex gap-2">
+            {candidateCost !== null && <p className="text-sm text-muted-foreground">BFL reported cost: {candidateCost}</p>}
+            <div className="flex flex-wrap justify-end gap-2">
+              {hasCandidate ? (
+                <>
+                  <Button variant="outline" disabled={isRegenerating} onClick={() => void keepOriginal()}>Keep original</Button>
+                  <Button disabled={isRegenerating} onClick={() => void acceptCandidate(panel)}>Accept replacement</Button>
+                </>
+              ) : (
+                <>
               <Button
-                aria-label={
-                  correctionOutcome === "published"
-                    ? "Reload story"
-                    : correctionOutcome === "unknown"
-                      ? `Check panel ${panel.index} status`
-                      : `${correctionOutcome === "failed" ? "Retry" : "Regenerate"} panel ${panel.index}`
-                }
+                aria-label={correctionOutcome === "unknown"
+                  ? `Check panel ${panel.index} status`
+                  : correctionOutcome === "failed"
+                    ? `Retry panel ${panel.index}`
+                    : undefined}
                 size="sm"
                 disabled={isRegenerating || !correction.trim()}
                 onClick={() => {
@@ -274,11 +366,11 @@ const StoryViewer = () => {
                   ? "Regenerating..."
                   : correctionOutcome === "published"
                     ? "Reload story"
-                    : correctionOutcome === "unknown"
+                  : correctionOutcome === "unknown"
                       ? "Check status"
                       : correctionOutcome === "failed"
                         ? "Retry"
-                        : "Regenerate"}
+                        : "Generate replacement"}
               </Button>
               <Button
                 variant="ghost"
@@ -292,12 +384,15 @@ const StoryViewer = () => {
               >
                 Cancel
               </Button>
+                </>
+              )}
             </div>
-          </>
-        )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
-  );
+    );
+  };
 
   if (isLoading) {
     return (

@@ -522,3 +522,17 @@ def test_generation_resume_and_discard_api_are_explicit_idempotent_actions(monke
     assert discarded.status_code == 200
     assert not storage.absolute_path(checkpoint).exists()
     assert database.get_generation_run(run["id"])["checkpoint_panels"] == []
+
+
+def test_chapter_deletion_removes_failed_generation_checkpoints(monkeypatch, tmp_path):
+    database, storage, chapter_id, _old_path = _ready_chapter(monkeypatch, tmp_path)
+    run, _created = database.begin_generation_run(chapter_id, "idea_1", "checkpoint-delete")
+    database.start_generation_run(run["id"])
+    database.record_generation_script(run["id"], _script())
+    checkpoint = storage.new_object_path("story-images", chapter_id, ".png")
+    storage.finalize(storage.stage_bytes(PNG, ".png", max_bytes=len(PNG)), checkpoint)
+    database.record_generation_checkpoint(run["id"], 1, checkpoint)
+    database.fail_generation_run(run["id"], "bfl_request_moderated", "safe-reference")
+
+    assert database.execute_deletion("chapter", chapter_id) is True
+    assert not storage.absolute_path(checkpoint).exists()

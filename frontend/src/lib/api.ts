@@ -18,7 +18,9 @@ export interface PanelRegenerationStatus {
   run_id: string;
   chapter_id: string;
   panel_number: number;
-  status: "regenerating" | "ready" | "failed";
+  status: "regenerating" | "candidate_ready" | "ready" | "failed";
+  candidate_url: string | null;
+  reported_bfl_cost: number | null;
   error_code: string | null;
   error_reference: string | null;
   cleanup_pending: boolean;
@@ -390,6 +392,12 @@ export const api = {
 
     getPanelRegeneration: (runId: string) =>
       apiFetch<PanelRegenerationStatus>(`/panel-regenerations/${runId}`),
+
+    acceptPanelRegeneration: (runId: string) =>
+      apiFetch<PanelRegenerationStatus>(`/panel-regenerations/${runId}/accept`, { method: "POST" }),
+
+    rejectPanelRegeneration: (runId: string) =>
+      apiFetch<PanelRegenerationStatus>(`/panel-regenerations/${runId}/reject`, { method: "POST" }),
 
     delete: (chapterId: string) =>
       apiFetch<{

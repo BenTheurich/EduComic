@@ -1182,7 +1182,7 @@ def record_generation_provider_job(
     """Persist a paid BFL submission before its first poll."""
     with _session() as session:
         run = session.get(GenerationRun, run_id)
-        if run is None or run.run_kind != "story" or run.job_state != "running":
+        if run is None or run.job_state != "running":
             raise GenerationConflict("Generation run is not active")
         job = {
             "panel_number": panel_number,
@@ -1351,8 +1351,8 @@ def finalize_generation_run(
         return old_paths
 
 
-def finalize_panel_regeneration(run_id: str, image_object_path: str) -> list[str]:
-    """Atomically advance the complete row set while swapping one image reference."""
+def complete_panel_regeneration_candidate(run_id: str, image_object_path: str) -> None:
+    """Persist a generated candidate without changing the readable chapter."""
     storage = LocalStorage(resolve_local_paths().root)
     try:
         if not image_object_path.startswith("story-images/") or not storage.absolute_path(image_object_path).is_file():
@@ -1364,6 +1364,38 @@ def finalize_panel_regeneration(run_id: str, image_object_path: str) -> list[str
         run = session.get(GenerationRun, run_id)
         if run is None or run.run_kind != "panel" or run.job_state != "running":
             raise GenerationConflict("Panel regeneration run is not active")
+        chapter = session.get(Chapter, run.chapter_id)
+        if (
+            chapter is None
+            or chapter.status != "ready"
+            or chapter.revision != run.base_revision
+            or run.target_revision != run.base_revision + 1
+        ):
+            raise GenerationConflict("Panel regeneration target revision is stale")
+        if session.scalar(
+            select(Panel.id).where(
+                Panel.chapter_id == chapter.id,
+                Panel.revision == run.base_revision,
+                Panel.panel_number == run.panel_number,
+            )
+        ) is None:
+            raise GenerationConflict("Panel regeneration target is missing")
+        run.candidate_object_path = image_object_path
+        run.artifact_paths = [path for path in (run.artifact_paths or []) if path != image_object_path]
+        run.provider_job = None
+        run.stage = "candidate_ready"
+
+
+def accept_panel_regeneration(run_id: str) -> list[str]:
+    """Atomically publish an approved candidate while changing only its panel."""
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "panel":
+            raise ValueError("Panel regeneration not found")
+        if run.job_state == "succeeded" and run.stage == "ready":
+            return list(run.artifact_paths or [])
+        if run.job_state != "running" or run.stage != "candidate_ready" or not run.candidate_object_path:
+            raise GenerationConflict("Panel candidate is not ready")
         chapter = session.get(Chapter, run.chapter_id)
         if (
             chapter is None
@@ -1385,12 +1417,13 @@ def finalize_panel_regeneration(run_id: str, image_object_path: str) -> list[str
         old_path = selected.image_object_path
         for panel in panels:
             panel.revision = run.target_revision
-        selected.image_object_path = image_object_path
+        selected.image_object_path = run.candidate_object_path
         chapter.revision = run.target_revision
         chapter.status = "ready"
         run.job_state = "succeeded"
         run.stage = "ready"
         run.script_snapshot = chapter.story_script
+        run.candidate_object_path = None
         run.artifact_paths = [old_path]
         run.finished_at = datetime.now(timezone.utc)
         session.flush()
@@ -1400,6 +1433,25 @@ def finalize_panel_regeneration(run_id: str, image_object_path: str) -> list[str
         old_paths = [] if still_referenced else [old_path]
         run.artifact_paths = old_paths
         return old_paths
+
+
+def reject_panel_regeneration(run_id: str) -> list[str]:
+    """Keep the original panel and release the unpublished candidate for cleanup."""
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "panel":
+            raise ValueError("Panel regeneration not found")
+        if run.job_state == "succeeded" and run.stage == "rejected":
+            return list(run.artifact_paths or [])
+        if run.job_state != "running" or run.stage != "candidate_ready" or not run.candidate_object_path:
+            raise GenerationConflict("Panel candidate is not ready")
+        path = run.candidate_object_path
+        run.candidate_object_path = None
+        run.artifact_paths = [path]
+        run.job_state = "succeeded"
+        run.stage = "rejected"
+        run.finished_at = datetime.now(timezone.utc)
+        return [path]
 
 
 def fail_generation_run(run_id: str, error_code: str, error_reference: str) -> list[str]:
@@ -1426,7 +1478,10 @@ def fail_interrupted_generation_runs(database_url: str | None = None) -> list[st
     paths: list[str] = []
     with _session(database_url) as session:
         runs = session.scalars(
-            select(GenerationRun).where(GenerationRun.job_state.in_(("queued", "running")))
+            select(GenerationRun).where(
+                GenerationRun.job_state.in_(("queued", "running")),
+                GenerationRun.stage != "candidate_ready",
+            )
         ).all()
         for run in runs:
             run.job_state = "failed"
@@ -1680,9 +1735,13 @@ def execute_deletion(target_kind: str, target_id: str | None = None) -> bool:
 
 
 def _deletion_blocked(session: Session, target_kind: str, target_id: str | None) -> bool:
-    active_runs = session.scalars(
-        select(GenerationRun).where(GenerationRun.job_state.in_(("queued", "running")))
-    ).all()
+    active_runs = [
+        run
+        for run in session.scalars(
+            select(GenerationRun).where(GenerationRun.job_state.in_(("queued", "running")))
+        ).all()
+        if run.stage != "candidate_ready"
+    ]
     if target_kind == "reset" and (active_runs or session.scalar(select(ActiveWork.id))):
         return True
     if target_kind == "chapter" and any(run.chapter_id == target_id for run in active_runs):
@@ -1731,7 +1790,7 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
             paths.extend(_story_preview_paths(chapter))
         paths.extend(session.scalars(select(Panel.image_object_path).where(Panel.chapter_id == target_id)).all())
         for run in session.scalars(select(GenerationRun).where(GenerationRun.chapter_id == target_id)).all():
-            paths.extend(run.artifact_paths or [])
+            paths.extend(_unpublished_generation_paths(run))
     elif target_kind == "classroom":
         chapter_ids = select(Chapter.id).where(Chapter.classroom_id == target_id)
         for chapter in session.scalars(select(Chapter).where(Chapter.classroom_id == target_id)).all():
@@ -1739,7 +1798,7 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
         paths.extend(session.scalars(select(Panel.image_object_path).where(Panel.chapter_id.in_(chapter_ids))).all())
         paths.extend(session.scalars(select(Material.object_path).where(Material.classroom_id == target_id)).all())
         for run in session.scalars(select(GenerationRun).where(GenerationRun.chapter_id.in_(chapter_ids))).all():
-            paths.extend(run.artifact_paths or [])
+            paths.extend(_unpublished_generation_paths(run))
     elif target_kind == "material":
         material = session.get(Material, target_id)
         if material:
@@ -1758,7 +1817,7 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
         for run in _affected_runs(session, target_id):
             if run.job_state == "succeeded":
                 continue
-            paths.extend(run.artifact_paths or [])
+            paths.extend(_unpublished_generation_paths(run))
             paths.extend(
                 session.scalars(
                     select(Panel.image_object_path).where(
@@ -1781,10 +1840,23 @@ def _deletion_paths(session: Session, target_kind: str, target_id: str | None) -
             )
             paths.extend(student.superseded_avatar_paths or [])
         for run in session.scalars(select(GenerationRun)).all():
-            paths.extend(run.artifact_paths or [])
+            paths.extend(_unpublished_generation_paths(run))
     else:
         raise ValueError("Unsupported deletion target")
     return list(dict.fromkeys(path for path in paths if path))
+
+
+def _unpublished_generation_paths(run: GenerationRun) -> list[str]:
+    paths = [
+        *(run.artifact_paths or []),
+        *(
+            panel.get("image_object_path")
+            for panel in (run.checkpoint_panels or [])
+            if isinstance(panel, dict)
+        ),
+        run.candidate_object_path,
+    ]
+    return [path for path in paths if isinstance(path, str)]
 
 
 def _story_preview_paths(chapter: Chapter) -> list[str]:
@@ -1923,7 +1995,30 @@ def get_chapter_with_panels(chapter_id: str) -> dict[str, Any] | None:
         chapter["panels"] = get_panels_by_chapter(chapter_id)
         chapter["temporary_panel_previews"] = _temporary_panel_previews(chapter_id)
         chapter["generation_failure"] = _latest_story_generation_failure(chapter_id)
+        chapter["panel_regeneration_candidate"] = _panel_regeneration_candidate(chapter_id)
     return chapter
+
+
+def _panel_regeneration_candidate(chapter_id: str) -> dict[str, Any] | None:
+    with _session() as session:
+        run = session.scalar(
+            select(GenerationRun)
+            .where(
+                GenerationRun.chapter_id == chapter_id,
+                GenerationRun.run_kind == "panel",
+                GenerationRun.job_state == "running",
+                GenerationRun.stage == "candidate_ready",
+            )
+            .order_by(GenerationRun.created_at.desc())
+        )
+        if run is None or not run.candidate_object_path:
+            return None
+        return {
+            "run_id": run.id,
+            "panel_number": run.panel_number,
+            "candidate_url": media_url(run.candidate_object_path),
+            "reported_bfl_cost": float(run.reported_bfl_cost) if run.reported_bfl_cost else None,
+        }
 
 
 def _latest_story_generation_failure(chapter_id: str) -> dict[str, Any] | None:

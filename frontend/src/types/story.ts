@@ -54,6 +54,12 @@ export interface Chapter {
     reported_bfl_cost?: number;
     resumable?: boolean;
   } | null;
+  panel_regeneration_candidate?: {
+    run_id: string;
+    panel_number: number;
+    candidate_url: string;
+    reported_bfl_cost: number | null;
+  } | null;
   status: ChapterStatus;
   created_at: string;
   grounded_sources?: Array<{
