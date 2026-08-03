@@ -45,9 +45,14 @@ export interface Chapter {
   story_ideas?: StoryIdea[];
   temporary_panel_previews?: TemporaryPanelPreview[];
   generation_failure?: {
+    run_id?: string;
     error_code: string | null;
     error_reference: string | null;
     panel_number: number | null;
+    completed_panels?: number;
+    expected_panels?: number;
+    reported_bfl_cost?: number;
+    resumable?: boolean;
   } | null;
   status: ChapterStatus;
   created_at: string;

@@ -6,7 +6,7 @@ from alembic import command
 from alembic.config import Config
 
 
-MIGRATION_HEAD = "0009_avatar_thumbnails"
+MIGRATION_HEAD = "0010_generation_checkpoints"
 
 
 def upgrade_database(database_url: str) -> None:

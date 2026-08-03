@@ -239,6 +239,10 @@ def _generation_run(run: GenerationRun) -> dict[str, Any]:
         "error_code": run.error_code,
         "error_reference": run.error_reference,
         "artifact_paths": list(run.artifact_paths or []),
+        "checkpoint_panels": list(run.checkpoint_panels or []),
+        "provider_job": dict(run.provider_job or {}) if run.provider_job else None,
+        "reported_bfl_cost": float(run.reported_bfl_cost or 0),
+        "candidate_object_path": run.candidate_object_path,
         "settings_snapshot": dict(run.settings_snapshot or {}),
         "script_snapshot": dict(run.script_snapshot or {}) if run.script_snapshot else None,
         "started_at": _iso(run.started_at) if run.started_at else None,
@@ -1168,6 +1172,112 @@ def record_generation_script(run_id: str, script: dict[str, Any]) -> None:
         run.script_snapshot = script
 
 
+def record_generation_provider_job(
+    run_id: str,
+    panel_number: int,
+    job_id: str | None,
+    polling_url: str,
+    reported_cost: float | None,
+) -> None:
+    """Persist a paid BFL submission before its first poll."""
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "story" or run.job_state != "running":
+            raise GenerationConflict("Generation run is not active")
+        job = {
+            "panel_number": panel_number,
+            "job_id": job_id,
+            "polling_url": polling_url,
+            "reported_cost": reported_cost,
+        }
+        if run.provider_job == job:
+            return
+        run.provider_job = job
+        if reported_cost is not None:
+            run.reported_bfl_cost = float(run.reported_bfl_cost or 0) + reported_cost
+
+
+def record_generation_checkpoint(run_id: str, panel_number: int, object_path: str) -> None:
+    """Make one finalized panel resumable and remove it from cleanup bookkeeping."""
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "story" or run.job_state != "running":
+            raise GenerationConflict("Generation run is not active")
+        checkpoints = list(run.checkpoint_panels or [])
+        expected = len(checkpoints) + 1
+        if panel_number != expected:
+            raise GenerationConflict("Generation checkpoint sequence is invalid")
+        checkpoints.append({"index": panel_number, "image_object_path": object_path})
+        run.checkpoint_panels = checkpoints
+        run.artifact_paths = [path for path in (run.artifact_paths or []) if path != object_path]
+        run.provider_job = None
+        run.error_code = None
+        run.error_reference = None
+
+
+def resume_generation_run(run_id: str) -> tuple[dict[str, Any], bool]:
+    """Explicitly requeue a current failed story run without discarding paid checkpoints."""
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "story":
+            raise ValueError("Generation run not found")
+        if run.job_state in ("queued", "running"):
+            return _generation_run(run), False
+        if run.job_state != "failed":
+            raise GenerationConflict("Generation run cannot be resumed")
+        chapter = session.get(Chapter, run.chapter_id)
+        if (
+            chapter is None
+            or chapter.chosen_idea_id != run.selected_idea_id
+            or run.target_revision != chapter.revision + 1
+        ):
+            raise GenerationConflict("Generation run is stale")
+        active = session.scalar(
+            select(GenerationRun.id).where(
+                GenerationRun.chapter_id == run.chapter_id,
+                GenerationRun.id != run.id,
+                GenerationRun.job_state.in_(("queued", "running")),
+            )
+        )
+        if active:
+            raise GenerationConflict("Chapter generation is already active")
+        if run.error_code in {
+            "bfl_request_moderated",
+            "bfl_content_moderated",
+            "image_invalid",
+        }:
+            run.provider_job = None
+        run.job_state = "queued"
+        run.stage = "queued"
+        run.finished_at = None
+        chapter.status = "generating" if chapter.revision == 0 else "ready"
+        session.flush()
+        return _generation_run(run), True
+
+
+def discard_generation_run(run_id: str) -> list[str]:
+    """Abandon one failed story attempt and return every unpublished path for cleanup."""
+    with _session() as session:
+        run = session.get(GenerationRun, run_id)
+        if run is None or run.run_kind != "story":
+            raise ValueError("Generation run not found")
+        if run.job_state != "failed":
+            raise GenerationConflict("Only a failed generation can be discarded")
+        paths = [
+            *(run.artifact_paths or []),
+            *(
+                panel.get("image_object_path")
+                for panel in (run.checkpoint_panels or [])
+                if isinstance(panel, dict)
+            ),
+        ]
+        run.artifact_paths = []
+        run.checkpoint_panels = []
+        run.provider_job = None
+        run.stage = "discarded"
+        return list(dict.fromkeys(path for path in paths if isinstance(path, str)))
+
+
 def record_generation_artifact(run_id: str, object_path: str) -> None:
     with _session() as session:
         run = session.get(GenerationRun, run_id)
@@ -1233,6 +1343,8 @@ def finalize_generation_run(
         run.job_state = "succeeded"
         run.stage = "ready"
         run.artifact_paths = old_paths
+        run.checkpoint_panels = []
+        run.provider_job = None
         run.script_snapshot = script
         run.finished_at = datetime.now(timezone.utc)
         session.flush()
@@ -1827,9 +1939,14 @@ def _latest_story_generation_failure(chapter_id: str) -> dict[str, Any] | None:
         if run is None or run.job_state != "failed":
             return None
         return {
+            "run_id": run.id,
             "error_code": run.error_code,
             "error_reference": run.error_reference,
             "panel_number": run.panel_number,
+            "completed_panels": len(run.checkpoint_panels or []),
+            "expected_panels": int((run.settings_snapshot or {}).get("story_length", 0)),
+            "reported_bfl_cost": float(run.reported_bfl_cost or 0),
+            "resumable": bool(run.script_snapshot),
         }
 
 
@@ -1840,17 +1957,18 @@ def _temporary_panel_previews(chapter_id: str) -> list[dict[str, Any]]:
             .where(
                 GenerationRun.chapter_id == chapter_id,
                 GenerationRun.run_kind == "story",
-                GenerationRun.job_state.in_(("queued", "running")),
+                GenerationRun.job_state.in_(("queued", "running", "failed")),
             )
             .order_by(GenerationRun.created_at.desc())
         )
-        paths = list(run.artifact_paths or []) if run else []
+        checkpoints = list(run.checkpoint_panels or []) if run else []
     storage = LocalStorage(resolve_local_paths().root)
     previews = []
-    for object_path in paths:
+    for checkpoint in checkpoints:
         try:
+            object_path = checkpoint["image_object_path"]
             if object_path.startswith("story-images/") and storage.absolute_path(object_path).is_file():
-                previews.append({"index": len(previews) + 1, "image": media_url(object_path)})
-        except (AttributeError, StorageValidationError):
+                previews.append({"index": int(checkpoint["index"]), "image": media_url(object_path)})
+        except (AttributeError, KeyError, TypeError, ValueError, StorageValidationError):
             continue
     return previews

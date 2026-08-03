@@ -5,6 +5,7 @@ import importlib
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 
 PNG = base64.b64decode(
@@ -170,9 +171,14 @@ def test_moderation_failure_keeps_script_and_blocked_panel_diagnostics(
     assert failed["panel_number"] == 1
     assert failed["script_snapshot"] == _script()
     assert chapter["generation_failure"] == {
+        "run_id": run["id"],
         "error_code": error_code,
         "error_reference": failed["error_reference"],
         "panel_number": 1,
+        "completed_panels": 0,
+        "expected_panels": 12,
+        "reported_bfl_cost": 0.0,
+        "resumable": True,
     }
 
 
@@ -390,3 +396,129 @@ def test_failed_cleanup_remains_pending_and_retries_on_next_startup(monkeypatch,
     assert not storage.absolute_path(abandoned).exists()
     assert database.get_generation_run(run["id"])["artifact_paths"] == []
     assert runtime.local_readiness_details(tmp_path)["cleanup"] is True
+
+
+def test_interrupted_poll_resumes_the_same_bfl_job_and_keeps_completed_panels(monkeypatch, tmp_path):
+    """Catches a transient poll failure deleting paid panels or buying the current panel twice."""
+    database, _storage, chapter_id, _old_path = _ready_chapter(monkeypatch, tmp_path)
+    generation = importlib.import_module("services.generation")
+    comic = importlib.import_module("services.comic_creation")
+    script_calls = []
+    submits = []
+    interrupted = True
+
+    monkeypatch.setattr(
+        comic,
+        "generate_full_script_and_panels",
+        lambda **_kwargs: script_calls.append(1) or _script(),
+    )
+
+    def submit(*_args, **_kwargs):
+        panel_number = len(submits) + 1
+        job = generation.BFLJob(f"job-{panel_number}", f"poll://{panel_number}", 1.5)
+        submits.append(job)
+        return job
+
+    def poll(polling_url, **_kwargs):
+        nonlocal interrupted
+        if polling_url == "poll://3" and interrupted:
+            interrupted = False
+            raise RuntimeError("fictional connection loss")
+        return f"delivery://{polling_url.rsplit('/', 1)[-1]}"
+
+    monkeypatch.setattr(generation, "submit_bfl_generation", submit)
+    monkeypatch.setattr(generation, "poll_bfl_generation", poll)
+    monkeypatch.setattr(generation, "download_bfl_image", lambda *_args, **_kwargs: PNG)
+    run, _created = database.begin_generation_run(chapter_id, "idea_1", "resume-same-job")
+
+    generation.run_generation(run["id"])
+
+    failed = database.get_generation_run(run["id"])
+    assert failed["error_code"] == "bfl_poll_failed"
+    assert [panel["index"] for panel in failed["checkpoint_panels"]] == [1, 2]
+    assert failed["provider_job"]["polling_url"] == "poll://3"
+    assert failed["reported_bfl_cost"] == 4.5
+
+    database.resume_generation_run(run["id"])
+    generation.run_generation(run["id"])
+
+    completed = database.get_generation_run(run["id"])
+    assert completed["job_state"] == "succeeded"
+    assert len(submits) == 12
+    assert len(script_calls) == 1
+    assert database.get_chapter_with_panels(chapter_id)["revision"] == 2
+
+
+def test_moderation_resume_requires_explicit_requeue_and_resubmits_only_the_blocked_panel(
+    monkeypatch, tmp_path
+):
+    """Catches moderation auto-retrying or restarting panels that already completed."""
+    database, _storage, chapter_id, _old_path = _ready_chapter(monkeypatch, tmp_path)
+    generation = importlib.import_module("services.generation")
+    comic = importlib.import_module("services.comic_creation")
+    monkeypatch.setattr(comic, "generate_full_script_and_panels", lambda **_kwargs: _script())
+    submits = []
+    moderated = True
+
+    def submit(*_args, **_kwargs):
+        job = generation.BFLJob(f"job-{len(submits) + 1}", f"poll://{len(submits) + 1}", 1.0)
+        submits.append(job)
+        return job
+
+    def poll(polling_url, **_kwargs):
+        nonlocal moderated
+        if polling_url == "poll://3" and moderated:
+            moderated = False
+            raise generation.BFLModerationError("Request Moderated")
+        return f"delivery://{polling_url.rsplit('/', 1)[-1]}"
+
+    monkeypatch.setattr(generation, "submit_bfl_generation", submit)
+    monkeypatch.setattr(generation, "poll_bfl_generation", poll)
+    monkeypatch.setattr(generation, "download_bfl_image", lambda *_args, **_kwargs: PNG)
+    run, _created = database.begin_generation_run(chapter_id, "idea_1", "resume-moderation")
+
+    generation.run_generation(run["id"])
+    assert len(submits) == 3
+    assert database.get_generation_run(run["id"])["job_state"] == "failed"
+
+    database.resume_generation_run(run["id"])
+    generation.run_generation(run["id"])
+
+    assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
+    assert len(submits) == 13
+
+
+def test_generation_resume_and_discard_api_are_explicit_idempotent_actions(monkeypatch, tmp_path):
+    """Catches duplicate resume workers or discard leaving checkpoint media behind."""
+    database, storage, chapter_id, _old_path = _ready_chapter(monkeypatch, tmp_path)
+    main = importlib.import_module("main")
+    background_runs = []
+    monkeypatch.setattr(main, "_run_story_generation", background_runs.append)
+    run, _created = database.begin_generation_run(chapter_id, "idea_1", "resume-api")
+    database.start_generation_run(run["id"])
+    database.record_generation_script(run["id"], _script())
+    staged = storage.stage_bytes(PNG, ".png", max_bytes=len(PNG))
+    checkpoint = storage.new_object_path("story-images", chapter_id, ".png")
+    database.record_generation_artifact(run["id"], checkpoint)
+    storage.finalize(staged, checkpoint)
+    database.record_generation_checkpoint(run["id"], 1, checkpoint)
+    database.fail_generation_run(run["id"], "bfl_request_moderated", "safe-reference")
+
+    with TestClient(main.app) as client:
+        first = client.post(f"/generation-runs/{run['id']}/resume")
+        retry = client.post(f"/generation-runs/{run['id']}/resume")
+
+    assert first.status_code == 202
+    assert retry.status_code == 202
+    assert first.json()["run_id"] == retry.json()["run_id"] == run["id"]
+    assert background_runs == [run["id"]]
+
+    database.fail_generation_run(run["id"], "bfl_request_moderated", "second-reference")
+    with TestClient(main.app) as client:
+        missing_confirmation = client.post(f"/generation-runs/{run['id']}/discard")
+        discarded = client.post(f"/generation-runs/{run['id']}/discard?confirm=true")
+
+    assert missing_confirmation.status_code == 400
+    assert discarded.status_code == 200
+    assert not storage.absolute_path(checkpoint).exists()
+    assert database.get_generation_run(run["id"])["checkpoint_panels"] == []

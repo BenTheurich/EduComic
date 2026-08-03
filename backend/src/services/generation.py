@@ -7,6 +7,7 @@ import struct
 import time
 import zlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from uuid import uuid4
 
 import requests
@@ -37,6 +38,17 @@ class BFLModerationError(RuntimeError):
         super().__init__("BFL generation was moderated")
 
 
+@dataclass(frozen=True)
+class BFLJob:
+    job_id: str | None
+    polling_url: str
+    reported_cost: float | None
+
+
+def _bfl_job(value: BFLJob | str) -> BFLJob:
+    return value if isinstance(value, BFLJob) else BFLJob(None, value, None)
+
+
 def ordered_panel_references(
     previous_url: str | None, panel: dict, students: list[dict]
 ) -> list[dict[str, str]]:
@@ -64,7 +76,7 @@ def build_panel_attempt_prompt(
     base_prompt: str,
     references: list[dict[str, str]],
     correction: str = "",
-) -> str:
+) -> BFLJob:
     prompt = base_prompt + _reference_instructions(references)
     if correction.strip():
         prompt += f" Correction: {correction.strip()}"
@@ -111,12 +123,15 @@ def submit_bfl_generation(
     polling_url = payload.get("polling_url")
     if not polling_url:
         raise RuntimeError("BFL submit response was incomplete")
+    reported_cost = payload.get("cost")
+    if not isinstance(reported_cost, (int, float)) or reported_cost < 0:
+        reported_cost = None
     logger.info(
         "BFL job submitted job_id=%s reported_cost=%s",
         payload.get("id") or "unknown",
         payload.get("cost"),
     )
-    return polling_url
+    return BFLJob(payload.get("id"), polling_url, float(reported_cost) if reported_cost is not None else None)
 
 
 def poll_bfl_generation(
@@ -280,12 +295,12 @@ def _story_preview_prompt(job: dict) -> str:
 
 
 def _generate_story_preview_image(job: dict) -> bytes:
-    polling_url = submit_bfl_generation(
+    submitted = _bfl_job(submit_bfl_generation(
         _story_preview_prompt(job),
         "1:1",
         model=job["bfl_model"],
-    )
-    delivery_url = poll_bfl_generation(polling_url)
+    ))
+    delivery_url = poll_bfl_generation(submitted.polling_url)
     image = download_bfl_image(delivery_url)
     validate_image_bytes(image)
     return image
@@ -367,7 +382,7 @@ def run_generation(run_id: str) -> None:
         }
         if chapter.get("grounded_sources"):
             script_args["materials"] = chapter["grounded_sources"]
-        script = comic_creation.generate_full_script_and_panels(**script_args)
+        script = run.get("script_snapshot") or comic_creation.generate_full_script_and_panels(**script_args)
         expected_count = run["settings_snapshot"]["story_length"]
         if len(script["panels"]) != expected_count:
             raise ValueError("Comic script panel count is invalid")
@@ -377,11 +392,30 @@ def run_generation(run_id: str) -> None:
             raise ValueError("Comic prompt sequence is invalid")
         if len(prompts) != expected_count:
             raise ValueError("Comic prompt count is invalid")
-        database.record_generation_script(run_id, script)
+        if not run.get("script_snapshot"):
+            database.record_generation_script(run_id, script)
 
+        checkpoints = sorted(run.get("checkpoint_panels") or [], key=lambda item: item.get("index", 0))
+        if [item.get("index") for item in checkpoints] != list(range(1, len(checkpoints) + 1)):
+            raise ValueError("Generation checkpoints are invalid")
         ready_panels = []
-        previous_url = None
+        for checkpoint in checkpoints:
+            panel = panels_by_index[checkpoint["index"]]
+            object_path = checkpoint["image_object_path"]
+            if not storage.absolute_path(object_path).is_file():
+                raise ValueError("Generation checkpoint media is missing")
+            ready_panels.append(
+                {
+                    **panel,
+                    "speakers": [line["speaker"] for line in panel.get("dialogue") or []],
+                    "image_object_path": object_path,
+                }
+            )
+        previous_url = media_url(checkpoints[-1]["image_object_path"]) if checkpoints else None
+        provider_job = run.get("provider_job")
         for prompt in prompts:
+            if prompt["index"] <= len(checkpoints):
+                continue
             panel = panels_by_index[prompt["index"]]
             references = ordered_panel_references(previous_url, panel, students)
             review_enabled = run["settings_snapshot"]["automatic_panel_review"]
@@ -390,15 +424,29 @@ def run_generation(run_id: str) -> None:
             for attempt in range(attempts):
                 stage = "submit"
                 database.set_generation_stage(run_id, "bfl_submit", prompt["index"])
-                polling_url = submit_bfl_generation(
-                    candidate_prompt,
-                    prompt["aspect_ratio"],
-                    [reference["url"] for reference in references],
-                    model=run["settings_snapshot"]["bfl_model"],
-                )
+                if provider_job and provider_job.get("panel_number") == prompt["index"] and attempt == 0:
+                    submitted = BFLJob(
+                        provider_job.get("job_id"),
+                        provider_job["polling_url"],
+                        provider_job.get("reported_cost"),
+                    )
+                else:
+                    submitted = _bfl_job(submit_bfl_generation(
+                        candidate_prompt,
+                        prompt["aspect_ratio"],
+                        [reference["url"] for reference in references],
+                        model=run["settings_snapshot"]["bfl_model"],
+                    ))
+                    database.record_generation_provider_job(
+                        run_id,
+                        prompt["index"],
+                        submitted.job_id,
+                        submitted.polling_url,
+                        submitted.reported_cost,
+                    )
                 stage = "poll"
                 database.set_generation_stage(run_id, "bfl_poll")
-                delivery_url = poll_bfl_generation(polling_url)
+                delivery_url = poll_bfl_generation(submitted.polling_url)
                 stage = "download"
                 database.set_generation_stage(run_id, "bfl_download")
                 image = download_bfl_image(delivery_url)
@@ -420,6 +468,7 @@ def run_generation(run_id: str) -> None:
                 candidate_prompt = build_panel_attempt_prompt(
                     prompt["prompt"], references, review.get("suggested_fix_prompt", "")
                 )
+                provider_job = None
             stage = "finalization"
             database.set_generation_stage(run_id, "file_finalization")
             staged = storage.stage_bytes(image, ".png", max_bytes=MAX_IMAGE_BYTES)
@@ -429,7 +478,10 @@ def run_generation(run_id: str) -> None:
             database.record_generation_artifact(run_id, object_path)
             storage.finalize(staged, object_path)
             artifacts.remove(staged)
+            database.record_generation_checkpoint(run_id, prompt["index"], object_path)
+            artifacts.remove(object_path)
             previous_url = media_url(object_path)
+            provider_job = None
             ready_panels.append(
                 {
                     **panel,

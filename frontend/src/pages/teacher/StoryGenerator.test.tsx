@@ -3,12 +3,14 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import StoryGenerator from "./StoryGenerator";
 
-const { chooseIdea, commitChapter, getChapter, getClassroom, getMaterials, retryPreview, startChapter } = vi.hoisted(() => ({
+const { chooseIdea, commitChapter, discardGeneration, getChapter, getClassroom, getMaterials, resumeGeneration, retryPreview, startChapter } = vi.hoisted(() => ({
   chooseIdea: vi.fn(),
   commitChapter: vi.fn(),
   getChapter: vi.fn(),
   getClassroom: vi.fn(),
   getMaterials: vi.fn(),
+  resumeGeneration: vi.fn(),
+  discardGeneration: vi.fn(),
   retryPreview: vi.fn(),
   startChapter: vi.fn(),
 }));
@@ -26,6 +28,7 @@ vi.mock("@/lib/api", () => ({
       retryPreview,
     },
     chapters: { getById: getChapter },
+    generationRuns: { resume: resumeGeneration, discard: discardGeneration },
   },
 }));
 
@@ -80,6 +83,8 @@ describe("StoryGenerator", () => {
     });
     getMaterials.mockReset().mockResolvedValue({ success: true, materials: [] });
     retryPreview.mockReset();
+    resumeGeneration.mockReset().mockResolvedValue({ run_id: "run-1", status: "generating" });
+    discardGeneration.mockReset().mockResolvedValue({ success: true, run_id: "run-1" });
     vi.stubGlobal("fetch", vi.fn());
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -342,6 +347,68 @@ describe("StoryGenerator", () => {
     expect(screen.getByRole("button", { name: "Try another story" })).toBeInTheDocument();
     await act(async () => vi.advanceTimersByTimeAsync(4_000));
     expect(getChapter).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows saved paid work and explicitly resumes the failed run", async () => {
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        status: "failed",
+        panels: [],
+        temporary_panel_previews: [
+          { index: 1, image: "/media/one.png" },
+          { index: 2, image: "/media/two.png" },
+        ],
+        generation_failure: {
+          run_id: "run-1",
+          error_code: "bfl_content_moderated",
+          error_reference: "safe-reference",
+          panel_number: 3,
+          completed_panels: 2,
+          expected_panels: 12,
+          reported_bfl_cost: 4.5,
+          resumable: true,
+        },
+      },
+    });
+
+    await startGeneration(true);
+
+    expect(screen.getByText("2 of 12 panels preserved")).toBeInTheDocument();
+    expect(screen.getByText("BFL reported cost: 4.5")).toBeInTheDocument();
+    const resume = screen.getByRole("button", { name: "Resume from panel 3" });
+    fireEvent.click(resume);
+    await act(async () => Promise.resolve());
+    expect(resumeGeneration).toHaveBeenCalledWith("run-1");
+  });
+
+  it("requires confirmation before discarding saved paid work", async () => {
+    getChapter.mockResolvedValue({
+      success: true,
+      chapter: {
+        id: "chapter-1",
+        status: "failed",
+        panels: [],
+        generation_failure: {
+          run_id: "run-1",
+          error_code: "bfl_content_moderated",
+          panel_number: 3,
+          completed_panels: 2,
+          expected_panels: 12,
+          reported_bfl_cost: 4.5,
+          resumable: true,
+        },
+      },
+    });
+    vi.stubGlobal("confirm", vi.fn(() => true));
+
+    await startGeneration(true);
+    fireEvent.click(screen.getByRole("button", { name: "Discard saved attempt" }));
+
+    await act(async () => Promise.resolve());
+    expect(discardGeneration).toHaveBeenCalledWith("run-1");
+    expect(screen.getByRole("button", { name: "Select This Story" })).toBeInTheDocument();
   });
 
   it("shows panel progress without inventing an expected panel count", async () => {

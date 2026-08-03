@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Material } from "@/lib/api";
-import type { Panel, StoryIdea } from "@/types/story";
+import type { Chapter, Panel, StoryIdea } from "@/types/story";
 import { formatGradeLevel } from "@/lib/utils";
 
 const StoryGenerator = () => {
@@ -20,6 +20,7 @@ const StoryGenerator = () => {
   const [lessonInput, setLessonInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationFailure, setGenerationFailure] = useState<Chapter["generation_failure"]>(null);
   const [storyOptions, setStoryOptions] = useState<StoryIdea[]>([]);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
   const [chapterId, setChapterId] = useState<string | null>(null);
@@ -145,6 +146,7 @@ const StoryGenerator = () => {
         // Check if generation is complete
         if (response.chapter.status === 'ready') {
           generationRequestRef.current = null;
+          setGenerationFailure(null);
           setIsPolling(false);
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
@@ -163,6 +165,7 @@ const StoryGenerator = () => {
             clearInterval(pollingIntervalRef.current);
           }
           const failure = response.chapter.generation_failure;
+          setGenerationFailure(failure ?? null);
           if (failure?.error_code === "bfl_request_moderated" || failure?.error_code === "bfl_content_moderated") {
             const panel = failure.panel_number ? `panel ${failure.panel_number}` : "a panel";
             setGenerationError(
@@ -199,12 +202,13 @@ const StoryGenerator = () => {
     }
   };
 
-  const startPolling = () => {
+  const startPolling = (preservePanels = false) => {
     setIsPolling(true);
     pollAttempts.current = 0;
     consecutivePollingErrors.current = 0;
     setGenerationError(null);
-    setPanels([]);
+    setGenerationFailure(null);
+    if (!preservePanels) setPanels([]);
 
     // Initial poll
     pollPanelsProgress();
@@ -223,6 +227,7 @@ const StoryGenerator = () => {
 
     setIsGenerating(true);
     setGenerationError(null);
+    setGenerationFailure(null);
     try {
       // Start chapter and generate story options
       const response = await api.story.startChapter(classroomId, lessonInput, selectedMaterialIds);
@@ -252,6 +257,7 @@ const StoryGenerator = () => {
 
     setSelectedStory(storyId);
     setGenerationError(null);
+    setGenerationFailure(null);
     setStep(3);
     const previousRequest = generationRequestRef.current;
     const request = previousRequest?.chapterId === chapterId && previousRequest.storyId === storyId
@@ -273,6 +279,32 @@ const StoryGenerator = () => {
     } catch {
       toast.error("Failed to start comic generation");
       setStep(2); // Go back to selection
+    }
+  };
+
+  const resumeGeneration = async () => {
+    if (!generationFailure?.run_id) return;
+    try {
+      await api.generationRuns.resume(generationFailure.run_id);
+      startPolling(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not resume generation";
+      toast.error(message);
+    }
+  };
+
+  const discardGeneration = async () => {
+    if (!generationFailure?.run_id || !window.confirm("Discard the saved panels from this attempt?")) return;
+    try {
+      await api.generationRuns.discard(generationFailure.run_id);
+      setGenerationError(null);
+      setGenerationFailure(null);
+      setSelectedStory(null);
+      setPanels([]);
+      setStep(2);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not discard generation";
+      toast.error(message);
     }
   };
 
@@ -469,14 +501,32 @@ const StoryGenerator = () => {
                 {generationError ? (
                   <div className="text-center space-y-4">
                     <p role="alert" className="text-destructive">{generationError}</p>
-                    <Button onClick={() => {
-                      setGenerationError(null);
-                      setSelectedStory(null);
-                      setPanels([]);
-                      setStep(2);
-                    }}>
-                      Try another story
-                    </Button>
+                    {generationFailure?.run_id && generationFailure.resumable ? (
+                      <>
+                        <p className="text-sm text-muted-foreground">
+                          {generationFailure.completed_panels ?? panels.length} of {generationFailure.expected_panels ?? 12} panels preserved
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          BFL reported cost: {generationFailure.reported_bfl_cost ?? 0}
+                        </p>
+                        <div className="flex flex-wrap justify-center gap-3">
+                          <Button onClick={resumeGeneration}>
+                            Resume from panel {generationFailure.panel_number ?? (generationFailure.completed_panels ?? panels.length) + 1}
+                          </Button>
+                          <Button variant="outline" onClick={discardGeneration}>Discard saved attempt</Button>
+                        </div>
+                      </>
+                    ) : (
+                      <Button onClick={() => {
+                        setGenerationError(null);
+                        setGenerationFailure(null);
+                        setSelectedStory(null);
+                        setPanels([]);
+                        setStep(2);
+                      }}>
+                        Try another story
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <>

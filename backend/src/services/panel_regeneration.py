@@ -11,6 +11,7 @@ from services.generation import (
     BFLModerationError,
     MAX_IMAGE_BYTES,
     _delete_artifacts,
+    _bfl_job,
     download_bfl_image,
     poll_bfl_generation,
     submit_bfl_generation,
@@ -72,15 +73,15 @@ def run_panel_regeneration(run_id: str) -> None:
 
         stage = "submit"
         database.set_generation_stage(run_id, "bfl_submit")
-        polling_url = submit_bfl_generation(
+        submitted = _bfl_job(submit_bfl_generation(
             prompt,
             "3:2",
             references[:8],
             model=run["settings_snapshot"]["bfl_model"],
-        )
+        ))
         stage = "poll"
         database.set_generation_stage(run_id, "bfl_poll")
-        delivery_url = poll_bfl_generation(polling_url)
+        delivery_url = poll_bfl_generation(submitted.polling_url)
         stage = "download"
         database.set_generation_stage(run_id, "bfl_download")
         image = download_bfl_image(delivery_url)

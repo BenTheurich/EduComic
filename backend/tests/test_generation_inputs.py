@@ -148,9 +148,9 @@ def test_bfl_submission_logs_safe_job_cost_metadata(monkeypatch, caplog):
     monkeypatch.setattr(generation, "_bfl_headers", lambda: {"x-key": "test"})
 
     with caplog.at_level("INFO", logger="educomic.generation"):
-        polling_url = generation.submit_bfl_generation("Fictional classroom comic")
+        job = generation.submit_bfl_generation("Fictional classroom comic")
 
-    assert polling_url == "https://poll.invalid/job"
+    assert job == generation.BFLJob("job-123", "https://poll.invalid/job", 6.25)
     assert "job_id=job-123 reported_cost=6.25" in caplog.text
 
 

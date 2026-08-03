@@ -10,6 +10,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Float,
     Index,
     Integer,
     String,
@@ -228,6 +229,10 @@ class GenerationRun(TimestampMixin, Base):
     error_code: Mapped[str | None] = mapped_column(String(40))
     error_reference: Mapped[str | None] = mapped_column(String(64))
     artifact_paths: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    checkpoint_panels: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    provider_job: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    reported_bfl_cost: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    candidate_object_path: Mapped[str | None] = mapped_column(String(500))
     settings_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     script_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())

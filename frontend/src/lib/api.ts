@@ -227,6 +227,17 @@ export const api = {
       }),
   },
 
+  generationRuns: {
+    resume: (runId: string) =>
+      apiFetch<{ run_id: string; status: string }>(`/generation-runs/${runId}/resume`, {
+        method: 'POST',
+      }),
+    discard: (runId: string) =>
+      apiFetch<{ success: boolean; run_id: string }>(`/generation-runs/${runId}/discard?confirm=true`, {
+        method: 'POST',
+      }),
+  },
+
   // Avatar generation
   avatar: {
     create: (studentId: string, portrait?: File) =>

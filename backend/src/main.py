@@ -650,6 +650,57 @@ def _run_panel_regeneration(run_id: str) -> None:
     run_panel_regeneration(run_id)
 
 
+@app.post("/generation-runs/{run_id}/resume", status_code=202)
+async def resume_story_generation(run_id: UUID, background_tasks: BackgroundTasks):
+    from database.database import GenerationConflict, resume_generation_run
+
+    try:
+        run, created = resume_generation_run(str(run_id))
+        if created:
+            background_tasks.add_task(_run_story_generation, run["id"])
+        return {
+            "run_id": run["id"],
+            "chapter_id": run["chapter_id"],
+            "status": "generating",
+            "resumed": created,
+        }
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Generation run not found")
+    except GenerationConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@app.post("/generation-runs/{run_id}/discard")
+async def discard_story_generation(run_id: UUID, confirm: bool = False):
+    from database.database import (
+        GenerationConflict,
+        discard_generation_run,
+        replace_generation_artifacts,
+    )
+
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Discard requires explicit confirmation")
+    try:
+        paths = discard_generation_run(str(run_id))
+        storage = LocalStorage(resolve_local_paths().root)
+        remaining = []
+        for path in paths:
+            try:
+                storage.delete(path)
+            except Exception:
+                remaining.append(path)
+        replace_generation_artifacts(str(run_id), remaining)
+        if remaining:
+            raise HTTPException(status_code=409, detail="Checkpoint cleanup is incomplete; retry discard")
+        return {"success": True, "run_id": str(run_id)}
+    except HTTPException:
+        raise
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Generation run not found")
+    except GenerationConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
 @app.post("/chapters/commit")
 async def commit_chapter_endpoint(
     request: CommitStoryRequest, background_tasks: BackgroundTasks

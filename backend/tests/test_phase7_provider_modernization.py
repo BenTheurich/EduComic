@@ -65,7 +65,7 @@ def test_migration_updates_local_setting_without_rewriting_historical_snapshot(t
         setting = connection.execute(text("SELECT openai_model FROM settings")).scalar_one()
         snapshot = json.loads(connection.execute(text("SELECT settings_snapshot FROM generation_runs")).scalar_one())
         head = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert head == "0009_avatar_thumbnails"
+    assert head == "0010_generation_checkpoints"
     assert setting == "gpt-5.6-terra"
     assert snapshot["openai_model"] == "gpt-5.1"
 
@@ -154,7 +154,7 @@ def test_panel_bfl_contract_encodes_local_reference_and_returns_provider_poll_ur
         reference_images=[media_url(object_path)],
     )
 
-    assert result == polling_url
+    assert result == generation.BFLJob(None, polling_url, None)
     assert observed == {
         "url": "https://api.bfl.ai/v1/flux-2-pro",
         "body": {
