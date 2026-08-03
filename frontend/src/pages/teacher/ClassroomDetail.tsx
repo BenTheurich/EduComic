@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { BookOpen, ChevronLeft, Copy, Plus, CheckCircle, Clock, Filter, Loader2, Grid3x3, List, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -595,10 +595,10 @@ const ClassroomDetail = () => {
                 </Select>
               </div>
               {!isDemoMode && <Button asChild>
-                <a href={`/teacher/classroom/${id}/story/new`}>
+                <Link to={`/teacher/classroom/${id}/story/new`}>
                   <Plus className="w-4 h-4 mr-2" />
                   Generate New Story
-                </a>
+                </Link>
               </Button>}
             </div>
 
@@ -609,10 +609,10 @@ const ClassroomDetail = () => {
                     No stories yet. Generate your first story based on a lesson!
                   </p>
                   {!isDemoMode && <Button asChild>
-                    <a href={`/teacher/classroom/${id}/story/new`}>
+                    <Link to={`/teacher/classroom/${id}/story/new`}>
                       <Plus className="w-4 h-4 mr-2" />
                       Generate Story
-                    </a>
+                    </Link>
                   </Button>}
                 </CardContent>
               </Card>
@@ -672,7 +672,7 @@ const ClassroomDetail = () => {
                                   {chapter.status === "ready" && (
                                     <>
                                       <Button asChild variant="default">
-                                        <a href={`/teacher/story/${chapter.id}`}>View Chapter</a>
+                                        <Link to={`/teacher/story/${chapter.id}`}>View Chapter</Link>
                                       </Button>
                                       <Button
                                         variant="outline"
@@ -684,7 +684,7 @@ const ClassroomDetail = () => {
                                   )}
                                   {!isDemoMode && chapter.status === "options_generated" && (
                                     <Button asChild>
-                                      <a href={`/teacher/classroom/${id}/story/new?chapter=${chapter.id}`}>Continue Story</a>
+                                      <Link to={`/teacher/classroom/${id}/story/new?chapter=${chapter.id}`}>Continue Story</Link>
                                     </Button>
                                   )}
                                   {!isDemoMode && <AlertDialog>

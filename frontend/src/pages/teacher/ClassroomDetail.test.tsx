@@ -222,4 +222,36 @@ describe("classroom materials", () => {
       "/media/avatars/mina-thumbnail.png",
     );
   });
+
+  it("opens a completed story through the client router", async () => {
+    getChapters.mockResolvedValueOnce({
+      success: true,
+      chapters: [{
+        id: "chapter-1",
+        classroom_id: "classroom-1",
+        index: 1,
+        revision: 1,
+        chapter_outline: null,
+        original_prompt: "Teach condensation",
+        thumbnail_url: null,
+        story_title: "The Misty Jar",
+        story_description: "A class investigates condensation.",
+        status: "ready",
+        created_at: "2026-08-01T00:00:00Z",
+      }],
+    });
+
+    render(
+      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=stories"]}>
+        <Routes>
+          <Route path="/teacher/classroom/:id" element={<ClassroomDetail />} />
+          <Route path="/teacher/story/:id" element={<h1>Story route loaded</h1>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("link", { name: "View Chapter" }));
+
+    expect(await screen.findByRole("heading", { name: "Story route loaded" })).toBeInTheDocument();
+  });
 });
