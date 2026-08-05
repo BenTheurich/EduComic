@@ -254,8 +254,8 @@ const Landing = () => {
               </div>
             </div>
 
-            <div className="relative mt-10 h-[390px] w-full lg:absolute lg:inset-0 lg:mt-0 lg:h-full">
-              <figure className="absolute right-[-20%] top-[2%] z-50 w-[108%] -rotate-3 border-[8px] border-card bg-card shadow-[0_30px_48px_-20px_hsl(222_47%_11%/0.78)] sm:right-[-7%] sm:w-[92%] sm:border-[12px] lg:right-[-5%] lg:top-[5.5%] lg:w-[55%] lg:max-w-[790px] lg:-rotate-[4deg]">
+            <div className="landing-hero-art relative mt-10 h-[390px] w-full lg:absolute lg:inset-0 lg:mt-0 lg:h-full">
+              <figure className="landing-hero-comic absolute right-[-20%] top-[2%] z-50 w-[108%] -rotate-3 border-[8px] border-card bg-card shadow-[0_30px_48px_-20px_hsl(222_47%_11%/0.78)] sm:right-[-7%] sm:w-[92%] sm:border-[12px] lg:right-[-5%] lg:top-[5.5%] lg:w-[55%] lg:max-w-[790px] lg:-rotate-[4deg]">
                 <img
                   src={assetUrl("demo/condensation-jar.png")}
                   alt="Maya and her fictional classmates investigate condensation"
@@ -263,7 +263,7 @@ const Landing = () => {
                 />
               </figure>
 
-              <figure className="absolute bottom-0 left-0 z-[60] w-[31%] rotate-6 border-[7px] border-card bg-card shadow-[0_22px_38px_-18px_hsl(222_47%_11%/0.82)] sm:border-[9px] lg:bottom-[1.5%] lg:left-[39.5%] lg:w-[15%] lg:max-w-[215px] lg:rotate-[5deg]">
+              <figure className="landing-hero-photo absolute bottom-0 left-0 z-[60] w-[31%] rotate-6 border-[7px] border-card bg-card shadow-[0_22px_38px_-18px_hsl(222_47%_11%/0.82)] sm:border-[9px] lg:bottom-[1.5%] lg:left-[39.5%] lg:w-[15%] lg:max-w-[215px] lg:rotate-[5deg]">
                 <img
                   src={assetUrl("demo/maya-fictional-portrait.png")}
                   alt="Fictional portrait of Maya Rivers"
@@ -271,7 +271,7 @@ const Landing = () => {
                 />
               </figure>
 
-              <figure className="absolute bottom-[3%] left-[24%] z-[70] size-[20%] overflow-hidden rounded-full border-[6px] border-card bg-card shadow-[0_16px_30px_-13px_hsl(222_47%_11%/0.9)] sm:border-[8px] lg:bottom-[7%] lg:left-[51.7%] lg:size-[8.5vw] lg:max-h-[118px] lg:max-w-[118px]">
+              <figure className="landing-hero-avatar absolute bottom-[3%] left-[24%] z-[70] size-[20%] overflow-hidden rounded-full border-[6px] border-card bg-card shadow-[0_16px_30px_-13px_hsl(222_47%_11%/0.9)] sm:border-[8px] lg:bottom-[7%] lg:left-[51.7%] lg:size-[8.5vw] lg:max-h-[118px] lg:max-w-[118px]">
                 <img
                   src={assetUrl("demo/maya-avatar-bfl.jpg")}
                   alt="Comic avatar generated from Maya's fictional portrait"
@@ -281,7 +281,29 @@ const Landing = () => {
 
               <svg
                 viewBox="0 0 150 85"
-                className="absolute bottom-[1%] left-[2%] z-[65] w-[35%] overflow-visible text-primary-foreground lg:bottom-[6%] lg:left-[36.3%] lg:w-[9%]"
+                className="landing-hero-arrow landing-hero-photo-arrow-mobile absolute bottom-[14%] left-[9%] z-[65] w-[28%] overflow-visible text-primary-foreground lg:hidden"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M8 12C17 55 42 72 80 71C102 70 118 61 130 49"
+                  stroke="currentColor"
+                  strokeWidth="5.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M115 52L133 48L128 66"
+                  stroke="currentColor"
+                  strokeWidth="5.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+
+              <svg
+                viewBox="0 0 150 85"
+                className="landing-hero-arrow landing-hero-arrow-desktop absolute hidden overflow-visible text-primary-foreground lg:bottom-[6%] lg:left-[36.3%] lg:z-[65] lg:block lg:w-[9%]"
                 fill="none"
                 aria-hidden="true"
               >
@@ -304,16 +326,16 @@ const Landing = () => {
           </div>
         </div>
 
-        <ol className="relative z-40 grid h-20 grid-cols-3 divide-x border-t bg-card text-foreground">
+        <ol className="landing-flow-strip relative z-40 grid h-20 grid-cols-3 divide-x border-t bg-card text-foreground">
           {["Photo", "Character", "Comic"].map((label, index) => (
-            <li key={label} className="relative overflow-visible">
-              <span className="absolute left-[30%] top-1/2 -translate-y-1/2 font-mono text-xs font-bold uppercase tracking-[0.12em] sm:text-sm">
+            <li key={label} className="landing-flow-step relative overflow-visible">
+              <span className="landing-flow-label absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap font-mono text-xs font-bold uppercase tracking-[0.12em] sm:left-[30%] sm:translate-x-0 sm:text-sm">
                 {label}
               </span>
               {index < 2 && (
                 <svg
                   viewBox="0 0 220 14"
-                  className="absolute left-[58%] top-1/2 hidden w-[63%] -translate-y-1/2 overflow-visible text-foreground/55 sm:block"
+                  className="landing-flow-arrow absolute left-[76%] top-1/2 block w-[42%] -translate-y-1/2 overflow-visible text-foreground/55 sm:left-[58%] sm:w-[63%]"
                   aria-hidden="true"
                 >
                   <path d="M1 7H211" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 5" />

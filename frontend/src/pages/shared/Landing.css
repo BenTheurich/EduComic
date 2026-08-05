@@ -756,6 +756,75 @@
 }
 
 @media (max-width: 600px) {
+  .landing-flow-strip {
+    grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr) max-content;
+    align-items: center;
+    column-gap: 0.375rem;
+    padding-inline: clamp(1.75rem, 10.5vw, 2.75rem);
+  }
+
+  .landing-flow-strip::before,
+  .landing-flow-strip::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: hsl(var(--border));
+    pointer-events: none;
+  }
+
+  .landing-flow-strip::before {
+    left: 33.333%;
+  }
+
+  .landing-flow-strip::after {
+    left: 66.667%;
+  }
+
+  .landing-flow-step {
+    display: contents;
+  }
+
+  .landing-flow-label,
+  .landing-flow-arrow {
+    position: static;
+    width: auto;
+    transform: none;
+  }
+
+  .landing-flow-arrow {
+    width: 100%;
+  }
+
+  .landing-hero-art {
+    height: clamp(360px, 110vw, 430px);
+    margin-top: 2rem;
+  }
+
+  .landing-hero-art .landing-hero-comic {
+    top: 0;
+    right: auto;
+    left: 50%;
+    width: 104%;
+    transform: translateX(-50%) rotate(-2deg);
+  }
+
+  .landing-hero-art .landing-hero-photo {
+    bottom: 0;
+    left: 24%;
+    width: 32%;
+    transform: rotate(5deg);
+  }
+
+  .landing-hero-art .landing-hero-avatar {
+    bottom: 9%;
+    left: 52%;
+    width: 24%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
   .landing-team-inner {
     padding-right: 1rem;
     padding-left: 1rem;

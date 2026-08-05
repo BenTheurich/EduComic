@@ -18,6 +18,25 @@ describe("Landing", () => {
     expect(screen.getByRole("heading", { name: "Your lesson. Their characters. One shared story." })).toBeInTheDocument();
   });
 
+  it("keeps the mobile hero sequence centered and connected", () => {
+    render(
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Landing />
+      </MemoryRouter>,
+    );
+
+    expect(document.querySelector(".landing-hero-art")).toBeInTheDocument();
+    expect(document.querySelector(".landing-hero-photo")).toBeInTheDocument();
+    expect(document.querySelector(".landing-hero-avatar")).toBeInTheDocument();
+    expect(document.querySelector(".landing-hero-photo-arrow-mobile")).toBeInTheDocument();
+    expect(document.querySelector(".landing-hero-arrow-desktop")).toBeInTheDocument();
+
+    const strip = document.querySelector(".landing-flow-strip");
+    expect(strip).toBeInTheDocument();
+    expect(strip?.querySelectorAll(".landing-flow-label")).toHaveLength(3);
+    expect(strip?.querySelectorAll(".landing-flow-arrow")).toHaveLength(2);
+  });
+
   it("shows the complete four-part lesson-to-comic process", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
