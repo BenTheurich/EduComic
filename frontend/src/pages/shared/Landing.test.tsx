@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import Landing from "./Landing";
@@ -152,7 +152,11 @@ describe("Landing", () => {
     expect(screen.queryByText(/BYOK|local project data|bring your own API keys/i)).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Teacher workspace" })[0]).toHaveAttribute("href", "/teacher/dashboard");
     expect(screen.getAllByRole("link", { name: "Student profiles" })[0]).toHaveAttribute("href", "/student/select");
-    expect(screen.getByRole("link", { name: /see how it works/i })).toHaveAttribute("href", "#how-it-works");
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+    fireEvent.click(screen.getByRole("button", { name: /see how it works/i }));
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
   });
 
   it("credits the five creators and the tools used to build EduComic", () => {

@@ -245,12 +245,13 @@ const Landing = () => {
                     <ArrowRight aria-hidden="true" />
                   </Link>
                 </Button>
-                <a
-                  href="#how-it-works"
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth", block: "start" })}
                   className="inline-flex h-14 w-full items-center justify-center rounded-md border border-primary-foreground/80 px-7 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:w-auto"
                 >
                   See How It Works
-                </a>
+                </button>
               </div>
             </div>
 
