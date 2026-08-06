@@ -49,6 +49,12 @@ class ComicPanel(_StrictModel):
             raise ValueError("narration must contain at most 10 words")
         return value
 
+    @model_validator(mode="after")
+    def limit_visible_text_regions(self) -> "ComicPanel":
+        if bool(self.narration) + len(self.dialogue) > 2:
+            raise ValueError("a panel may contain at most two visible text regions")
+        return self
+
 
 class ComicScript(_StrictModel):
     episode_title: _text(160)

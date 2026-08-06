@@ -54,22 +54,28 @@ def ordered_panel_references(
 ) -> list[dict[str, str]]:
     """Keep BFL and reviewer references coherent and deterministic."""
     references = []
-    if previous_url:
-        references.append({"role": "previous successful panel", "url": previous_url})
     students_by_name = {student.get("name"): student for student in students}
     for name in panel.get("featured_students") or []:
         avatar_url = (students_by_name.get(name) or {}).get("avatar_url")
         if avatar_url and all(item["url"] != avatar_url for item in references):
             references.append({"role": f"current avatar for {name}", "url": avatar_url})
+    if previous_url and len(references) < 8:
+        references.append({"role": "previous accepted panel for style only", "url": previous_url})
     return references[:8]
 
 
 def _reference_instructions(references: list[dict[str, str]]) -> str:
     if not references:
         return ""
-    return " Reference image order: " + "; ".join(
+    instructions = " Reference image order: " + "; ".join(
         f"{index}: {reference['role']}" for index, reference in enumerate(references, 1)
     ) + "."
+    if any(reference["role"] == "previous accepted panel for style only" for reference in references):
+        instructions += (
+            " The previous accepted panel is only a style reference; do not copy its cast, character "
+            "proportions, poses, composition, speech bubbles, or text."
+        )
+    return instructions
 
 
 def build_panel_attempt_prompt(

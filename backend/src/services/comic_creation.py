@@ -519,7 +519,9 @@ def generate_full_script_and_panels(
     user_prompt = (
         f"Create exactly {panel_count} sequential panels: introduce, investigate a learning challenge, then resolve and recap. "
         "Use only known student names plus Teacher or Narrator as speakers. Keep each narration or speech line to ten words, "
-        "with at most two dialogue lines per panel; give speakers only their own lines. Make every panel visually distinct.\n\n"
+        "with at most two visible text regions total per panel; narration counts as one region. Give speakers only their own "
+        "lines. Do not list Teacher or Narrator in featured_students. Use two to four featured students per panel, except the "
+        "final recap may include the whole class. Make every panel visually distinct.\n\n"
         f"CONTEXT:\n{json.dumps(payload, ensure_ascii=False)}"
         f"\n\n{grounding_prompt(materials or [])}"
     )
@@ -550,38 +552,27 @@ def generate_full_script_and_panels(
 # ─────────────────────────────────────────────────────────────
 
 def _panel_text_for_prompt(panel: Dict[str, Any]) -> str:
-    """
-    Convert narration + dialogue into short, structured lines for FLUX.
-
-    We explicitly tell the model:
-    - Which character should have which bubble
-    - Where to place the bubble / tail
-    """
+    """Convert validated panel text into compact, role-owned lettering instructions."""
     lines: List[str] = []
 
     narration = (panel.get("narration") or "").strip()
     if narration:
-        lines.append(
-            f'NARRATION_BOX (top of panel, no tail, centered): "{narration}"'
-        )
+        lines.append(f'NARRATION BOX, no tail: "{narration}"')
 
-    for line in panel.get("dialogue") or []:
+    for index, line in enumerate(panel.get("dialogue") or [], 1):
         speaker = (line.get("speaker") or "").strip()
         text = (line.get("text") or "").strip()
         if not text:
             continue
 
         if speaker:
-            # Very explicit: who speaks, where the bubble goes, where the tail points
             lines.append(
-                f'SPEECH_BUBBLE for {speaker.upper()} '
-                f'(bubble above or beside {speaker.upper()}, tail clearly pointing '
-                f'to {speaker.upper()}): "{text}"'
+                f'SPEECH BUBBLE {index}, speaker {speaker}, one tail pointing to {speaker}: "{text}"'
             )
         else:
-            lines.append(f'UNASSIGNED_SPEECH_BUBBLE: "{text}"')
+            lines.append(f'SPEECH BUBBLE {index}: "{text}"')
 
-    return " | ".join(lines)
+    return " ".join(lines)
 
 
 def build_flux_prompts_from_script(
@@ -589,10 +580,7 @@ def build_flux_prompts_from_script(
     students: List[Dict[str, Any]],
     script: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
-    """
-    Build text-to-image prompts for each panel based on the script and classroom style.
-    Now also instructs FLUX.2 to render the narration + dialogue text inside the panel.
-    """
+    """Build compact text-and-image prompts with explicit cast roles."""
 
     design_style = classroom.get("design_style", "comic")
     if design_style == "manga":
@@ -606,14 +594,6 @@ def build_flux_prompts_from_script(
 
     theme_phrase = classroom.get("story_theme", "")
 
-    student_descriptors: Dict[str, str] = {}
-    for s in students:
-        interests = s.get("interests", "")
-        if interests:
-            student_descriptors[s["name"]] = f"{s['name']}, a student who likes {interests}"
-        else:
-            student_descriptors[s["name"]] = f"{s['name']}, a student"
-
     flux_prompts: List[Dict[str, Any]] = []
 
     for panel in script["panels"]:
@@ -621,48 +601,39 @@ def build_flux_prompts_from_script(
         setting = panel.get("setting") or ""
         description = panel.get("description") or ""
         featured = panel.get("featured_students") or []
-
+        dialogue = panel.get("dialogue") or []
+        teacher_present = any(line.get("speaker") == "Teacher" for line in dialogue) or (
+            "teacher" in f"{setting} {description}".lower()
+        )
+        cast_parts = []
         if featured:
-            cast_desc = ", ".join(
-                student_descriptors.get(name, name) for name in featured
+            cast_parts.append(
+                f"Students: {', '.join(featured)}. Each named student is a 10-11-year-old child "
+                "matching their corresponding current avatar reference"
             )
-            cast_phrase = f"Show the students: {cast_desc}."
-        else:
-            cast_phrase = "Show a small group of students and a teacher."
+        if teacher_present:
+            cast_parts.append(
+                "Teacher is the only adult, visibly older and taller than every child, with adult proportions"
+            )
+        cast_phrase = "; ".join(cast_parts) or "no named characters"
 
-        # Base visual prompt
-        # Build the base visual prompt
+        panel_text = _panel_text_for_prompt(panel)
+        visible_regions = bool((panel.get("narration") or "").strip()) + len(dialogue)
         prompt = (
-            f"A single comic panel {style_phrase}. "
-            f"Scene setting: {setting}. "
-            f"Visual description: {description}. "
-            f"{cast_phrase} "
-            "Keep composition readable for text bubbles. "
-            "Keep character designs and overall style consistent across panels and "
-            "with any reference images provided. "
-            "Each speech bubble MUST be attached to the correct speaker: the tail of "
-            "the bubble must clearly point to the mouth/head of the character who "
-            "is speaking. Do NOT show characters speaking if they have no speech "
-            "bubble defined for this panel. Do NOT duplicate or invent extra text."
+            f"Create one landscape 3:2 educational comic panel {style_phrase}. "
+            f"CAST: {cast_phrase}. All named students have equal child scale and similar height. "
+            "Show each named character exactly once and no extra people. "
+            f"SCENE: {setting.rstrip('.')}. {description.rstrip('.')}. "
+            f"TEXT: Render exactly {visible_regions} visible text regions in white comic bubbles or boxes "
+            "with bold black lettering, preserving every supplied character exactly. "
+            f"{panel_text} "
+            "AVOID: Do not render any other text, titles, labels, chalkboard writing, poster writing, "
+            "notebook writing, page numbers, grade labels, signatures, or watermarks. "
+            "Keep identities, age, scale, line work, color palette, and lighting consistent with the references. "
         )
 
         if theme_phrase:
             prompt += f"Match the ongoing story theme: {theme_phrase}. "
-
-        # NEW: tell FLUX.2 to render the actual text from this panel
-        panel_text = _panel_text_for_prompt(panel)
-        if panel_text:
-            prompt += (
-                "Write the following text clearly inside comic-style speech bubbles "
-                "and narration boxes. Use bold, uppercase comic lettering in black "
-                "on white bubbles/boxes, with no distortion or extra flourishes. "
-                "Do NOT paraphrase or change the wording. Use every line exactly as given. "
-                "For each SPEECH_BUBBLE line, place the bubble near the named character "
-                "and point the tail directly to that character. For the NARRATION_BOX, "
-                "place it at the top of the panel with no tail. Text to write (each '|' "
-                "separates a different bubble or box): "
-                f"{panel_text} "
-            )
 
         aspect_ratio = "3:2"
 

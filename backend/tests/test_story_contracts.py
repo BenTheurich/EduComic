@@ -81,6 +81,13 @@ def test_story_ideas_require_exactly_three_nonblank_bounded_items():
                 {"speaker": "Teacher", "text": "Third."},
             ]
         ),
+        lambda script: script["panels"][0].update(
+            narration="A caption.",
+            dialogue=[
+                {"speaker": "Ava", "text": "First."},
+                {"speaker": "Leo", "text": "Second."},
+            ],
+        ),
     ],
     ids=[
         "short-script",
@@ -92,6 +99,7 @@ def test_story_ideas_require_exactly_three_nonblank_bounded_items():
         "oversize-description",
         "long-dialogue",
         "too-many-dialogue-lines",
+        "too-many-visible-text-regions",
     ],
 )
 def test_comic_script_rejects_invalid_provider_output(mutate):
@@ -104,6 +112,7 @@ def test_comic_script_rejects_invalid_provider_output(mutate):
 
 def test_comic_script_accepts_only_expected_fields_and_known_cast():
     script = _script()
+    script["panels"][0]["narration"] = ""
     script["panels"][0]["dialogue"] = [
         {"speaker": "Teacher", "text": "Watch what happens next."},
         {"speaker": "Narrator", "text": "The rocket starts moving."},
@@ -240,6 +249,38 @@ def test_comic_service_uses_structured_parse_and_contextual_cast_validation(monk
     assert "private-avatar-token" not in prompt
     assert "grade_level" in prompt
     assert "Return ONLY a JSON object with this structure" not in prompt
+    assert "at most two visible text regions total" in prompt
+    assert "Do not list Teacher or Narrator in featured_students" in prompt
+    assert "Use two to four featured students per panel" in prompt
+
+
+def test_flux_prompt_separates_adult_teacher_from_equal_scale_children():
+    """Catches Teacher being described as a student or a child avatar becoming the adult."""
+    comic_creation = importlib.import_module("services.comic_creation")
+    panel = {
+        "index": 1,
+        "setting": "Science classroom",
+        "description": "Teacher shows Ava a cold sealed jar.",
+        "narration": "",
+        "dialogue": [
+            {"speaker": "Teacher", "text": "Watch the cold jar."},
+            {"speaker": "Ava", "text": "Drops are forming outside!"},
+        ],
+        "featured_students": ["Ava"],
+    }
+
+    prompt = comic_creation.build_flux_prompts_from_script(
+        _classroom(), _students(), {"panels": [panel]}
+    )[0]["prompt"]
+
+    assert "CAST:" in prompt
+    assert "Students: Ava" in prompt
+    assert "Each named student is a 10-11-year-old child matching their corresponding current avatar reference" in prompt
+    assert "Teacher is the only adult" in prompt
+    assert "Show the students: Teacher" not in prompt
+    assert prompt.count('"Watch the cold jar."') == 1
+    assert prompt.count('"Drops are forming outside!"') == 1
+    assert "Do not render any other text" in prompt
 
 
 def test_panel_review_uses_inline_validated_local_references(monkeypatch, tmp_path):

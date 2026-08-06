@@ -235,8 +235,8 @@ def test_snapshotted_panel_review_setting_reviews_each_selected_panel_once(monke
     assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
 
 
-def test_generation_orders_previous_panel_then_featured_avatar_references():
-    """Catches unrelated avatars or reversed continuity references reaching BFL."""
+def test_generation_orders_featured_avatars_before_previous_style_reference():
+    """Catches a previous panel overriding the current cast's identity references."""
     generation = importlib.import_module("services.generation")
 
     references = generation.ordered_panel_references(
@@ -249,8 +249,27 @@ def test_generation_orders_previous_panel_then_featured_avatar_references():
     )
 
     assert references == [
-        {"role": "previous successful panel", "url": "/media/story-images/previous.png"},
         {"role": "current avatar for Ada", "url": "/media/avatars/ada.png"},
+        {"role": "previous accepted panel for style only", "url": "/media/story-images/previous.png"},
+    ]
+
+
+def test_generation_drops_previous_panel_before_any_required_avatar():
+    """Catches the eight-reference limit silently removing a current cast member."""
+    generation = importlib.import_module("services.generation")
+    students = [
+        {"name": f"Student {index}", "avatar_url": f"/media/avatars/{index}.png"}
+        for index in range(1, 9)
+    ]
+
+    references = generation.ordered_panel_references(
+        "/media/story-images/previous.png",
+        {"featured_students": [student["name"] for student in students]},
+        students,
+    )
+
+    assert [reference["url"] for reference in references] == [
+        f"/media/avatars/{index}.png" for index in range(1, 9)
     ]
 
 
@@ -258,8 +277,8 @@ def test_every_panel_retry_prompt_keeps_reference_roles():
     """Catches paid retries retaining images but dropping their semantic roles."""
     generation = importlib.import_module("services.generation")
     references = [
-        {"role": "previous successful panel", "url": "/media/story-images/previous.png"},
         {"role": "current avatar for Ada", "url": "/media/avatars/ada.png"},
+        {"role": "previous accepted panel for style only", "url": "/media/story-images/previous.png"},
     ]
 
     retry = generation.build_panel_attempt_prompt(
@@ -267,8 +286,10 @@ def test_every_panel_retry_prompt_keeps_reference_roles():
     )
 
     assert retry == (
-        "Base panel prompt. Reference image order: 1: previous successful panel; "
-        "2: current avatar for Ada. Correction: Correct the misspelling."
+        "Base panel prompt. Reference image order: 1: current avatar for Ada; "
+        "2: previous accepted panel for style only. The previous accepted panel is only a style reference; "
+        "do not copy its cast, character proportions, poses, composition, speech bubbles, or text. "
+        "Correction: Correct the misspelling."
     )
 
 
