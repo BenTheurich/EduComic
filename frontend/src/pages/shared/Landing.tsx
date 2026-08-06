@@ -169,10 +169,15 @@ const Landing = () => {
     if (!("IntersectionObserver" in window)) return;
 
     const observer = new IntersectionObserver(
-      (entries) => {
-        const focusedStep = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]?.target as HTMLElement | undefined;
+      () => {
+        const viewportCenter = window.innerHeight / 2;
+        const focusedStep = stepElements.current
+          .filter((element): element is HTMLElement => Boolean(element))
+          .map((element) => {
+            const { top, height } = element.getBoundingClientRect();
+            return { element, distance: Math.abs(top + height / 2 - viewportCenter) };
+          })
+          .sort((a, b) => a.distance - b.distance)[0]?.element;
 
         if (focusedStep) setActiveStep(Number(focusedStep.dataset.step) as ProcessStep);
       },

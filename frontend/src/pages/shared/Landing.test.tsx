@@ -100,7 +100,7 @@ describe("Landing", () => {
     expect(screen.getByRole("heading", { name: "How clouds make rain" })).toBeInTheDocument();
   });
 
-  it("updates the sticky illustration when a process step reaches focus", () => {
+  it("keeps the sticky illustration stable while adjacent steps cross observer thresholds", () => {
     let notify: IntersectionObserverCallback = () => undefined;
     class TestIntersectionObserver {
       constructor(callback: IntersectionObserverCallback) {
@@ -123,15 +123,46 @@ describe("Landing", () => {
       </MemoryRouter>,
     );
 
+    const lessonStep = screen.getByRole("heading", { name: "Upload your lesson." }).closest("article");
     const castStep = screen.getByRole("heading", { name: "Bring in the whole class." }).closest("article");
+    expect(lessonStep).not.toBeNull();
     expect(castStep).not.toBeNull();
+    const stepTops = [0, 720, 1440, 2160];
+    document.querySelectorAll<HTMLElement>(".landing-process-step").forEach((step, index) => {
+      vi.spyOn(step, "getBoundingClientRect").mockImplementation(
+        () => ({ top: stepTops[index], height: 720 }) as DOMRect,
+      );
+    });
 
     act(() => {
       notify(
-        [{ isIntersecting: true, intersectionRatio: 0.8, target: castStep } as unknown as IntersectionObserverEntry],
+        [
+          { isIntersecting: true, intersectionRatio: 0.4, target: lessonStep } as unknown as IntersectionObserverEntry,
+          { isIntersecting: true, intersectionRatio: 0.1, target: castStep } as unknown as IntersectionObserverEntry,
+        ],
         {} as IntersectionObserver,
       );
     });
+
+    stepTops.splice(0, 4, -720, 0, 720, 1440);
+    act(() => {
+      notify(
+        [{ isIntersecting: true, intersectionRatio: 0.41, target: castStep } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+
+    act(() => {
+      notify(
+        [{ isIntersecting: true, intersectionRatio: 0.42, target: lessonStep } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+
+    expect(document.querySelector(".landing-process-sticky .landing-process-visual.is-active")).toHaveAttribute(
+      "aria-label",
+      "Eight student avatars joining the comic cast",
+    );
 
     const castVisual = screen.getByRole("img", { name: "Eight student avatars joining the comic cast" });
     expect(castVisual).toHaveClass("landing-process-visual-cast");
@@ -139,6 +170,7 @@ describe("Landing", () => {
     expect(castVisual.querySelector(".landing-flow-arrow")).toBeNull();
     expect(castVisual.querySelectorAll(".landing-avatar")).toHaveLength(8);
     expect(castVisual.querySelector(".landing-cast-scene")).toHaveClass("is-balanced");
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
