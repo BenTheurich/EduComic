@@ -130,7 +130,7 @@ const ComicVisual = () => (
   <div className="landing-comic-scene is-enlarged">
     <div className="landing-comic-shadow-page" />
     <figure className="landing-comic-page">
-      <img src={assetUrl("demo/how-it-works/educomic-12-panel-pdf.png")} alt="" loading="lazy" />
+      <img src={assetUrl("demo/how-it-works/educomic-12-panel-pdf-v2.png")} alt="" loading="lazy" />
     </figure>
   </div>
 );

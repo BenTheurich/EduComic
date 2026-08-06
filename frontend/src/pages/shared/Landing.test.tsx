@@ -86,6 +86,9 @@ describe("Landing", () => {
 
     expect(screen.queryAllByText("Class story · ready to review")).toHaveLength(0);
     expect(document.querySelectorAll(".landing-comic-scene.is-enlarged")).toHaveLength(2);
+    expect(document.querySelector<HTMLImageElement>(".landing-comic-page img")?.src).toContain(
+      "educomic-12-panel-pdf-v2.png",
+    );
   });
 
   it("shows the lesson stack as three distinct teaching documents", () => {
