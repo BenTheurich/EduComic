@@ -67,12 +67,20 @@ def test_story_ideas_require_exactly_three_nonblank_bounded_items():
         lambda script: script["panels"].pop(),
         lambda script: script["panels"][1].update(index=1),
         lambda script: script["panels"][0]["dialogue"][0].update(speaker="Unknown"),
+        lambda script: script["panels"][0].update(
+            narration="",
+            dialogue=[{"speaker": "Narrator", "text": "The rocket starts moving."}],
+        ),
         lambda script: script["panels"][0].update(featured_students=["Leo"]),
         lambda script: script["panels"][0].update(featured_students=["Unknown"]),
         lambda script: script["panels"][0].update(setting=" "),
-        lambda script: script["panels"][0].update(description="D" * 1201),
+        lambda script: script["panels"][0].update(description="D" * 701),
         lambda script: script["panels"][0].update(
-            dialogue=[{"speaker": "Ava", "text": "one two three four five six seven eight nine ten eleven"}]
+            dialogue=[{"speaker": "Ava", "text": "one two three four five six seven eight nine"}]
+        ),
+        lambda script: script["panels"][0].update(
+            narration="one two three four five six seven eight nine",
+            dialogue=[],
         ),
         lambda script: script["panels"][0].update(
             dialogue=[
@@ -93,11 +101,13 @@ def test_story_ideas_require_exactly_three_nonblank_bounded_items():
         "short-script",
         "duplicate-index",
         "unknown-speaker",
+        "narrator-in-dialogue",
         "unfeatured-student-speaker",
         "unknown-featured-student",
         "blank-setting",
         "oversize-description",
         "long-dialogue",
+        "long-narration",
         "too-many-dialogue-lines",
         "too-many-visible-text-regions",
     ],
@@ -115,13 +125,24 @@ def test_comic_script_accepts_only_expected_fields_and_known_cast():
     script["panels"][0]["narration"] = ""
     script["panels"][0]["dialogue"] = [
         {"speaker": "Teacher", "text": "Watch what happens next."},
-        {"speaker": "Narrator", "text": "The rocket starts moving."},
     ]
     assert len(_validate_script(script).panels) == 12
 
     script["unexpected"] = True
     with pytest.raises(ValidationError):
         _validate_script(script)
+
+
+def test_comic_script_limits_the_episode_to_four_featured_students():
+    """Catches a script spreading the episode across an unreliable oversized cast."""
+    script = _script()
+    names = ["Ava", "Leo", "Maya", "Noah", "Amara"]
+    for index, panel in enumerate(script["panels"]):
+        panel["featured_students"] = [names[index % len(names)]]
+        panel["dialogue"] = [{"speaker": names[index % len(names)], "text": "We test the lever."}]
+
+    with pytest.raises(ValidationError):
+        ComicScript.model_validate(script, context={"student_names": set(names)})
 
 
 def test_comic_script_with_no_students_allows_only_teacher_or_narrator():
@@ -249,9 +270,26 @@ def test_comic_service_uses_structured_parse_and_contextual_cast_validation(monk
     assert "private-avatar-token" not in prompt
     assert "grade_level" in prompt
     assert "Return ONLY a JSON object with this structure" not in prompt
-    assert "at most two visible text regions total" in prompt
+    assert "Prefer one visible text region" in prompt
+    assert "at most eight words" in prompt
     assert "Do not list Teacher or Narrator in featured_students" in prompt
-    assert "Use two to four featured students per panel" in prompt
+    assert "no more than four students for the entire episode" in prompt
+    assert "one or two active students" in prompt
+    assert "at most three visible students" in prompt
+    assert "only one active student and at most two visible students" in prompt
+    assert "depends on apparatus geometry" in prompt
+    assert "Do not put the whole cast in every panel" in prompt
+    assert "never put Narrator in dialogue" in prompt
+    assert "complete, grammatical English" in prompt
+    assert "canonical description for each recurring prop" in prompt
+    assert "ordinary wooden writing pencil lying sideways" in prompt
+    assert "never a ball, block, cylinder, or stand" in prompt
+    assert "Place each acting character" in prompt
+    assert "Place each Never" not in prompt
+    assert "beside the exact object or lever end they touch" in prompt
+    assert "physically rests on the lever" in prompt
+    assert "left-to-right positions" in prompt
+    assert "same teacher appearance description verbatim" in prompt
 
 
 def test_flux_prompt_separates_adult_teacher_from_equal_scale_children():
@@ -277,6 +315,10 @@ def test_flux_prompt_separates_adult_teacher_from_equal_scale_children():
     assert "Students: Ava" in prompt
     assert "Each named student is a 10-11-year-old child matching their corresponding current avatar reference" in prompt
     assert "Teacher is the only adult" in prompt
+    assert "medium-brown skin, shoulder-length dark brown wavy hair, teal cardigan" in prompt
+    assert "COMPOSITION AND ACTION:" in prompt
+    assert "LETTERING:" in prompt
+    assert "EXCLUSIONS:" in prompt
     assert "Show the students: Teacher" not in prompt
     assert prompt.count('"Watch the cold jar."') == 1
     assert prompt.count('"Drops are forming outside!"') == 1

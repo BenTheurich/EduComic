@@ -518,10 +518,25 @@ def generate_full_script_and_panels(
     )
     user_prompt = (
         f"Create exactly {panel_count} sequential panels: introduce, investigate a learning challenge, then resolve and recap. "
-        "Use only known student names plus Teacher or Narrator as speakers. Keep each narration or speech line to ten words, "
-        "with at most two visible text regions total per panel; narration counts as one region. Give speakers only their own "
-        "lines. Do not list Teacher or Narrator in featured_students. Use two to four featured students per panel, except the "
-        "final recap may include the whole class. Make every panel visually distinct.\n\n"
+        "Choose a focused cast of no more than four students for the entire episode and reuse them consistently. "
+        "Do not put the whole cast in every panel: use one or two active students and at most three visible students in "
+        "investigation or apparatus panels; reserve the whole cast for the opening or closing when useful. "
+        "When the learning point depends on apparatus geometry, show only one active student and at most two visible students. "
+        "Use only known student names or Teacher as dialogue speakers. Put Narrator text only in the narration field; never "
+        "put Narrator in dialogue. Prefer one visible text region; use two only when "
+        "an exchange is essential. Write complete, grammatical English with natural articles and punctuation. Keep every "
+        "narration or speech line to at most eight words. Narration counts as one region. "
+        "Give speakers only their own lines. Do not list Teacher or Narrator in featured_students. Every panel must advance the "
+        "story with one clear action and one learning point rather than repeat an observation. In each description, state "
+        "left-to-right positions, child-versus-adult scale, the key prop and its current state, and where empty bubble space sits. "
+        "Choose one canonical description for each recurring prop and repeat it verbatim whenever that prop appears. "
+        "Never substitute a named prop with another object or geometry. A pencil fulcrum must remain an ordinary wooden writing "
+        "pencil lying sideways, never a ball, block, cylinder, or stand. "
+        "Place each acting character beside the exact object or lever end they touch. In mechanical scenes, state physical contact explicitly; "
+        "for example, the load physically rests on the lever rather than beside it. "
+        "Keep characters on one depth plane when comparing their size. Include no unnamed people or environmental lettering. "
+        "When Teacher appears, reuse the same teacher appearance description verbatim and identify Teacher as the only adult. "
+        "Make every panel visually distinct while preserving physical continuity.\n\n"
         f"CONTEXT:\n{json.dumps(payload, ensure_ascii=False)}"
         f"\n\n{grounding_prompt(materials or [])}"
     )
@@ -550,6 +565,12 @@ def generate_full_script_and_panels(
 # ─────────────────────────────────────────────────────────────
 # Flux prompt construction
 # ─────────────────────────────────────────────────────────────
+
+CANONICAL_TEACHER_APPEARANCE = (
+    "an adult woman age 35-45 with medium-brown skin, shoulder-length dark brown wavy hair, "
+    "teal cardigan over a white shirt, and charcoal trousers"
+)
+
 
 def _panel_text_for_prompt(panel: Dict[str, Any]) -> str:
     """Convert validated panel text into compact, role-owned lettering instructions."""
@@ -613,7 +634,8 @@ def build_flux_prompts_from_script(
             )
         if teacher_present:
             cast_parts.append(
-                "Teacher is the only adult, visibly older and taller than every child, with adult proportions"
+                f"Teacher is the only adult: {CANONICAL_TEACHER_APPEARANCE}; visibly older and taller "
+                "than every child, with adult proportions"
             )
         cast_phrase = "; ".join(cast_parts) or "no named characters"
 
@@ -622,14 +644,13 @@ def build_flux_prompts_from_script(
         prompt = (
             f"Create one landscape 3:2 educational comic panel {style_phrase}. "
             f"CAST: {cast_phrase}. All named students have equal child scale and similar height. "
-            "Show each named character exactly once and no extra people. "
-            f"SCENE: {setting.rstrip('.')}. {description.rstrip('.')}. "
-            f"TEXT: Render exactly {visible_regions} visible text regions in white comic bubbles or boxes "
+            f"COMPOSITION AND ACTION: {setting.rstrip('.')}. {description.rstrip('.')}. "
+            f"LETTERING: Render exactly {visible_regions} visible text regions in white comic bubbles or boxes "
             "with bold black lettering, preserving every supplied character exactly. "
             f"{panel_text} "
-            "AVOID: Do not render any other text, titles, labels, chalkboard writing, poster writing, "
-            "notebook writing, page numbers, grade labels, signatures, or watermarks. "
-            "Keep identities, age, scale, line work, color palette, and lighting consistent with the references. "
+            "EXCLUSIONS: Show each named character exactly once and no extra people. Do not render any other text, "
+            "titles, labels, chalkboard writing, poster writing, notebook writing, page numbers, grade labels, signatures, "
+            "or watermarks. Keep identities, age, scale, line work, color palette, and lighting consistent with the references. "
         )
 
         if theme_phrase:

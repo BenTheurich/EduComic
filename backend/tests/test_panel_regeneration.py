@@ -139,14 +139,24 @@ def test_successful_panel_correction_waits_for_accept_then_changes_only_one_pane
     assert storage.absolute_path(old_paths[2]).is_file()
     assert len(calls) == 1
     prompt, aspect_ratio, references, kwargs = calls[0]
+    assert "COMPOSITION CONTEXT:" in prompt
     assert "Fictional panel 2" in prompt
+    assert "LETTERING:" in prompt
+    assert 'Narration exactly: "Gravity guides the orbit."' in prompt
+    assert 'Ada Fiction says exactly: "I can see the orbit."' in prompt
+    assert "preserve that bubble without alteration" in prompt
+    assert "style and lettering reference only" in prompt
+    assert "do not copy its composition" in prompt
+    assert "authoritative visual composition" in prompt
+    assert "may simplify which established characters are visible" in prompt
+    assert "CORRECTION:" in prompt
     assert "Make the orbit arrow point clockwise." in prompt
-    assert "Fictional panel 1" in prompt and "Fictional panel 3" in prompt
+    assert "Fictional panel 1" not in prompt and "Fictional panel 3" not in prompt
     assert aspect_ratio == "3:2"
-    assert references[:3] == [
-        f"/media/{old_paths[1]}", f"/media/{old_paths[0]}", f"/media/{old_paths[2]}"
+    assert references == [
+        database.get_all_students()[0]["avatar_url"],
+        f"/media/{old_paths[1]}",
     ]
-    assert references[3].startswith("/media/avatars/")
     assert kwargs == {"model": "flux-2-pro"}
     assert database.get_generation_run(run["id"])["job_state"] == "succeeded"
 
