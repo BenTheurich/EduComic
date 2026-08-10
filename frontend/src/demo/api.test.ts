@@ -37,6 +37,17 @@ describe("public demo API", () => {
     expect(response.chapter.panels).toHaveLength(12);
   });
 
+  it("returns student stories newest first", async () => {
+    const response = await demoApiFetch<{ chapters: Array<{ id: string }> }>(
+      "/students/maya-rivers/chapters",
+    );
+
+    expect(response.chapters.map(({ id }) => id)).toEqual([
+      "floating-art-box",
+      "misty-jar",
+    ]);
+  });
+
   it("lists both fictional teaching materials", async () => {
     const response = await demoApiFetch<{ materials: Array<{ id: string }> }>(
       "/classrooms/class-5b-science/materials",

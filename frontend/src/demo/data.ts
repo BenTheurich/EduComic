@@ -137,8 +137,10 @@ export const demoLeverChapter: ChapterWithPanels = {
 };
 
 export const demoChapters = [demoChapter, demoLeverChapter];
-export const demoChapterPreviews: ChapterPreview[] = demoChapters.map((chapter) => ({
-  ...chapter,
-  classroom_name: demoClassroom.name,
-  classroom_subject: demoClassroom.subject,
-}));
+export const demoChapterPreviews: ChapterPreview[] = [...demoChapters]
+  .sort((a, b) => b.created_at.localeCompare(a.created_at))
+  .map((chapter) => ({
+    ...chapter,
+    classroom_name: demoClassroom.name,
+    classroom_subject: demoClassroom.subject,
+  }));
