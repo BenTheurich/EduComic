@@ -18,6 +18,36 @@ describe("public demo API", () => {
     expect(response.chapter.panels).toHaveLength(12);
   });
 
+  it("lists both fictional classroom stories", async () => {
+    const response = await demoApiFetch<{ chapters: Array<{ id: string }> }>(
+      "/classrooms/class-5b-science/chapters",
+    );
+
+    expect(response.chapters.map(({ id }) => id)).toEqual([
+      "misty-jar",
+      "floating-art-box",
+    ]);
+  });
+
+  it("returns the complete lever story", async () => {
+    const response = await demoApiFetch<{ chapter: { panels: unknown[] } }>(
+      "/chapters/floating-art-box",
+    );
+
+    expect(response.chapter.panels).toHaveLength(12);
+  });
+
+  it("lists both fictional teaching materials", async () => {
+    const response = await demoApiFetch<{ materials: Array<{ id: string }> }>(
+      "/classrooms/class-5b-science/materials",
+    );
+
+    expect(response.materials.map(({ id }) => id)).toEqual([
+      "clouds-and-rain-material",
+      "levers-material",
+    ]);
+  });
+
   it("never permits writes", async () => {
     await expect(demoApiFetch("/classrooms", { method: "POST" })).rejects.toThrow(
       "The public demo is read-only.",

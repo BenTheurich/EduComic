@@ -2,7 +2,7 @@
 
 **Turn a lesson into a comic starring your class.**
 
-[Public demo](https://bentheurich.github.io/EduComic/) *(available after this repository is made public)*
+[Public demo](https://bentheurich.github.io/EduComic/)
 
 ![A fictional EduComic classroom investigates condensation](frontend/public/demo/condensation-jar.png)
 
@@ -10,7 +10,7 @@ EduComic helps teachers turn lesson material into illustrated stories featuring 
 
 ## What the public demo shows
 
-- A teacher view with one fictional classroom, eight student avatars, uploaded lesson material, and a completed 12-panel comic.
+- A teacher view with one fictional classroom, eight student avatars, two uploaded lesson materials, and two completed 12-panel comics.
 - A student view for choosing a fictional profile, browsing the classroom, and reading the same story.
 - A real PDF export assembled from the bundled comic panels.
 - No uploads, writes, authentication claims, provider requests, or paid API calls.
@@ -101,7 +101,7 @@ GitHub Actions runs the backend and frontend gates without provider credentials.
 ## Current limitations
 
 - Local teacher and student selection is not authentication; do not expose the FastAPI server to the Internet.
-- The public demo contains one fictional classroom and one complete comic.
+- The public demo contains one fictional classroom and two complete comics.
 - Scanned PDFs are not supported because OCR is not included.
 - Provider calls cost money. Automatic panel review is off by default, and paid retries are never automatic.
 - Hosted authentication, authorization, tenant isolation, and school operations are future work.
@@ -115,3 +115,7 @@ GitHub Actions runs the backend and frontend gates without provider credentials.
 - [Ben Theurich](https://www.linkedin.com/in/ben-theurich/)
 
 EduComic uses FLUX by Black Forest Labs for artwork and OpenAI for story generation. The fictional public-demo media contains no real student data.
+
+## License
+
+EduComic is available under the [MIT License](LICENSE).

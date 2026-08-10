@@ -4,7 +4,9 @@ import { assetUrl } from "@/lib/runtime";
 
 export const DEMO_CLASSROOM_ID = "class-5b-science";
 export const DEMO_CHAPTER_ID = "misty-jar";
+export const DEMO_LEVER_CHAPTER_ID = "floating-art-box";
 const createdAt = "2026-08-02T10:00:00Z";
+const leverCreatedAt = "2026-08-10T10:00:00Z";
 
 const studentDetails = [
   ["maya-rivers", "Maya Rivers", "Weather mysteries, drawing, and soccer"],
@@ -37,7 +39,7 @@ export const demoClassroom = {
   story_theme: "Weather mysteries",
   design_style: "comic",
   student_count: 8,
-  story_count: 1,
+  story_count: 2,
   created_at: createdAt,
 };
 
@@ -50,6 +52,18 @@ export const demoMaterial = {
   page_count: 3,
   text_char_count: 1842,
 };
+
+export const demoLeverMaterial = {
+  id: "levers-material",
+  classroom_id: DEMO_CLASSROOM_ID,
+  source_filename: "Grade 5 Levers - Making Work Easier.pdf",
+  extraction_state: "ready" as const,
+  content_hash: "fictional-demo-grade-5-levers",
+  page_count: 2,
+  text_char_count: 1260,
+};
+
+export const demoMaterials = [demoMaterial, demoLeverMaterial];
 
 export const demoChapter: ChapterWithPanels = {
   id: DEMO_CHAPTER_ID,
@@ -86,3 +100,45 @@ export const demoChapterPreview: ChapterPreview = {
   classroom_name: demoClassroom.name,
   classroom_subject: demoClassroom.subject,
 };
+
+export const demoLeverChapter: ChapterWithPanels = {
+  id: DEMO_LEVER_CHAPTER_ID,
+  classroom_id: DEMO_CLASSROOM_ID,
+  index: 2,
+  revision: 6,
+  chapter_outline: "Four classmates test how fulcrum position changes the effort needed to lift a load.",
+  original_prompt: "Teach how a lever's fulcrum position changes effort and movement.",
+  thumbnail_url: assetUrl("demo/stories/floating-art-box/panels/panel-01.png"),
+  story_title: "Case of the Floating Art Box",
+  story_description: "Four classmates use a ruler and pencil fulcrum to lift an art box safely.",
+  status: "ready",
+  created_at: leverCreatedAt,
+  grounded_sources: [{
+    material_id: demoLeverMaterial.id,
+    content_hash: demoLeverMaterial.content_hash,
+    source_label: demoLeverMaterial.source_filename,
+    excerpts: [{
+      page: 1,
+      text: "A lever uses effort around a fulcrum to move a load.",
+    }],
+  }],
+  panels: Array.from({ length: 12 }, (_, offset) => {
+    const index = offset + 1;
+    return {
+      id: `floating-art-box-panel-${index}`,
+      chapter_id: DEMO_LEVER_CHAPTER_ID,
+      index,
+      image: assetUrl(
+        `demo/stories/floating-art-box/panels/panel-${String(index).padStart(2, "0")}.png`,
+      ),
+      created_at: leverCreatedAt,
+    };
+  }),
+};
+
+export const demoChapters = [demoChapter, demoLeverChapter];
+export const demoChapterPreviews: ChapterPreview[] = demoChapters.map((chapter) => ({
+  ...chapter,
+  classroom_name: demoClassroom.name,
+  classroom_subject: demoClassroom.subject,
+}));

@@ -1,10 +1,9 @@
 import {
-  DEMO_CHAPTER_ID,
   DEMO_CLASSROOM_ID,
-  demoChapter,
-  demoChapterPreview,
+  demoChapterPreviews,
+  demoChapters,
   demoClassroom,
-  demoMaterial,
+  demoMaterials,
   demoStudents,
 } from "./data";
 
@@ -27,13 +26,11 @@ export async function demoApiFetch<T>(endpoint: string, options?: RequestInit): 
   } else if (endpoint === `/classrooms/${DEMO_CLASSROOM_ID}/students`) {
     response = { success: true, students: demoStudents };
   } else if (endpoint === `/classrooms/${DEMO_CLASSROOM_ID}/chapters`) {
-    response = { success: true, chapters: [demoChapter] };
+    response = { success: true, chapters: demoChapters };
   } else if (endpoint === `/classrooms/${DEMO_CLASSROOM_ID}/materials`) {
-    response = { success: true, materials: [demoMaterial] };
+    response = { success: true, materials: demoMaterials };
   } else if (endpoint === "/students") {
     response = { success: true, students: demoStudents };
-  } else if (endpoint === `/chapters/${DEMO_CHAPTER_ID}`) {
-    response = { success: true, chapter: demoChapter };
   } else if (endpoint === "/settings") {
     response = {
       settings: {
@@ -49,6 +46,10 @@ export async function demoApiFetch<T>(endpoint: string, options?: RequestInit): 
       local_data: "Fictional public demo",
     };
   } else {
+    const chapterMatch = endpoint.match(/^\/chapters\/([^/]+)$/);
+    const chapter = chapterMatch && demoChapters.find(({ id }) => id === chapterMatch[1]);
+    if (chapter) return { success: true, chapter } as T;
+
     const studentMatch = endpoint.match(/^\/students\/([^/]+)(?:\/(classrooms|chapters))?$/);
     const student = studentMatch && demoStudents.find(({ id }) => id === studentMatch[1]);
 
@@ -56,7 +57,7 @@ export async function demoApiFetch<T>(endpoint: string, options?: RequestInit): 
     if (student && studentMatch?.[2] === "classrooms") {
       response = { success: true, classrooms: [demoClassroom] };
     } else if (student && studentMatch?.[2] === "chapters") {
-      response = { success: true, chapters: [demoChapterPreview] };
+      response = { success: true, chapters: demoChapterPreviews };
     } else if (student) {
       response = { success: true, student, classrooms: [demoClassroom] };
     } else {
