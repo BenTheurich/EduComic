@@ -72,7 +72,7 @@ describe("StudentDashboard", () => {
   it("shows and links the newest ready chapter instead of newer unreadable chapters", async () => {
     render(
       <MemoryRouter
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+
         initialEntries={["/student/dashboard/student-1"]}
       >
         <Routes>

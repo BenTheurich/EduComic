@@ -40,7 +40,7 @@ const App = () => (
     <TooltipProvider>
       <BackgroundComponent>
         <Toaster />
-        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Router>
           <Suspense fallback={loadingPage}>
             <Routes>
             <Route path="/" element={<Landing />} />

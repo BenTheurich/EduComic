@@ -6,7 +6,7 @@ import Landing from "./Landing";
 describe("Landing", () => {
   it("shows the fictional portrait-to-avatar-to-comic transformation", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -20,7 +20,7 @@ describe("Landing", () => {
 
   it("keeps the mobile hero sequence centered and connected", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -39,7 +39,7 @@ describe("Landing", () => {
 
   it("shows the complete four-part lesson-to-comic process", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -52,7 +52,7 @@ describe("Landing", () => {
 
   it("keeps the process headline above the scrolling beats without the old lead copy", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -64,7 +64,7 @@ describe("Landing", () => {
 
   it("keeps each scrolling beat focused on its primary explanation", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -79,7 +79,7 @@ describe("Landing", () => {
 
   it("presents the complete printable comic without a review badge", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -93,7 +93,7 @@ describe("Landing", () => {
 
   it("shows the lesson stack as three distinct teaching documents", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -121,7 +121,7 @@ describe("Landing", () => {
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -179,7 +179,7 @@ describe("Landing", () => {
 
   it("offers only working role and workflow links without setup copy", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );
@@ -196,7 +196,7 @@ describe("Landing", () => {
 
   it("credits the five creators and the tools used to build EduComic", () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Landing />
       </MemoryRouter>,
     );

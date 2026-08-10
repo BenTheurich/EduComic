@@ -32,7 +32,7 @@ describe("StudentStoryReader", () => {
     });
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/student/story/chapter-1/student-1"]}>
+      <MemoryRouter initialEntries={["/student/story/chapter-1/student-1"]}>
         <Routes><Route path="/student/story/:chapterId/:studentId" element={<StudentStoryReader />} /></Routes>
       </MemoryRouter>,
     );

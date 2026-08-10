@@ -31,7 +31,7 @@ describe("StudentSignup", () => {
   it("creates a student with an optional disclosed portrait", async () => {
     render(
       <MemoryRouter
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+
         initialEntries={["/student/signup"]}
       >
         <Routes>
@@ -67,7 +67,7 @@ describe("StudentSignup", () => {
     sessionStorage.setItem("pendingClassroomId", "22222222-2222-4222-8222-222222222222");
     sessionStorage.setItem("pendingClassroomName", "Fictional Science");
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/student/signup"]}>
+      <MemoryRouter initialEntries={["/student/signup"]}>
         <Routes><Route path="*" element={<StudentSignup />} /></Routes>
       </MemoryRouter>,
     );

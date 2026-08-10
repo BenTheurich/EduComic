@@ -11,7 +11,7 @@ describe("JoinClassroom", () => {
 
     render(
       <MemoryRouter
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+
         initialEntries={["/student/join/classroom-123"]}
       >
         <Routes>

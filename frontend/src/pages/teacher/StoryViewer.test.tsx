@@ -23,7 +23,7 @@ const LocationProbe = () => <output aria-label="Current path">{useLocation().pat
 
 const renderViewer = () => render(
   <MemoryRouter
-    future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+
     initialEntries={["/teacher/story/current"]}
   >
     <LocationProbe />

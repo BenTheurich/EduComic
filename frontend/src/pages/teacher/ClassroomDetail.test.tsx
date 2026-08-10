@@ -24,11 +24,6 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 
-const routerOptions = {
-  v7_startTransition: true,
-  v7_relativeSplatPath: true,
-} as const;
-
 describe("classroom materials", () => {
   beforeEach(() => {
     getById.mockReset().mockResolvedValue({
@@ -59,7 +54,7 @@ describe("classroom materials", () => {
       extraction_state: "ready", content_hash: "a".repeat(64), page_count: 1, text_char_count: 14,
     }});
     render(
-      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}>
+      <MemoryRouter initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}>
         <Routes>
           <Route path="/teacher/classroom/:id" element={<ClassroomDetail />} />
         </Routes>
@@ -85,7 +80,7 @@ describe("classroom materials", () => {
 
   it("shows the truthful textless rejection from extraction", async () => {
     uploadMaterial.mockRejectedValue(new Error("No extractable text was found. Scanned PDFs are not supported yet."));
-    render(<MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
     await screen.findByRole("heading", { name: "Science" });
     fireEvent.change(screen.getByLabelText("Upload lesson PDF"), { target: { files: [new File(["scan"], "scan.pdf")] } });
     fireEvent.click(screen.getByRole("button", { name: "Upload and extract" }));
@@ -110,7 +105,7 @@ describe("classroom materials", () => {
       });
 
     render(
-      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1"]}>
+      <MemoryRouter initialEntries={["/teacher/classroom/classroom-1"]}>
         <Routes>
           <Route path="/teacher/classroom/:id" element={<ClassroomDetail />} />
         </Routes>
@@ -129,7 +124,7 @@ describe("classroom materials", () => {
 
   it("exposes the invite copy action as a named 44-pixel target", async () => {
     render(
-      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1"]}>
+      <MemoryRouter initialEntries={["/teacher/classroom/classroom-1"]}>
         <Routes>
           <Route path="/teacher/classroom/:id" element={<ClassroomDetail />} />
         </Routes>
@@ -142,7 +137,7 @@ describe("classroom materials", () => {
 
   it("does not offer a Materials link in the real teacher sidebar", () => {
     render(
-      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1"]}>
+      <MemoryRouter initialEntries={["/teacher/classroom/classroom-1"]}>
         <Routes>
           <Route
             path="/teacher/classroom/:id"
@@ -158,7 +153,7 @@ describe("classroom materials", () => {
 
   it("preserves classroom edit values after a recoverable save failure", async () => {
     render(
-      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}>
+      <MemoryRouter initialEntries={["/teacher/classroom/classroom-1?tab=materials"]}>
         <Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes>
       </MemoryRouter>,
     );
@@ -178,7 +173,7 @@ describe("classroom materials", () => {
       id: "classroom-1", name: "Science", subject: "Physics", grade_level: "8", story_theme: "Space", design_style: "comic",
       students: [{ id: "student-1", name: "Mina", interests: "bridges", avatar_url: null, created_at: "2026-08-01T00:00:00Z" }],
     }});
-    render(<MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=students"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/teacher/classroom/classroom-1?tab=students"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
     await screen.findByText("Mina");
 
     fireEvent.click(screen.getByRole("button", { name: "Remove Mina from classroom" }));
@@ -193,7 +188,7 @@ describe("classroom materials", () => {
       id: "classroom-1", name: "Science", subject: "Physics", grade_level: "8", story_theme: "Space", design_style: "comic",
       students: [{ id: "student-1", name: "Mina", interests: "bridges", avatar_url: null, created_at: "2026-08-01T00:00:00Z" }],
     }});
-    render(<MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=students"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/teacher/classroom/classroom-1?tab=students"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
     await screen.findByText("Mina");
 
     fireEvent.click(screen.getByRole("button", { name: "Erase all data for Mina" }));
@@ -213,7 +208,7 @@ describe("classroom materials", () => {
         created_at: "2026-08-01T00:00:00Z",
       }],
     }});
-    render(<MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=students"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
+    render(<MemoryRouter initialEntries={["/teacher/classroom/classroom-1?tab=students"]}><Routes><Route path="/teacher/classroom/:id" element={<ClassroomDetail />} /></Routes></MemoryRouter>);
 
     await screen.findByText("Mina");
     fireEvent.click(screen.getByRole("button", { name: "List" }));
@@ -242,7 +237,7 @@ describe("classroom materials", () => {
     });
 
     render(
-      <MemoryRouter future={routerOptions} initialEntries={["/teacher/classroom/classroom-1?tab=stories"]}>
+      <MemoryRouter initialEntries={["/teacher/classroom/classroom-1?tab=stories"]}>
         <Routes>
           <Route path="/teacher/classroom/:id" element={<ClassroomDetail />} />
           <Route path="/teacher/story/:id" element={<h1>Story route loaded</h1>} />

@@ -11,7 +11,7 @@ vi.mock("@/components/shared/DemoBanner", () => ({
 describe("responsive app layouts", () => {
   it("keeps teacher navigation targets fluid while centering their icons when collapsed", () => {
     render(
-      <MemoryRouter initialEntries={["/teacher/settings"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={["/teacher/settings"]}>
         <TeacherLayout>Teacher content</TeacherLayout>
       </MemoryRouter>,
     );
@@ -30,7 +30,7 @@ describe("responsive app layouts", () => {
 
   it("labels the local teacher exit without implying authentication", () => {
     render(
-      <MemoryRouter initialEntries={["/teacher/settings"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={["/teacher/settings"]}>
         <TeacherLayout>Teacher content</TeacherLayout>
       </MemoryRouter>,
     );
@@ -47,7 +47,7 @@ describe("responsive app layouts", () => {
     ["student", StudentLayout, "Student content"],
   ])("stacks the %s sidebar above content on mobile and beside it on desktop", (_name, Layout, content) => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <Layout>{content}</Layout>
       </MemoryRouter>,
     );

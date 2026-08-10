@@ -15,7 +15,7 @@ vi.mock("@/components/shared/DemoBanner", () => ({
 const LocationProbe = () => <output aria-label="Current path">{useLocation().pathname}</output>;
 
 const renderLogin = () => render(
-  <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={["/student/select"]}>
+  <MemoryRouter initialEntries={["/student/select"]}>
     <LocationProbe />
     <Routes><Route path="*" element={<StudentLogin />} /></Routes>
   </MemoryRouter>,

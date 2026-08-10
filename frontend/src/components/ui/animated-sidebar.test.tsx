@@ -21,7 +21,7 @@ const SidebarFixture = () => {
 describe("animated sidebar", () => {
   it("renders navigation in both desktop and keyboard-operable mobile sidebars", async () => {
     render(
-      <MemoryRouter initialEntries={["/dashboard"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={["/dashboard"]}>
         <SidebarFixture />
       </MemoryRouter>,
     );
@@ -45,7 +45,7 @@ describe("animated sidebar", () => {
 
   it("expands the desktop sidebar when a navigation link receives focus", async () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <SidebarFixture />
       </MemoryRouter>,
     );

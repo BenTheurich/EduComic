@@ -44,7 +44,7 @@ describe("StudentClassroom", () => {
 
     render(
       <MemoryRouter
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+
         initialEntries={["/student/classroom/classroom-1/student-1"]}
       >
         <Routes>
@@ -78,7 +78,7 @@ describe("StudentClassroom", () => {
 
     render(
       <MemoryRouter
-        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+
         initialEntries={["/student/classroom/classroom-1/student-1"]}
       >
         <Routes>

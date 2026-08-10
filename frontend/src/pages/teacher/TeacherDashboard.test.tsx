@@ -23,7 +23,7 @@ describe("TeacherDashboard", () => {
 
   it("uses named workshop actions instead of an unlabeled floating control", async () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <TeacherDashboard />
       </MemoryRouter>,
     );

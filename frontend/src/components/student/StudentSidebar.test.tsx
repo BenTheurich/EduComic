@@ -21,7 +21,7 @@ describe("StudentSidebar", () => {
 
   it("keeps student navigation targets fluid while centering their icons when collapsed", () => {
     render(
-      <MemoryRouter initialEntries={["/student/dashboard/student-1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={["/student/dashboard/student-1"]}>
         <StudentSidebar studentId="student-1" open={false} setOpen={() => undefined} />
       </MemoryRouter>,
     );
@@ -40,7 +40,7 @@ describe("StudentSidebar", () => {
 
   it("names collapsed links and exposes classroom disclosure state", () => {
     render(
-      <MemoryRouter initialEntries={["/student/dashboard/student-1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={["/student/dashboard/student-1"]}>
         <StudentSidebar studentId="student-1" open={false} setOpen={() => undefined} />
       </MemoryRouter>,
     );
@@ -64,7 +64,7 @@ describe("StudentSidebar", () => {
       .mockResolvedValueOnce({ classrooms: [{ id: "classroom-1", name: "Physics Lab" }] });
 
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <StudentSidebar studentId="student-1" open setOpen={() => undefined} />
       </MemoryRouter>,
     );

@@ -39,7 +39,7 @@ const chapterResponse = (status: string, panels: unknown[] = []) => ({
 
 const renderGenerator = (initialEntry = "/teacher/classroom/classroom-1/story/new") => render(
   <MemoryRouter
-    future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+
     initialEntries={[initialEntry]}
   >
     <Routes>

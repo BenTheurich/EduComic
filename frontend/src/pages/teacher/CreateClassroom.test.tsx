@@ -9,7 +9,7 @@ vi.mock("@/lib/api", () => ({ api: { classrooms: { create: vi.fn() }, settings: 
 describe("CreateClassroom", () => {
   it("uses the saved default design style through a labelled radio group", async () => {
     render(
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter>
         <CreateClassroom />
       </MemoryRouter>,
     );
